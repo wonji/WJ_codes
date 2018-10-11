@@ -1,0 +1,247 @@
+###### Data processing ######
+
+
+## taqman ##
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication/0.data")
+raw1 <- read.csv("lam_20SNP.csv",head=T,stringsAsFactor=F)
+raw1 <- raw1[!raw1$Sample.ID=="BLANK",]
+
+raw2 <- read.csv("rs4573309.csv",head=T,stringsAsFactor=F)
+raw2 <- raw2[!raw2$Sample.ID=="BLANK",]
+
+raw3 <- read.csv("RS1129038.csv",head=T,as.is=T)
+raw3 <- raw3[!raw3$Sample.ID=="BLANK",c("Sample.ID","RS1129038")]
+
+raw <- merge(raw1,raw2,by="Sample.ID",sort=F)
+raw <- merge(raw,raw3,by="Sample.ID",sort=F)
+
+raw[raw=="Undetermined"] <- "00.00"
+id <- gsub(" ","",raw$Sample.ID)
+
+dup <- id[duplicated(id)]
+rm_list <- c("L145-16", "L450-1", "L419-2", "L469-1", "L109-27", "L498-6")
+rm.list <- c(dup,rm_list)
+raw <- raw[!id%in%rm.list,]; id <- id[!id%in%rm.list]
+
+fam <- data.frame(FID=id,IID=id,PID="0",MID="0",SEX=2,PHENOTYPE=2)
+
+geno <- raw[,5:ncol(raw)]
+new.geno <- do.call(cbind,lapply(1:ncol(geno),function(i) do.call(rbind,strsplit(do.call(rbind,strsplit(geno[,i],".",fixed=T))[,2],""))))
+ped <- cbind(fam,new.geno)
+dup <- ped$FID[duplicated(ped$FID)]
+new.ped <- ped[!ped$FID%in%dup,]
+bim <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+snplist <- colnames(raw)[5:ncol(raw)]
+snplist <- gsub("RS","rs",snplist)
+map <- bim[bim$V2%in%snplist,1:4]
+new.map <- merge(cbind(snplist,1),map,by.x="snplist",by.y="V2",sort=F)[,c(3,1,4,5)]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication/1.taqman/0.data")
+write.table(new.ped,"taqman.ped",col.names=F,row.names=F,quote=F,sep="\t")
+write.table(new.map,"taqman.map",col.names=F,row.names=F,quote=F,sep="\t")
+
+
+## openarray ##
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication/0.data")
+raw <- read.csv("lam_13SNP.csv",head=T,stringsAsFactor=F)
+raw <- raw[!raw$Sample.ID=="BLANK",]
+raw[raw=="Undetermined"] <- "00.00"
+
+dup <- raw$Sample.ID[duplicated(raw$Sample.ID)]
+rm_list <- c("L145-16", "L450-1", "L419-2", "L469-1", "L109-27", "L498-6")
+rm.list <- c(dup,rm_list)
+
+raw <- raw[!raw$Sample.ID%in%rm.list,]
+
+fam <- data.frame(FID=raw$Sample.ID,IID=raw$Sample.ID,PID="0",MID="0",SEX=2,PHENOTYPE=2)
+geno <- raw[,5:ncol(raw)]
+new.geno <- do.call(cbind,lapply(1:ncol(geno),function(i) do.call(rbind,strsplit(do.call(rbind,strsplit(geno[,i],".",fixed=T))[,2],""))))
+ped <- cbind(fam,new.geno)
+dup <- ped$FID[duplicated(ped$FID)]
+new.ped <- ped[!ped$FID%in%dup,]
+bim <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+snplist <- colnames(raw)[5:ncol(raw)]
+snplist <- gsub("RS","rs",snplist)
+map <- bim[bim$V2%in%snplist,1:4]
+new.map <- merge(cbind(snplist,1),map,by.x="snplist",by.y="V2",sort=F)[,c(3,1,4,5)]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication/2.openarray/0.data")
+write.table(new.ped,"openarray.ped",col.names=F,row.names=F,quote=F,sep="\t")
+write.table(new.map,"openarray.map",col.names=F,row.names=F,quote=F,sep="\t")
+
+
+#################### association study #######################
+#NHW QC  #
+cd /home2/wjkim/project/LAM/final_analysis/11.replication/3.control
+plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --filter-males --extract ../2.openarray/0.data/openarray.map --out male_NHW --make-bed
+plink --bfile male_NHW --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out snp_qc_NHW
+
+#individual QC#
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile snp_qc_NHW --mind 0.05 --out indiv_snp_qc_NHW --make-bed --noweb
+
+#Identification of duplicated or related individuals#
+wisard --bed indiv_snp_qc_NHW --ibs --makecor --out res_corr_ibs_NHW 
+
+ibs <- read.table("res_corr_ibs_NHW.ibs.cor",head=T)
+up <- ibs[upper.tri(ibs)]
+a <- 1:nrow(ibs)
+b <- a*(a-1)/2+1
+corr <- which(up>0.9)
+gr <- matrix(NA,nrow=length(corr),ncol=2)	# no related samples
+
+## remove temporary files
+rm snp_qc*
+rm res_corr*
+
+
+############### merge : /home2/wjkim/project/LAM/final_analysis/11.replication ##################
+############# taqman
+plink --file 1.taqman/0.data/taqman --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 1.taqman/0.data/snp_qc_lam --noweb
+plink --bfile 1.taqman/0.data/snp_qc_lam --mind 0.05 --out 1.taqman/0.data/indiv_snp_qc_lam --make-bed --noweb
+
+##common snp ##
+plink --bfile 3.control/indiv_snp_qc_NHW --filter-males --extract 1.taqman/0.data/indiv_snp_qc_lam.bim --out 1.taqman/0.data/common_NHW --make-bed --noweb
+
+##merging##
+plink --bfile 1.taqman/0.data/indiv_snp_qc_lam --bmerge 1.taqman/0.data/common_NHW.bed 1.taqman/0.data/common_NHW.bim 1.taqman/0.data/common_NHW.fam --make-bed --out 1.taqman/0.data/allmerge --noweb 
+
+plink --bfile 1.taqman/0.data/allmerge --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 1.taqman/0.data/snp_qc_all --noweb
+plink --bfile 1.taqman/0.data/snp_qc_all --mind 0.05 --out 1.taqman/0.data/clean_all --make-bed --noweb
+
+rm 1.taqman/0.data/allmerge*
+rm 1.taqman/0.data/common*
+rm 1.taqman/0.data/indiv*
+rm 1.taqman/0.data/snp*
+
+
+############# openarray
+
+plink --file 2.openarray/0.data/openarray --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 2.openarray/0.data/snp_qc_lam --noweb
+plink --bfile 2.openarray/0.data/snp_qc_lam --mind 0.05 --out 2.openarray/0.data/indiv_snp_qc_lam --make-bed
+
+##common snp ##
+plink --bfile 3.control/indiv_snp_qc_NHW --filter-males --extract 2.openarray/0.data/indiv_snp_qc_lam.bim --out 2.openarray/0.data/common_NHW --make-bed --noweb
+
+##merging##
+plink --bfile 2.openarray/0.data/indiv_snp_qc_lam --bmerge 3.control/indiv_snp_qc_NHW.bed 3.control/indiv_snp_qc_NHW.bim 3.control/indiv_snp_qc_NHW.fam --make-bed --out 2.openarray/0.data/allmerge --noweb 
+
+plink --bfile 2.openarray/0.data/allmerge --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 2.openarray/0.data/snp_qc_all --noweb
+plink --bfile 2.openarray/0.data/snp_qc_all --mind 0.05 --out 2.openarray/0.data/clean_all --make-bed --noweb
+
+rm 2.openarray/0.data/allmerge*
+rm 2.openarray/0.data/common*
+rm 2.openarray/0.data/indiv*
+rm 2.openarray/0.data/snp*
+
+
+############### association study : /home2/wjkim/project/LAM/final_analysis/11.replication ##################
+## openarray
+plink --bfile 2.openarray/0.data/clean_all --logistic --covar 0.data/age.txt --covar-name age,age2 --hide-covar --out 2.openarray/1.logit/logit_20171103
+
+
+############### Only non-hispanic white ###################
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication")
+fam <- read.table("2.openarray/0.data/snp_qc_lam.fam",head=F,stringsAsFactor=F)
+race <- read.table("0.data/replication_ethnic_info.txt",head=T,stringsAsFactor=F)
+
+mer <- merge(fam,race,by.x='V1',by.y='ID',sort=F,all.x=T)
+NHW <- mer[mer$Ethnicity_Race=='N:W',c('V1','V2')]
+
+write.csv(table(mer$Ethnicity_Race),"2.openarray/0.data/Ethnic_table.csv",row.names=F,quote=F)
+write.table(NHW,'2.openarray/0.data/NHW.list',col.names=F,row.names=F,quote=F)
+
+#### only NHW
+cd /home2/wjkim/project/LAM/final_analysis/11.replication
+plink --file 2.openarray/0.data/openarray --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 2.openarray/0.data/snp_qc_lam --noweb
+plink --bfile 2.openarray/0.data/snp_qc_lam --keep 2.openarray/0.data/NHW.list --mind 0.05 --out 2.openarray/0.data/indiv_snp_qc_lam_NHW --make-bed
+
+##merging##
+plink --bfile 2.openarray/0.data/indiv_snp_qc_lam_NHW --bmerge 3.control/indiv_snp_qc_NHW.bed 3.control/indiv_snp_qc_NHW.bim 3.control/indiv_snp_qc_NHW.fam --make-bed --out 2.openarray/0.data/allmerge_NHW
+
+plink --bfile 2.openarray/0.data/allmerge_NHW --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 2.openarray/0.data/snp_qc_all_NHW
+plink --bfile 2.openarray/0.data/snp_qc_all_NHW --mind 0.05 --out 2.openarray/0.data/clean_all_NHW --make-bed
+
+rm 2.openarray/0.data/allmerge*
+rm 2.openarray/0.data/common*
+rm 2.openarray/0.data/indiv*
+rm 2.openarray/0.data/snp*
+
+############### association study : /home2/wjkim/project/LAM/final_analysis/11.replication ##################
+plink --bfile 2.openarray/0.data/clean_all_NHW --logistic hide-covar --covar 0.data/age.txt --covar-name age,age2 --out 2.openarray/1.logit/logit_NHW_20190718
+
+
+
+
+
+
+############# rs4544201,rs2006950
+cd /home2/wjkim/project/LAM/final_analysis/11.replication
+plink --file 2.openarray/0.data/openarray --snps rs4544201,rs2006950 --recode --out 4.sigSNPs/0.data/sigSNPs
+
+
+############### Only non-hispanic white ###################
+#### only NHW
+cd /home2/wjkim/project/LAM/final_analysis/11.replication
+plink --file 4.sigSNPs/0.data/sigSNPs --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 4.sigSNPs/0.data/snp_qc_lam --noweb
+plink --bfile 4.sigSNPs/0.data/snp_qc_lam --keep 2.openarray/0.data/NHW.list --mind 0.05 --out 4.sigSNPs/0.data/indiv_snp_qc_lam_NHW --make-bed
+
+##merging##
+plink --bfile 4.sigSNPs/0.data/indiv_snp_qc_lam_NHW --bmerge 3.control/indiv_snp_qc_NHW.bed 3.control/indiv_snp_qc_NHW.bim 3.control/indiv_snp_qc_NHW.fam --make-bed --out 4.sigSNPs/0.data/allmerge_NHW
+
+plink --bfile 4.sigSNPs/0.data/allmerge_NHW --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 4.sigSNPs/0.data/snp_qc_all_NHW
+plink --bfile 4.sigSNPs/0.data/snp_qc_all_NHW --mind 0.05 --out 4.sigSNPs/0.data/clean_all_NHW --make-bed
+
+rm 4.sigSNPs/0.data/allmerge*
+rm 4.sigSNPs/0.data/common*
+rm 4.sigSNPs/0.data/indiv*
+rm 4.sigSNPs/0.data/snp*
+
+############### association study : /home2/wjkim/project/LAM/final_analysis/11.replication ##################
+plink --bfile 4.sigSNPs/0.data/clean_all_NHW --logistic hide-covar --covar 0.data/age.txt --covar-name age,age2 --out 4.sigSNPs/1.logit/logit_NHW_20190718
+
+
+
+
+
+###########################################################################################################################
+###########################################################################################################################
+## Sep 24, 2018 Replication study using remaining COPDGene females after matching cases and controls for discovery study ##
+###########################################################################################################################
+###########################################################################################################################
+
+#################### association study #######################
+#NHW QC#
+cd /home2/wjkim/project/LAM/final_analysis/11.replication/3.control
+mkdir 1.reFemales
+
+# R
+setwd('/home2/wjkim/project/LAM/final_analysis/')
+pheno <- read.table("0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+matched <- pheno[!is.na(pheno$pair),]
+write.table(matched,'11.replication/3.control/1.reFemales/matched.txt',row.names=F,quote=F)
+
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/clean_indiv_snp_qc_NHW --remove 11.replication/3.control/1.reFemales/matched.txt --make-bed --out 11.replication/3.control/1.reFemales/indiv_snp_qc_NHW
+# 405 females remained.
+
+## merge controls to the NHW LAM subjects for two significant SNPs
+cd /home2/wjkim/project/LAM/final_analysis/11.replication/
+plink --bfile 4.sigSNPs/0.data/indiv_snp_qc_lam_NHW --bmerge 3.control/1.reFemales/indiv_snp_qc_NHW.bed 3.control/1.reFemales/indiv_snp_qc_NHW.bim 3.control/1.reFemales/indiv_snp_qc_NHW.fam --make-bed --out 4.sigSNPs/0.data/1.reFemales/allmerge_NHW
+
+plink --bfile 4.sigSNPs/0.data/1.reFemales/allmerge_NHW --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 4.sigSNPs/0.data/1.reFemales/snp_qc_all_NHW
+plink --bfile 4.sigSNPs/0.data/1.reFemales/snp_qc_all_NHW --mind 0.05 --out 4.sigSNPs/0.data/1.reFemales/clean_all_NHW --make-bed
+
+############### association study ##################
+cd /home2/wjkim/project/LAM/final_analysis/11.replication
+plink --bfile 4.sigSNPs/0.data/1.reFemales/clean_all_NHW --logistic hide-covar --covar 0.data/age.txt --covar-name age,age2 --out 4.sigSNPs/1.logit/logit_NHW_reFemales_20180924
+
+
+
+
+

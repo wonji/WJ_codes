@@ -1,0 +1,578 @@
+################# figures and table ####################
+
+
+######## figures ##########
+
+#### figure 2 : LD plot 
+## haploview input
+# working directory : /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/final_clean_withage --snps rs8035562,rs8035878,rs7165153,rs8025611,rs7163129,rs16975408,rs7170179,rs6496127,rs4544201,rs4561414,rs2397804,rs2006950 --recode --noweb --out 7.haploview/1.input/rs4544201_LD
+awk '{print $2,$4}' 7.haploview/1.input/rs4544201_LD.map > 7.haploview/1.input/rs4544201_LD.info
+rm 7.haploview/1.input/rs4544201_LD.map
+
+
+#### figure 3 : QQ plots for SLR and SCLR using discovery data
+library(extrafont)
+font_import(pattern="Helvetica.ttf")
+loadfonts(device="win")
+fonts()
+
+setwd("C:\\Users\\Wonji\\Dropbox\\project\\LAM\\Final_analysis\\figure and table")
+logit <- read.table("plotdata_logit_180506.txt",head=T,stringsAsFactor=F,sep="\t")
+clogit <- read.table("plotdata_clogit_2PCs.txt",head=T,stringsAsFactor=F,sep="\t")
+
+#### separate - horizontal
+png(paste("fig3_QQplots_combined_horizontal_2PCs.png",sep=""), width=1800, height=1000, units = "px", bg = "white", res = 200)
+par(mfrow=c(1,2))
+
+## logit
+p.val <- logit[,3]
+y <- -log(p.val,10)
+v <- -log10(0.05/sum(is.finite(y)))
+o.y <- sort(y[is.finite(y)],decreasing=T)
+xx<- (1:length(o.y))/length(o.y)
+x <- -log(xx,10)
+ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
+
+plot(YY, YY, main='LR',type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
+N=length(o.y)
+c95 <- rep(0,N)
+c05 <- rep(0,N)
+for(i in 1:N){
+	c95[i] <- qbeta(0.95,i,N-i+1)
+	c05[i] <- qbeta(0.05,i,N-i+1)
+}
+abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
+polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
+abline(a=0,b=1,col="black", lty=1)
+points(x, o.y, cex = .5, col = "dark red")
+
+## clogit
+p.val <- clogit[,3]
+y <- -log(p.val,10)
+v <- -log10(0.05/sum(is.finite(y)))
+o.y <- sort(y[is.finite(y)],decreasing=T)
+xx<- (1:length(o.y))/length(o.y)
+x <- -log(xx,10)
+ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
+
+plot(YY, YY, main='CLR',type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
+N=length(o.y)
+c95 <- rep(0,N)
+c05 <- rep(0,N)
+for(i in 1:N){
+	c95[i] <- qbeta(0.95,i,N-i+1)
+	c05[i] <- qbeta(0.05,i,N-i+1)
+}
+abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
+polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
+abline(a=0,b=1,col="black", lty=1)
+points(x, o.y, cex = .5, col = "dark red")
+
+dev.off()
+
+
+
+#### figure 4 : Manhattan plots for SLR and SCLR using discovery data
+library(extrafont)
+font_import(pattern="Helvetica.ttf")
+loadfonts(device="win")
+fonts()
+
+setwd("C:\\Users\\Wonji\\Dropbox\\project\\LAM\\Final_analysis\\figure and table")
+path <- c("plotdata_logit_180506.txt","plotdata_clogit_2PCs.txt")
+title <- c("LR","CLR")
+
+png(paste("fig4_MHTplots_2PCs.png",sep=""), width=2000, height=2000, units = "px", bg = "white", res = 200)
+par(mfrow=c(2,1))
+
+for(i in 1:2){
+
+	in_data <- read.table(path[i], header = T)
+	kare <- table(in_data$CHR)
+	CM <- cumsum(kare)
+	n.markers <- sum(kare)
+	n.chr <- length(kare)
+	ss <- 1:n.markers
+	data<-cbind(ss,in_data)
+
+	par(las="1")
+
+	colors<-rep(c("red4","black"),12)
+	chr <- data$CHR
+	pos <- ss
+	p <- data$p.val
+	kare <- as.vector(table(chr))
+	CM <- cumsum(kare)
+	n.markers <- sum(kare)
+	n.chr <- length(kare)
+	id <- 1:n.chr
+	y <- -log(p,10)
+	v <- -log10(5e-8)
+	sig.list<-data[data$pn<= 0.1^v,]
+	#sig.list 
+	# max.y <- max(max(y[is.finite(y)],na.rm=T),v)
+	max.y <- 9
+
+	# MHT plot
+	par(xaxt = "n", yaxt = "n")
+	plot(pos, y, main=title[i],type = "n", xlab = "Chromosomal Coordinates", ylab = expression(paste(-log[10],"(p-value)")), axes = FALSE, ylim=c(0,max.y+1),cex.main=1.5, cex.lab=1.2)
+
+	axis(1, tick = FALSE)
+	axis(2, tick = FALSE)
+
+	for (i in 1:n.chr) {
+		u <- CM[i]
+		 l <- CM[i] - kare[i] + 1
+		cat("Plotting points ", l, "-", u, "\n")
+		chr <- l:u
+		tran.y <- -log(p[chr],10)
+		points(pos[chr], tran.y, col = colors[i],pch=20,cex=0.5)
+	}
+	par(xaxt = "s", yaxt = "s")
+	axis(1, at = c(0, CM[-n.chr]), labels = paste(1:n.chr,sep=""))
+	if(max.y+1 < 10) {
+		axis(2, at = 0:(max.y+1))
+	} else {
+		axis(2, at = seq(0,max.y+1,by=2))
+	}
+	abline(h = v,lty=2)
+	#text(pos[sig.list$ss], -log(sig.list$CMCpv,10), sig.list$GENE, cex=1, pos=4, col="black")
+
+}
+
+dev.off()
+
+
+
+#### figure 5 : Regional plots for SLR and SCLR using imputed data (no reference panel with hg38)
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/")
+logit <- read.table("1.logit/logit_171103.assoc.logistic",head=T,stringsAsFactor=F)[,c(1,2,3,9)]
+clogit <- read.table("2.clogit/plotdata_clogit_171103.txt",head=T,stringsAsFactor=F)[,-1]
+mer <- merge(logit,clogit,by.x='SNP',by.y='GENE',all=T,sort=F)[,c(2,1,3,4,5)]
+colnames(mer)[4:5] <- c('P_logit','P_clogit')
+write.table(mer,"regional_plot_hg19.txt",row.names=F,quote=F)
+
+
+#### figure 6 : scatter plot r2 with rs16975396, rs58878263 vs -log10(pvalue)
+## Calculate r2 with rs18975396 : home2/wjkim/project/LAM/final_analysis/
+plink --bfile 4.impute_web/1.logit/0.data/final_clean --r2 --ld-snp rs16975396 --ld-window-r2 0 --ld-window-kb 10000 --ld-window 600 --out 8.figures/rs16975396_r2
+plink --bfile 4.impute_web/1.logit/0.data/final_clean --r2 --ld-snp rs58878263 --ld-window-r2 0 --ld-window-kb 10000 --ld-window 600 --out 8.figures/rs58878263_r2
+
+## draw plot
+# rs16975396
+setwd("/home2/wjkim/project/LAM/final_analysis")
+r2 <- read.table("8.figures/rs16975396_r2.ld",head=T,stringsAsFactor=F)
+logit <- read.table("4.impute_web/1.logit/logit_171026.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("4.impute_web/2.clogit/plotdata_clogit_171026.txt",head=T,stringsAsFactor=F)
+
+logit_mer <- merge(r2,logit,by.x="SNP_B",by.y="SNP",sort=F,all=F)
+logit_p <- -log10(logit_mer$P)
+clogit_mer <- merge(r2,clogit,by.x="SNP_B",by.y="GENE",sort=F,all=F)
+clogit_p <- -log10(clogit_mer$p.val)
+
+png(paste("8.figures/fig6_r2vsPvalue.png",sep=""), width=2000, height=2000, units = "px", bg = "white", res = 200)
+par(mfrow=c(2,2))
+plot(logit_mer$R2,logit_p,main="SLR",xlab=expression(paste(r^2," to rs16975396")),ylab=expression(paste(-log[10]," (p-value)")))
+plot(clogit_mer$R2,clogit_p,main="SCLR",xlab=expression(paste(r^2," to rs16975396")),ylab=expression(paste(-log[10]," (p-value)")))
+
+# rs58878263
+setwd("/home2/wjkim/project/LAM/final_analysis")
+r2 <- read.table("8.figures/rs58878263_r2.ld",head=T,stringsAsFactor=F)
+logit <- read.table("4.impute_web/1.logit/logit_171026.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("4.impute_web/2.clogit/plotdata_clogit_171026.txt",head=T,stringsAsFactor=F)
+
+logit_mer <- merge(r2,logit,by.x="SNP_B",by.y="SNP",sort=F,all=F)
+logit_p <- -log10(logit_mer$P)
+clogit_mer <- merge(r2,clogit,by.x="SNP_B",by.y="GENE",sort=F,all=F)
+clogit_p <- -log10(clogit_mer$p.val)
+
+plot(logit_mer$R2,logit_p,main="SLR",xlab=expression(paste(r^2," to rs58878263")),ylab=expression(paste(-log[10]," (p-value)")))
+plot(clogit_mer$R2,clogit_p,main="SCLR",xlab=expression(paste(r^2," to rs58878263")),ylab=expression(paste(-log[10]," (p-value)")))
+dev.off()
+
+
+############# figure 6 : NR2F2 Box plot LAM/AML VS GTEx
+setwd("/home2/wjkim/project/LAM/final_analysis/15.DEG/0.data")
+
+# LAM&AML
+case <- readLines('AML-rpkm.gct')
+Colname <- strsplit(case[3],"\t")[[1]]
+case_rpkm <- as.data.frame(do.call(rbind,strsplit(case[-c(1:3)],"\t")))
+colnames(case_rpkm) <- Colname
+for(i in 3:ncol(case_rpkm)) case_rpkm[,i] <- as.numeric(as.character(case_rpkm[,i]))
+
+# GTEx
+cont_rpkm <- read.table("GTEx_Thyroid.txt",head=T,sep="\t",stringsAsFactor=F)
+
+# NR2F2
+case_nr2f2 <- as.numeric(case_rpkm[case_rpkm[,2]=="NR2F2",-c(1,2)])
+cont_nr2f2 <- as.numeric(cont_rpkm[cont_rpkm[,2]=="NR2F2",-c(1,2)])
+NR2F2 <- c(case_nr2f2,cont_nr2f2)
+
+# combined
+group=factor(c(rep(paste0('LAM/AML (',length(case_nr2f2),')'),length(case_nr2f2)),rep(paste0('GTEx (',length(cont_nr2f2),')'),length(cont_nr2f2))),levels=c(paste0('LAM/AML (',length(case_nr2f2),')'),paste0('GTEx (',length(cont_nr2f2),')')))
+comb <- data.frame(NR2F2,group)
+
+png("../../8.figures/fig6_NR2F2_expression.png")
+boxplot(NR2F2~group,data=comb,main="NR2F2 Expression",xlab='Group',ylab="RPKM")
+dev.off()
+
+
+
+
+######## Tables ##########
+#### Table 1 : significant SNPs of SLR and SCLR using discovery and replication data
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+maf <- read.table("MAF.frq",head=T,stringsAsFactor=F)
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_180506.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/plotdata_clogit_age_180506.txt",head=T,stringsAsFactor=F)
+
+sig.res <- bim[bim$V2%in%c('rs4544201','rs2006950'),-3]
+sig.res$Alleles <- apply(sig.res[,4:5],1,function(i) paste(i,collapse="/"))
+sig.res <- sig.res[,-c(4:5)]
+colnames(sig.res) <- c("CHR","SNP","Position","Alleles")
+sig.res$MAF <- maf[match(sig.res$SNP,maf$SNP),"MAF"]
+sig.res$p_SLR <-  logit[match(sig.res$SNP,logit$SNP),"P"]
+sig.res$p_SCLR <-  clogit[match(sig.res$SNP,clogit$GENE),"p.val"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication/2.openarray/1.logit")
+rep.logit <- read.table("logit_20171103.assoc.logistic",head=T,stringsAsFactor=F)
+sig.rep <- rep.logit[match(sig.res$SNP,rep.logit$SNP),c("OR","P")]
+colnames(sig.rep) <- c("OR_replication","p_replication")
+sig.res <- cbind(sig.res,sig.rep)
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+sig.res$Position <- converter[match(sig.res$SNP,converter$V5),"V4"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/9.tables")
+write.csv(sig.res,"tab1_sigSNPs.csv",row.names=F,quote=F)
+
+
+#### Table 2 : SNPs in LD block
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+maf <- read.table("MAF.frq",head=T,stringsAsFactor=F)
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_170823.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/plotdata_clogit_age_171026.txt",head=T,stringsAsFactor=F)
+
+LD <- bim[bim$V1==15 & bim$V4>96144000 & bim$V4<96180000,-3]
+LD$Alleles <- apply(LD[,4:5],1,function(i) paste(i,collapse="/"))
+LD <- LD[,-c(4:5)]
+colnames(LD) <- c("CHR","SNP","Position","Alleles")
+LD$MAF <- maf[match(LD$SNP,maf$SNP),"MAF"]
+LD$p_SLR <-  logit[match(LD$SNP,logit$SNP),"P"]
+LD$p_SCLR <-  clogit[match(LD$SNP,clogit$GENE),"p.val"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+LD$Position <- converter[match(LD$SNP,converter$V5),"V4"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/9.tables")
+write.csv(LD,"tab2_LDblock.csv",row.names=F,quote=F)
+
+
+#### Table 3 : significant SNPs of SLR and SCLR using imputed data
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/")
+logit <- read.table("1.logit/logit_171103.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.csv("2.clogit/clogit_shapeit.csv",head=T,stringsAsFactor=F)
+
+logit$SNP[logit$SNP=='.'] <- paste0('15:',logit$BP[logit$SNP=='.'])
+clogit$SNP[clogit$SNP=='.'] <- paste0('15:',clogit$Position[clogit$SNP=='.'])
+
+mer <- merge(logit,clogit,by="SNP",sort=F,all=F)
+mer$Alleles <- apply(mer[,c("A1.x","A2")],1,function(i) paste(i,collapse="/"))
+mer <- mer[,c('CHR.x','SNP','Position','Alleles','MAF','P','p_value')]
+colnames(mer) <- c('CHR','SNP','Position','Alleles','MAF','P_logit','P_clogit')
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+mer$Position <- converter[match(mer$SNP,converter$V5),"V4"]
+
+sig.res <- mer[(mer$P_clogit<9.097e-8) & !is.na(mer$Position) & !mer$SNP%in%c('rs4544201','rs2006950'),]
+setwd("/home2/wjkim/project/LAM/final_analysis/9.tables")
+write.csv(sig.res,"tab3.csv",row.names=F,quote=F)
+
+## table 4. Significant SNP-gene pairs eQTL mapping
+setwd("/home2/wjkim/project/LAM/final_analysis/5.eQTL/1.GTEx/GTEx_Analysis_v6p_eQTL/")
+Thy <- read.table("1.Thyroid/Thyroid_Analysis.v6p.signif_snpgene_pairs.txt",head=T,sep="\t",stringsAsFactor=F)
+#Col <- read.table(gzfile("2.Colon_Sigmoid/Colon_Sigmoid_Analysis.v6p.signif_snpgene_pairs.txt.gz"),head=T,sep="\t",stringsAsFactor=F)
+
+extLD <- function(dataset,tissue){
+	dataset <- dataset[grep("^15",dataset[,1]),]
+	chr_position <- do.call(rbind,strsplit(dataset$variant_id,"_"))
+	dataset$CHR <- chr_position[,1]
+	dataset$Position <- as.numeric(chr_position[,2])
+	LD <- dataset[dataset$CHR=="15" & dataset$Position>96140000 & dataset$Position<96180000,]
+	LD <- data.frame(LD[,c('CHR','Position','variant_id','gene_id','tss_distance','pval_nominal')],tissue=tissue)
+	return(LD)
+}
+LD_Thy <- extLD(Thy,"Thyroid")
+#LD_Col <- extLD(Col,"Colon_Sigmoid")
+#LD_eQTL <- rbind(LD_Thy,LD_Col)
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+clogit <- read.csv("4.impute_web/2.clogit/clogit_shapeit.csv",head=T,stringsAsFactor=F)
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+mer <- merge(LD_Thy,clogit,by="Position",sort=F,all=F)
+mer$Position <- converter[match(mer$SNP,converter$V5),"V4"]
+oo <- mer[,c('gene_id','SNP','CHR.x','Position','pval_nominal','p_value','tissue')]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/9.tables")
+write.csv(oo,"tab4_eQTL.csv",row.names=F,quote=F)
+
+
+
+
+#### Table 5 : individual SNP summary in NR2F2
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/0.data")
+snps <- read.table("maf_1.setID",head=F,stringsAsFactor=F)
+snps <- snps[snps[,1]=="NR2F2",]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+maf <- read.table("MAF.frq",head=T,stringsAsFactor=F)
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_170823.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/plotdata_clogit_age_171026.txt",head=T,stringsAsFactor=F)
+
+LD <- bim[bim$V2%in%snps[,2],-3]
+LD$Alleles <- apply(LD[,4:5],1,function(i) paste(i,collapse="/"))
+LD <- LD[,-c(4:5)]
+colnames(LD) <- c("CHR","SNP","Position","Alleles")
+LD$MAF <- maf[match(LD$SNP,maf$SNP),"MAF"]
+LD$OR <- logit[match(LD$SNP,logit$SNP),"OR"]
+LD$p_SLR <-  logit[match(LD$SNP,logit$SNP),"P"]
+LD$p_SCLR <-  clogit[match(LD$SNP,clogit$GENE),"p.val"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+LD$Position <- converter[match(LD$SNP,converter$V5),"V4"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/9.tables")
+write.csv(LD,"tab5.csv",row.names=F,quote=F)
+
+
+
+
+
+#### Table 6 : PICS SNPs for rs4544201 and rs2006950
+setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/0.data")
+rs4544201 <- read.table("rs4544201_pics.txt",head=T,stringsAsFactor=F)[,-c(1,5)]
+rs2006950 <- read.table("rs2006950_pics.txt",head=T,stringsAsFactor=F)[,-c(1,5)]
+
+rs4544201 <- rs4544201[rs4544201$PICS_probability>0.01,]
+rs2006950 <- rs2006950[rs2006950$PICS_probability>0.01,]
+allPICS <- unique(c(rs4544201[,1],rs2006950[,1]))
+
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/")
+logit <- read.table("1.logit/logit_171103.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.csv("2.clogit/clogit_shapeit.csv",head=T,stringsAsFactor=F)
+ALL <- data.frame(logit[,c('CHR','SNP','BP')],p_logit=logit$P,p_clogit=clogit$p_value)
+
+tab <- data.frame(CHR=15,PICS_SNPs = allPICS,ALL[match(allPICS,ALL$SNP),c('BP','p_logit','p_clogit')],rs4544201[match(allPICS,rs4544201[,1]),-1],rs2006950[match(allPICS,rs2006950[,1]),-1])
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+tab$BP <- converter[match(tab$PICS_SNP,converter$V5),"V4"]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+enhancers <- read.csv("chr15_enhancers.csv",head=T,stringsAsFactor=F)
+
+tab$enhancer <- NA
+for(i in 1:nrow(enhancers)) {
+	enhancer.idx <- which(tab$BP>enhancers[i,'start'] & tab$BP<enhancers[i,'end'])
+	tab$enhancer[enhancer.idx] <- enhancers[i,'Enhancer']
+}
+probs <- apply(tab[,c('PICS_probability','PICS_probability.1')],1,function(i) max(i,na.rm=T))
+tab <- tab[order(probs,decreasing=T),]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/9.tables")
+write.csv(tab,"tab4.csv",row.names=F,quote=F)
+
+
+
+
+
+
+
+
+
+
+############ Pvalue Enhancer regions
+setwd("/home2/wjkim/project/LAM/final_analysis")
+converter <- read.table(gzfile("0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+en <- read.table("4.impute_web/2.clogit/enhancers.txt",head=F)
+
+aa <- c()
+for(i in 1:nrow(en)) aa <- c(aa,which(converter$V4>=en[i,'V1'] & converter$V4<=en[i,'V2']))
+en_hg38 <- converter[aa,]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_170823.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/plotdata_clogit_age_171026.txt",head=T,stringsAsFactor=F)
+
+en_logit <- logit[logit$SNP%in%en_hg38$V5,]
+en_clogit <- clogit[clogit$GENE%in%en_hg38$V5,]
+
+
+
+###### Integrating the summary of GWAS & eQTL analysis into a plot ######
+logit <- read.table("plotdata_logit_180506.txt",head=T,stringsAsFactor=F,sep="\t")
+clogit <- read.table("plotdata_clogit_2PCs.txt",head=T,stringsAsFactor=F,sep="\t")
+
+
+## GWAS (Linux)
+setwd("/home2/wjkim/project/LAM/final_analysis")
+logit <- read.table("2.logit/logit_180506.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/plotdata_clogit_2PCs.txt",head=T,stringsAsFactor=F)
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+new.bim <- bim[bim$V1==15&bim$V4>=94500000&bim$V4<=97500000,c(2,4)]
+p.logit <- logit[match(new.bim$V2,logit$SNP),"P"]
+p.clogit <- clogit[match(new.bim$V2,clogit$GENE),"p.val"]
+res <- data.frame(new.bim,p.logit,p.clogit)
+colnames(res) <- c("GENE","position","p_LR","p_CLR")
+write.table(res,"8.figures/GWAS_pvalues.txt",row.names=F,quote=F)
+
+
+library(extrafont)
+font_import(pattern="Helvetica.ttf")
+loadfonts(device="win")
+fonts()
+
+setwd("C:\\Users\\Wonji\\Dropbox\\project\\LAM\\Final_analysis\\figure and table")
+in_data <- read.table("GWAS_pvalues.txt",head=T)
+png("Intg_MHT.png", width=2800, height=450, units = "px", bg = "white", res = 200,family="DejaVu Sans")
+
+# clogit
+par(mar=c(2,7,0,0))
+sigs <- which(in_data[,1]%in%c("rs4544201","rs2006950"))
+
+par(las=1)
+pos <- in_data$position
+p <- in_data$p_CLR
+y <- -log(p,10)
+v <- -log10(5e-8)
+max.y <- max(max(y[is.finite(y)],na.rm=T),v)
+
+# MHT plot
+par(xaxt = "n", yaxt = "n")
+plot(pos, y,type = "n", xlab=NA,ylab = NA, axes = FALSE, ylim=c(0,max.y+1),xlim=c(94500000,97500000),cex.axis=0.7)
+#x.poly <- c(95967827,96367827,96367827,95967827)
+#y.poly <- rep(c(max.y+1,-0.3),each=2)
+#polygon(x.poly,y.poly,col='peach puff',border=NA)
+
+curve(x*0+v,94500000,97500000,lty=2,col="dark gray",ylab=NA,xlab=NA,add=TRUE)
+mtext(expression(-log[10](p[CLR])),line=0.8,side=2,cex=1.2)
+
+axis(1, tick = FALSE)
+axis(2, tick = FALSE)
+points(pos,y,col="black",pch=1)
+points(pos[sigs],y[sigs],col=c("red3","red3"),pch=19)
+par(xaxt = "s", yaxt = "s")
+axis(1,lty=1,col="black",labels=NA)
+axis(2, at = seq(0,max.y+1,by=2),cex.axis=1,line=-1.5)
+text(97130000,v,expression('significance level'==5%*%10^-8),pos=3,cex=1.2)
+dev.off()
+
+
+############## LAM/AML VS GTEx boxplot
+#setwd('C:\\Users\\±è¿øÁö\\Desktop\\LAM\\figures')
+setwd('C:\\Users\\Wonji\\Dropbox\\project\\LAM\\Final_analysis\\figure and table')
+gtex <- read.table('GTEx_NR2F2.txt',head=F,sep='\t')
+lam <- read.table('LAM_NR2F2.txt',head=T)[,3:7]
+lam_nr2f2 <- data.frame(ID=colnames(lam),NR2F2_rpkm=as.matrix(lam)[1,],Tissue='LAM/AML')
+rownames(lam_nr2f2)<- NULL
+colnames(gtex) <- colnames(lam_nr2f2)
+alldat <- rbind(lam_nr2f2,gtex)
+# write.csv(alldat,'NR2F2_expression.csv',row.names=F,quote=F)
+
+# Version 1 (Use this)
+par(mar = c(13, 4, 2, 2) + 0.2) #add room for the rotated labels
+labs = unique(alldat[,3])
+a <- boxplot(NR2F2_rpkm~Tissue,data=alldat,main="NR2F2 expression comparison of LAM/AML and GTEx tissues",
+	ylab="RPKM",xaxt='n',col=c('red',rep('white',length(labs)-1)))
+med <- median(a$stats[3,-1])
+abline(h=med,col="dark gray",lty=2)
+axis(1,at=c(1:length(labs)),labels=F)
+text(cex=1,x=c(1:length(labs)),y=par("usr")[3]-6,labs,xpd=T,srt=45,adj=1)
+
+
+
+
+# Version 2
+par(mar = c(17, 4, 2, 2) + 0.2) #add room for the rotated labels
+labs = unique(alldat[,3])
+boxplot(NR2F2_rpkm~Tissue,data=alldat,main="NR2F2 expressions",
+	ylab="RPKM",col=c('red',rep('white',length(labs)-1)),las=2)
+med <- median(a$stats[3,-1])
+abline(h=med,col="dark gray",lty=2)
+
+
+
+
+###########################################################################
+################# MDS plot : discovery + 1000 Genome ######################
+###########################################################################
+#### get common SNP from 1000GP
+### extract SNP IDs
+cd /home2/wjkim/project/LAM/final_analysis
+awk '{print $2}' 0.data/wo_ND_SNPs.bim > 19.MDSplot/0.data/Discovery_SNPs.txt
+
+### extract common SNPs from 1000GP
+# Problem in 1000G chr4
+library(parallel)
+getCommon <- function(chr){
+	setwd("/home2/wjkim/project/LAM/final_analysis/19.MDSplot/0.data/")
+	system(paste0("vcftools --gzvcf /data/1000G/Phase3_beagle4/ALL.chr",chr,".phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz --remove-indels --recode --snps Discovery_SNPs.txt --min-alleles 2 --max-alleles 2 --out chr",chr,"/1000GP_common"))
+}
+mclapply(c(1:3,5:22),getCommon,mc.cores=22)
+
+chr=4
+system(paste0("vcftools --gzvcf 1000G/chr",chr,".1kg.phase3.v5a.vcf.gz --remove-indels --recode --min-alleles 2 --max-alleles 2 --snps Discovery_SNPs.txt --out chr",chr,"/1000GP_common"))
+
+### Merge spilted common 1000GP by chr into one file
+# convert vcf to plink
+library(parallel)
+cvt <- function(chr){
+	setwd("/home2/wjkim/project/LAM/final_analysis/19.MDSplot/0.data/")
+	system(paste0("plink --vcf chr",chr,"/1000GP_common.recode.vcf --make-bed --out chr",chr,"/1000GP_common"))
+}
+mclapply(1:22,cvt,mc.cores=22)
+
+## Remove rs4001921 from chr19 (It was duplicated with different alleles)	
+# wjkim@n8:~/project/LAM/final_analysis/19.MDSplot/0.data/chr19$ grep rs4001921 1000GP_common.bim
+# 19	rs4001921	0	41363301	A	C
+# 19	rs4001921	0	41363301	C	T
+cd /home2/wjkim/project/LAM/final_analysis/19.MDSplot/0.data/
+plink --bfile chr19/1000GP_common --exclude 1000GP_common-merge.missnp --make-bed --out chr19/1000GP_common
+	
+# Merge
+cd /home2/wjkim/project/LAM/final_analysis/19.MDSplot/0.data/
+plink --bfile chr1/1000GP_common --merge-list merge_list.txt --make-bed --out 1000GP_allmerge
+
+### Extract common SNPs from discovery data
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/wo_ND_SNPs --extract 19.MDSplot/0.data/1000GP_allmerge.bim --make-bed --out 19.MDSplot/0.data/Disc_common
+
+### Merge 1000GP to Discovery data
+cd /home2/wjkim/project/LAM/final_analysis/19.MDSplot/0.data/
+plink --bfile 1000GP_allmerge --bmerge Disc_common --make-bed --out Disc_1000GP
+
+# remove 22 variants with 3+ alleles
+plink --bfile 1000GP_allmerge --exclude Disc_1000GP-merge.missnp --make-bed --out 1000GP_allmerge_bi
+plink --bfile Disc_common --exclude Disc_1000GP-merge.missnp --make-bed --out Disc_common_bi
+
+# Merge (543338 variants)
+plink --bfile 1000GP_allmerge_bi --bmerge Disc_common_bi --make-bed --out Disc_1000GP
+
+### Calculate PC scores
+cd /home2/wjkim/project/LAM/final_analysis/19.MDSplot/
+wisard --bed 0.data/Disc_1000GP.bed --pca --npc 10 --out 1.PCs/PCs

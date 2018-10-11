@@ -1,0 +1,343 @@
+########## without SNPs associated with nicotine dependence 
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/')
+catalog <- read.delim("0.data/gwas_catalog.tsv",head=T,stringsAsFactor=F)
+
+# ND : Nicotine dependence, NU : Nicotine use
+ND <- catalog[catalog$DISEASE.TRAIT=='Nicotine dependence',c('CHR_ID','CHR_POS','OR.or.BETA','RISK.ALLELE.FREQUENCY','STRONGEST.SNP.RISK.ALLELE')]
+NU <- catalog[catalog$DISEASE.TRAIT=='Nicotine use',c('CHR_ID','CHR_POS','OR.or.BETA','RISK.ALLELE.FREQUENCY','STRONGEST.SNP.RISK.ALLELE')]
+
+alldat <- list(ND,NU)
+traits <- c('ND','NU')
+for(ii in 1:2){
+  dat <- alldat[[ii]]
+  dat <- cbind(dat,do.call(rbind,strsplit(dat[,'STRONGEST.SNP.RISK.ALLELE'],'-')))
+  colnames(dat)[(ncol(dat)-1):ncol(dat)] <- c('SNP','risk_allele')
+  write.csv(dat,paste0('1.SNPlist/',traits[ii],'_list.csv'),row.names=F,quote=F)
+}
+
+########## Exclude SNPs reported as 'Nicotine dependent' or 'Nicotine use' at GWAS catalog ##########
+setwd('/home2/wjkim/project/LAM/final_analysis/')
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+ND <- read.csv("17.wo_nicotineSNP/1.SNPlist/ND_list.csv",head=T,stringsAsFactor=F)
+NU <- read.csv("17.wo_nicotineSNP/1.SNPlist/NU_list.csv",head=T,stringsAsFactor=F)
+
+NSNPs <- unique(c(ND$SNP,NU$SNP))	# 27 SNPs
+NicoSNP <- bim$V2[bim$V2%in%NSNPs]	# 6 SNPs
+write.table(NicoSNP,'17.wo_nicotineSNP/0.data/Nico_SNPs.txt',row.names=F,col.names=F,quote=F)
+
+
+#########################################################
+##################### MAFs ##############################
+#########################################################
+
+#### COPDGene (Wonlab server)
+cd /home2/wjkim/project/LAM/final_analysis/18.MAF/1.COPDGene
+plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --snps rs4544201,rs2006950 --freq --filter-females --out 1.MAFs/COPDGene_FM
+plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --snps rs4544201,rs2006950 --freq --filter-males --out 1.MAFs/COPDGene_M
+
+
+#### MESA (Wonlab server)
+## Affy 6.0
+## Two SNPs were not genotyped -> Imputation
+
+##### Target imputation
+## 1. Quality control
+cd /home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA/0.data
+plink --bfile /data/mesa/SHARE_MESA_c1_white --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out snp_qc  #909622(total)-3109(HWE)-7396(geno>0.05)-219356(maf<0.05) ~ 679761 snps#
+plink --bfile snp_qc --mind 0.05 --out indiv_snp_qc --make-bed 
+
+#Identification of duplicated or related individuals#
+wisard --bed indiv_snp_qc --ibs --makecor --out res_corr_ibs --thread 10
+
+ibs <- read.table("res_corr_ibs.ibs.cor",head=T)
+up <- ibs[upper.tri(ibs)]
+a <- 1:nrow(ibs)
+b <- a*(a-1)/2+1
+corr <- which(up>0.8)	# No relatedness
+#gr <- matrix(NA,nrow=length(corr),ncol=2)
+#for(i in 1:length(corr)) {
+#	gr[i,1] <- which(sort(c(b,corr[i]))==corr[i])
+#	gr[i,2] <- corr[i]-b[gr[i,1]-1]+1
+#}
+#snp <- substring(names(ibs),2)
+#list <- snp[gr]
+#fam <- read.table("indiv_snp_qc_NHW.fam",head=F)
+#c <- list[which(list%in%fam[,2])]
+#o <- snp[which(snp%in%c)]
+#oo <- matrix(c(o[-4],o[-4]),ncol=2)
+#colnames(oo) <- c("FID","IID")
+#write.table(oo,"~/LAM/restart/IBS_samplelist_NHW.txt",row.names=F,quote=F)
+
+mv indiv_snp_qc.bed clean_indiv_snp_qc.bed
+mv indiv_snp_qc.bim clean_indiv_snp_qc.bim
+mv indiv_snp_qc.fam clean_indiv_snp_qc.fam
+mv indiv_snp_qc.log clean_indiv_snp_qc.log
+rm indiv*
+  rm snp*
+  rm res*
+  
+  
+  ## 2. build update
+  setwd("/home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA/0.data")
+map <- read.table("clean_indiv_snp_qc.bim",head=F,stringsAsFactor=F)
+annot <- read.table("/data/annotation/GenomeWideSNP_6.na35.annot.csv",head=T,sep=",",stringsAsFactor=F)[,c(1:6,9,10)]
+annot[annot[,"Chromosome"]=="X","Chromosome"] <- 23
+annot[annot[,"Chromosome"]=="Y","Chromosome"] <- 24
+annot[annot[,"ChrX.pseudo.autosomal.region.1"]==1,"Chromosome"] <- 25
+annot[annot[,"Chromosome"]=="MT","Chromosome"] <- 26
+
+mer_map <- merge(map,annot,by.x="V2",by.y="Probe.Set.ID",sort=F,all.x=T)
+
+mer_map[which(mer_map[,"Chromosome"]=="---"|is.na(mer_map[,"Chromosome"])),"Chromosome"] <- mer_map[which(mer_map[,"Chromosome"]=="---"|is.na(mer_map[,"Chromosome"])),"V1"]
+mer_map[which(mer_map[,"Physical.Position"]=="---"|is.na(mer_map[,"Physical.Position"])),"Physical.Position"] <- mer_map[which(mer_map[,"Physical.Position"]=="---"|is.na(mer_map[,"Physical.Position"])),"V4"]
+mer_mer_map <- merge(map,mer_map,by="V2",sort=F,all.x=T)
+
+new_bim <- mer_mer_map[,c("Chromosome","V2","V3.x","Physical.Position","V5.x","V6.x")]
+write.table(new_bim,"clean_indiv_snp_qc_hg19.bim",row.names=F,col.names=F,quote=F,sep="\t")
+
+system("cp clean_indiv_snp_qc.bed clean_indiv_snp_qc_hg19.bed")
+system("cp clean_indiv_snp_qc.fam clean_indiv_snp_qc_hg19.fam")
+system("plink --bfile clean_indiv_snp_qc_hg19 --make-bed --out final_clean_hg19")
+system("rm clean_indiv_snp_qc_hg19*")
+
+
+## 3. Strand file##
+for(i in 15){
+  print(paste("chromosome ",i,sep=""))
+  system(paste("mkdir chr",i,sep=""))
+  chr.annot <- annot[annot$Chromosome==i,]
+  strand <- chr.annot[,c("Physical.Position","Strand")]
+  write.table(strand,paste("chr",i,"/chr",i,".strand",sep=""),col.names=F,row.names=F,quote=F)
+  system(paste("plink --bfile final_clean_hg19 --chr ",i," --recode --out chr",i,"/chr",i," --noweb",sep=""))
+  # remove one of duplicated SNPs (beginning to AFFX-*)
+  map <- read.table(paste0("chr",i,"/chr",i,".map"),head=F,stringsAsFactor=F)
+  dups <- map[duplicated(map$V4),]
+  write.table(dups,paste0("chr",i,"/duplicated.txt"),row.names=F,quote=F)
+  system(paste("plink --file chr",i,"/chr",i," --recode --exclude chr",i,"/duplicated.txt --out chr",i,"/chr",i," --noweb",sep=""))
+  system(paste("gtool -P --ped chr",i,"/chr",i,".ped --map chr",i,"/chr",i,".map --og chr",i,"/chr",i,".gen --os chr",i,"/chr",i,".sample",sep=""))
+}
+
+
+## 4. target list /home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA/0.data/target.list
+# rs4544201
+# rs2006950
+
+
+## 5. target imputation
+working_dir <- "/home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA/0.data"
+target_path <- 'target.list'
+code_path <- '~/code/imputation'
+scr_size <- 5000000
+num.core <- 1
+impute_type <- 'untyped'
+thres <- 0.8
+CHR <- 15
+Pos <- system("grep -E 'rs4544201|rs2006950' /data/1000G/Phase3_impute2/snponly/snponly_chr15_new.legend | cut -d' ' -f2",intern=T)
+
+source('~/code/imputation/target_imputation_shapeit_impute2_phase3.R')
+for(chr in unique(CHR)){
+  position <- Pos[CHR==chr]
+  impute2(chr,position,working_dir,target_path,code_path,scr_size,num.core,impute_type,thres=thres)
+  sp <- read.table(paste0('chr',chr,'/Phased_chr',chr,'.sample'),head=T,stringsAsFactor=F)
+  sp[,1] <- sp[,2]
+  write.table(sp,paste0('chr',chr,'/new_Phased_chr',chr,'.sample'),row.names=F,quote=F)
+  system(paste0('gtool -G --g ',paste0('chr',chr,'/final_target_untyped_total.gen'),' --s ',paste0('chr',chr,'/new_Phased_chr',chr,'.sample'),' --chr ',chr,' --ped chr',chr,'/target_imputed.ped --map chr',chr,'/target_imputed.map --snp'))
+  system(paste0('plink --file chr',chr,'/target_imputed --recode --missing-genotype N --output-missing-genotype 0 --out chr',chr,'/target_imputed'))
+}
+
+## 6. calculate MAFs
+cd /home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA
+plink --file 0.data/chr15/target_imputed --freq --filter-females --out 1.MAFs/MESA_FM
+plink --file 0.data/chr15/target_imputed --freq --filter-males --out 1.MAFs/MESA_M
+
+
+#### 1000 genome (Wonlab server)
+setwd('/data/1000G/Phase3_impute2/snponly/')
+rs4544201.idx <- as.numeric(system("grep -n 'rs4544201' snponly_chr15_new.legend | cut -d: -f1",intern=T))-1
+rs2006950.idx <- as.numeric(system("grep -n 'rs2006950' snponly_chr15_new.legend | cut -d: -f1",intern=T))-1
+
+system(paste0("awk 'NR==",rs4544201.idx,"' snponly_chr15.haplotypes > /home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/rs4544201.haps"))
+system(paste0("awk 'NR==",rs2006950.idx,"' snponly_chr15.haplotypes > /home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/rs2006950.haps"))
+
+setwd('/data/1000G/Phase3_impute2/snponly/')
+samples <- read.table("../1000GP_Phase3.sample",head=T,stringsAsFactor=F)
+setwd('/home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/')
+rs4544201 <- read.table('rs4544201.haps',head=F)
+rs2006950 <- read.table('rs2006950.haps',head=F)
+
+EUR.M <- with(samples,which(GROUP=='EUR'&SEX=='male'))	#240
+EUR.FM <- with(samples,which(GROUP=='EUR'&SEX=='female'))	#263
+
+# rs4544201
+maf.FM <- sum(rs4544201[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2357414
+maf.M <- sum(rs4544201[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.23125
+
+# rs2006950
+maf.FM <- sum(rs2006950[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2186312
+maf.M <- sum(rs2006950[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.208333
+
+
+#### ECLIPSE (Channing server)
+## 1. Data processing
+cd /proj/regeps/regep00/studies/ECLIPSE/data/geno/data/clean
+bcftools convert -r 15:96167827,15:96179390 -O v -o ~/projects/LAM/1.MAF/1.ECLIPSE/0.data/ECLIPSE.vcf ECLIPSE_Unified_GwasHRC.chr15.vcf.gz
+cd ~/projects/LAM/1.MAF/1.ECLIPSE/0.data/
+  plink2 --vcf ECLIPSE.vcf --make-bed --out ECLIPSE
+
+## 2. Setting up
+.libPaths(c(.libPaths(),"/proj/regeps/regep00/studies/ECLIPSE/DCC_2015/Rpack/Rlib"))
+options(stringsAsFactors=F)
+library(eclipsepack)
+data(eclipseidmap)
+data(pop)
+
+setwd('~/projects/LAM/1.MAF/1.ECLIPSE/0.data/')
+fam <- read.table("ECLIPSE.fam",head=F)
+
+# IDs
+fam.id <- as.numeric(gsub('EC','',fam[,1]))
+global.id <- eclipseidmap$GLOBALID
+pop.id <- pop$USUBJID
+
+# matching
+match.idx <- match(fam.id,global.id)
+matched.id <- eclipseidmap[match.idx,'USUBJID']
+matched.sex <- pop[match(matched.id,pop.id),'SEX']    # F:792, M:1367
+final.sex <- ifelse(matched.sex=='M',1,2)
+
+# new fam file
+newfam <- fam
+newfam[,5] <- final.sex
+write.table(newfam,'ECLIPSE_sex.fam',row.names=F,col.names=F,quote=F)
+
+## 3. Calculate MAFs
+cd ~/projects/LAM/1.MAF/1.ECLIPSE/
+# Female
+plink2 --bed 0.data/ECLIPSE.bed --bim 0.data/ECLIPSE.bim --fam 0.data/ECLIPSE_sex.fam --freq --filter-females --out 1.MAFs/ECLIPSE_FM
+# Male
+plink2 --bed 0.data/ECLIPSE.bed --bim 0.data/ECLIPSE.bim --fam 0.data/ECLIPSE_sex.fam --freq --filter-males --out 1.MAFs/ECLIPSE_M
+
+#### UKBioBank (Channing server)
+qrsh -l plink
+cd /proj/regeps/regep00/studies/UK_Biobank/data/genotype/EGAD00010001497/data/latest
+plink --bfile chr15 --snps rs4544201,rs2006950 --freq --filter-females --out /udd/rewki/projects/LAM/1.MAF/UKBioBank_FM
+plink --bfile chr15 --snps rs4544201,rs2006950 --freq --filter-males --out /udd/rewki/projects/LAM/1.MAF/UKBioBank_M
+
+
+#### Case
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 11.replication/4.sigSNPs/0.data/clean_all_NHW --filter-cases --freq --out 18.MAF/4.Case/LAM_rep
+
+################### CI function #################
+CI <- function(N,maf,alpha){
+	LB <- maf - qnorm(alpha/2,lower.tail=F)*sqrt(maf*(1-maf)/(2*N))
+	UB <- maf + qnorm(alpha/2,lower.tail=F)*sqrt(maf*(1-maf)/(2*N))
+	return(c(LB,UB))
+} 
+
+
+############################################################
+##################### CA test ##############################
+############################################################
+
+#### COPDGene
+cd /home2/wjkim/project/LAM/final_analysis/18.MAF/1.COPDGene/2.CAtest
+plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --snps rs4544201,rs2006950 --recodeA --out COPDGene
+
+<R>
+  library(coin)
+setwd("/home2/wjkim/project/LAM/final_analysis/18.MAF/1.COPDGene/2.CAtest")
+raw <- read.table("COPDGene.raw",head=T,stringsAsFactor=F)
+
+# Unordered nominal variable : Sex (raw[,5]: 1-male, 2-female)
+# Ordered nominal variable : Minor allele counts
+tb.rs4544201 <- table(raw[,5],raw[,7],dnn=c('Sex','SNP'))
+res.rs4544201 <- chisq_test(tb.rs4544201,scores=list("SNP"=c(0,1,2)))
+
+tb.rs2006950 <- table(raw[,5],raw[,8],dnn=c('Sex','SNP'))
+res.rs2006950 <- chisq_test(tb.rs2006950,scores=list("SNP"=c(0,1,2)))
+
+
+#### MESA
+cd /home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA
+plink --file 0.data/chr15/target_imputed --recodeA --out 2.CAtest/MESA
+
+<R>
+  library(coin)
+setwd("/home2/wjkim/project/LAM/final_analysis/18.MAF/2.MESA/2.CAtest")
+raw <- read.table("MESA.raw",head=T,stringsAsFactor=F)
+
+# Unordered nominal variable : Sex (raw[,5]: 1-male, 2-female)
+# Ordered nominal variable : Minor allele counts
+tb.rs4544201 <- table(raw[,5],raw[,7],dnn=c('Sex','SNP'))
+chisq_test(tb.rs4544201,scores=list("SNP"=c(0,1,2)))
+
+tb.rs2006950 <- table(raw[,5],raw[,8],dnn=c('Sex','SNP'))
+chisq_test(tb.rs2006950,scores=list("SNP"=c(0,1,2)))
+
+
+#### 1000G
+library(coin)
+samples <- read.table("/data/1000G/Phase3_impute2/1000GP_Phase3.sample",head=T,stringsAsFactor=F)
+setwd('/home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/')
+rs4544201 <- as.matrix(read.table('0.data/rs4544201.haps',head=F))
+rs2006950 <- as.matrix(read.table('0.data/rs2006950.haps',head=F))
+
+raw.rs4544201 <- rs4544201[1,seq(1,ncol(rs4544201),by=2)]+rs4544201[1,seq(2,ncol(rs4544201),by=2)]
+raw.rs2006950 <- rs2006950[1,seq(1,ncol(rs2006950),by=2)]+rs2006950[1,seq(2,ncol(rs2006950),by=2)]
+raw <- cbind(samples,raw.rs4544201,raw.rs2006950)
+raw.EUR <- raw[which(raw$GROUP=='EUR'),]
+
+# Unordered nominal variable : Sex (raw[,4]: male, female)
+# Ordered nominal variable : Minor allele counts
+tb.rs4544201 <- table(raw.EUR[,4],raw.EUR[,5],dnn=c('Sex','SNP'))
+chisq_test(tb.rs4544201,scores=list("SNP"=c(0,1,2)))
+
+tb.rs2006950 <- table(raw.EUR[,4],raw.EUR[,6],dnn=c('Sex','SNP'))
+chisq_test(tb.rs2006950,scores=list("SNP"=c(0,1,2)))
+
+#### ECLIPSE
+cd /udd/rewki/projects/LAM/1.MAF/1.ECLIPSE/
+plink2 --bed 0.data/ECLIPSE.bed --bim 0.data/ECLIPSE.bim --fam 0.data/ECLIPSE_sex.fam --recodeA --out 2.CAtest/ECLIPSE
+
+<R>
+library(coin)
+setwd("/udd/rewki/projects/LAM/1.MAF/1.ECLIPSE/2.CAtest")
+raw <- read.table("ECLIPSE.raw",head=T,stringsAsFactor=F)
+
+# Unordered nominal variable : Sex (raw[,5]: 1-male, 2-female)
+# Ordered nominal variable : Minor allele counts
+tb.rs4544201 <- table(raw[,5],raw[,7],dnn=c('Sex','SNP'))
+chisq_test(tb.rs4544201,scores=list("SNP"=c(0,1,2)))
+
+tb.rs2006950 <- table(raw[,5],raw[,8],dnn=c('Sex','SNP'))
+chisq_test(tb.rs2006950,scores=list("SNP"=c(0,1,2)))
+
+
+
+##########################################
+############## CA test ###################
+##########################################
+
+CAtest <- function(Ncase,pcase,Ncont,pcont){
+	A <- 2*Ncase*Ncont*(pcase-pcont)
+	varA <- 2*Ncase*Ncont*(Ncont*pcase*(1-pcase) + Ncase*pcont*(1-pcont))
+	Z <- A/sqrt(varA)
+	Pval <- pnorm(abs(Z),lower.tail=F)*2
+	return(c(Z,Pval))
+}
+
+# rs4544201
+CAtest(186,0.1429,1224,0.2774)	
+CAtest(186,0.1429,1153,0.2583)	
+CAtest(186,0.1429,263,0.2357)	
+CAtest(186,0.1429,792,0.2563)	
+CAtest(186,0.1429,1745,0.3424)	
+
+# rs2006950
+CAtest(186,0.1148,1226,0.2557)
+CAtest(186,0.1148,1128,0.2283)
+CAtest(186,0.1148,263,0.2186)
+CAtest(186,0.1148,792,0.2431)
+CAtest(186,0.1148,1747,0.3060)
+

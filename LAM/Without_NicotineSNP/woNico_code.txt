@@ -1,0 +1,116 @@
+########## without SNPs associated with nicotine dependence 
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/')
+catalog <- read.delim("0.data/gwas_catalog.tsv",head=T,stringsAsFactor=F)
+
+# ND : Nicotine dependence, NU : Nicotine use
+ND <- catalog[catalog$DISEASE.TRAIT=='Nicotine dependence',c('CHR_ID','CHR_POS','OR.or.BETA','RISK.ALLELE.FREQUENCY','STRONGEST.SNP.RISK.ALLELE')]
+NU <- catalog[catalog$DISEASE.TRAIT=='Nicotine use',c('CHR_ID','CHR_POS','OR.or.BETA','RISK.ALLELE.FREQUENCY','STRONGEST.SNP.RISK.ALLELE')]
+
+alldat <- list(ND,NU)
+traits <- c('ND','NU')
+for(ii in 1:2){
+	dat <- alldat[[ii]]
+	dat <- cbind(dat,do.call(rbind,strsplit(dat[,'STRONGEST.SNP.RISK.ALLELE'],'-')))
+	colnames(dat)[(ncol(dat)-1):ncol(dat)] <- c('SNP','risk_allele')
+	write.csv(dat,paste0('1.SNPlist/',traits[ii],'_list.csv'),row.names=F,quote=F)
+}
+
+########## exclude SNPs with strong LD with 27 SNPs ###############
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/1.SNPlist')
+ND <- read.csv('ND_list.csv',head=T,stringsAsFactor=F)
+NU <- read.csv('NU_list.csv',head=T,stringsAsFactor=F)
+NU[1,1:2] <- c(1,53492930)
+
+All <- rbind(ND,NU)
+new.All <- All[order(All$CHR_ID,All$CHR_POS),]
+new.All$start.kb <- round(new.All$CHR_POS/1000-1000)
+new.All$end.kb <- round(new.All$CHR_POS/1000+1000)
+new.All$start <- new.All$CHR_POS-1000000
+new.All$end <- new.All$CHR_POS+1000000
+
+# Extract EUR population
+system("grep EUR /data/1000G/Phase3_beagle4/integrated_call_samples_v3.20130502.ALL.panel > EUR.list")
+
+# Extract vcf data (specific region & EUR) - problem in chr4 (solved by deleting the last SNP)
+get.EURdata <- function(i) {
+	chr <- new.All$CHR_ID[i]
+	start <- new.All$start[i]
+	end <- new.All$end[i]
+	setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD/0.data')
+	system(paste0("vcftools --gzvcf /data/1000G/Phase3_beagle4/ALL.chr",chr,".phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz --chr ",chr," --from-bp ",start," --to-bp ",end," --keep EUR.list --remove-indels --recode --out near_",snp))
+}
+
+
+
+library(parallel)
+a <- mclapply(1:nrow(new.All),get.EURdata,mc.cores=nrow(new.All))
+
+# Calculate LD
+cal.LD <- function(i){
+	setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD')
+	system(paste0("plink --vcf 0.data/near_",new.All$SNP[i],".recode.vcf --ld-window-kb 1000 --ld-snp ",new.All$SNP[i]," --r2 --ld-window-r2 0.8 --out 1.LD/LD_",new.All$SNP[i]))
+}
+a <- lapply(1:nrow(new.All),cal.LD)
+
+## LD SNP list
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD/1.LD')
+file.list <- system('ls *.ld',intern=T)
+res <- lapply(file.list,function(ii) read.table(ii,head=T,stringsAsFactor=F))
+res.I <- do.call(rbind,res)
+	
+
+########################################################################
+###################### Calculate LD directly ###########################
+########################################################################
+
+library(parallel)
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/1.SNPlist')
+ND <- read.csv('ND_list.csv',head=T,stringsAsFactor=F)
+NU <- read.csv('NU_list.csv',head=T,stringsAsFactor=F)
+NU[1,1:2] <- c(1,53492930)
+
+All <- rbind(ND,NU)
+new.All <- All[order(All$CHR_ID,All$CHR_POS),]
+new.All$start.kb <- round(new.All$CHR_POS/1000-1000)
+new.All$end.kb <- round(new.All$CHR_POS/1000+1000)
+new.All$start <- new.All$CHR_POS-1000000
+new.All$end <- new.All$CHR_POS+1000000
+
+# remove indel & EUR - problem in chr4 (solved by deleting the last SNP)
+get.EURdata <- function(chr) {
+	setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD/0.data')
+	system(paste0("vcftools --gzvcf /data/1000G/Phase3_beagle4/ALL.chr",chr,".phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz --keep EUR.list --remove-indels --recode --out EUR_SNP_chr",chr))
+}
+mclapply(unique(new.All$CHR_ID),get.EURdata,mc.cores=length(unique(new.All$CHR_ID)))
+
+newcal.LD<- function(i) {
+	chr <- new.All$CHR_ID[i]
+	snp <- new.All$SNP[i]
+	setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD')
+	system(paste0("plink --vcf 0.data/EUR_SNP_chr",chr,".recode.vcf --ld-window-kb 1000 --ld-snp ",snp," --r2 --ld-window-r2 0.2 --out 1.LD/newLD_",snp))
+}
+a <- mclapply(1:14,newcal.LD,mc.cores=nrow(new.All))
+a <- mclapply(15:nrow(new.All),newcal.LD,mc.cores=(nrow(new.All)-14))
+
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD/1.LD')
+file.list <- system('ls *.ld',intern=T)
+file.list <- file.list[grep('^newLD',file.list)]
+res <- lapply(file.list,function(ii) read.table(ii,head=T,stringsAsFactor=F))
+res.I <- do.call(rbind,res)
+highLD <- res.I[res.I$R2>0.8,c('CHR_B','SNP_B','BP_B','R2')]
+highLD <- highLD[order(highLD$CHR_B,highLD$BP_B),]	# 35 SNPs including 27 ND,NU SNPs
+write.table(highLD,"tightLD.list",row.names=F,quote=F,col.names=F)
+
+setwd('/home2/wjkim/project/LAM/final_analysis/')
+highLD <- read.table("17.wo_nicotineSNP/2.LD/1.LD/tightLD.list",head=F,stringsAsFactor=F)
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+aa <- bim[bim$V2%in%highLD$V2,]	# 8 SNPs
+setwd('/home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD/1.LD')
+write.table(aa,"indata_tightLD.list",row.names=F,quote=F,col.names=F)
+
+
+cd /home2/wjkim/project/LAM/final_analysis
+plink --bfile 0.data/final_clean_withage --exclude 17.wo_nicotineSNP/2.LD/1.LD/indata_tightLD.list --make-bed --out 0.data/wo_ND_SNPs
+
+
+

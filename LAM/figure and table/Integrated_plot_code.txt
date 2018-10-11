@@ -1,0 +1,57 @@
+###### Integrating the summary of GWAS & eQTL analysis into a plot ######
+logit <- read.table("plotdata_logit_180506.txt",head=T,stringsAsFactor=F,sep="\t")
+clogit <- read.table("plotdata_clogit_2PCs.txt",head=T,stringsAsFactor=F,sep="\t")
+
+
+## GWAS (Linux)
+setwd("/home2/wjkim/project/LAM/final_analysis")
+logit <- read.table("2.logit/logit_180506.assoc.logistic",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/plotdata_clogit_2PCs.txt",head=T,stringsAsFactor=F)
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+new.bim <- bim[bim$V1==15&bim$V4>=94500000&bim$V4<=97500000,c(2,4)]	####
+p.logit <- logit[match(new.bim$V2,logit$SNP),"P"]
+p.clogit <- clogit[match(new.bim$V2,clogit$GENE),"p.val"]
+res <- data.frame(new.bim,p.logit,p.clogit)
+colnames(res) <- c("GENE","position","p_LR","p_CLR")
+write.table(res,"8.figures/GWAS_pvalues.txt",row.names=F,quote=F)
+
+
+library(extrafont)
+font_import(pattern="Helvetica.ttf")
+loadfonts(device="win")
+fonts()
+
+setwd("C:\\Users\\Wonji\\Dropbox\\project\\LAM\\Final_analysis\\figure and table")
+in_data <- read.table("GWAS_pvalues.txt",head=T)
+png("Intg_MHT.png", width=2800, height=450, units = "px", bg = "white", res = 200,family="DejaVu Sans")
+
+# clogit
+par(mar=c(2,7,0,0))
+sigs <- which(in_data[,1]%in%c("rs4544201","rs2006950"))  ####
+
+par(las=1)
+pos <- in_data$position		####
+p <- in_data$p_CLR	####
+y <- -log(p,10)
+v <- -log10(5e-8)	####
+max.y <- max(max(y[is.finite(y)],na.rm=T),v)
+
+# MHT plot
+par(xaxt = "n", yaxt = "n")
+plot(pos, y,type = "n", xlab=NA,ylab = NA, axes = FALSE, ylim=c(0,max.y+1),xlim=c(94500000,97500000),cex.axis=0.7)	####
+#x.poly <- c(95967827,96367827,96367827,95967827)
+#y.poly <- rep(c(max.y+1,-0.3),each=2)
+#polygon(x.poly,y.poly,col='peach puff',border=NA)
+
+curve(x*0+v,94500000,97500000,lty=2,col="dark gray",ylab=NA,xlab=NA,add=TRUE)	####
+mtext(expression(-log[10](p[CLR])),line=0.8,side=2,cex=1.2)	####
+
+axis(1, tick = FALSE)
+axis(2, tick = FALSE)
+points(pos,y,col="black",pch=1)
+points(pos[sigs],y[sigs],col=c("red3","red3"),pch=19)	####
+par(xaxt = "s", yaxt = "s")
+axis(1,lty=1,col="black",labels=NA)
+axis(2, at = seq(0,max.y+1,by=2),cex.axis=1,line=-1.5)
+text(97130000,v,expression('significance level'==5%*%10^-8),pos=3,cex=1.2)	####
+dev.off()

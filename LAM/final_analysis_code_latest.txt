@@ -1,0 +1,947 @@
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+case <- read.csv("/data/LAM/lam_case/case_pheno_new.csv",head=T,stringsAsFactor=F)
+omitted <- read.csv('0.data/no_age_info.csv',head=T,stringsAsFactor=F)
+case[match(omitted$Sample.Identifier,case$Sample.Identifier),'Date.of.Birth'] <- omitted[,'Date.of.Birth']
+write.csv(case,"0.data/case_pheno_new_20180416.csv",row.names=F,quote=F)
+
+## 2명의 missing age 정보 업데이트하여 0.data/case_pheno_new_20180506.csv에 저장
+
+## remove non-white from case ##
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+fam <- read.table("/data/LAM/lam_case/LAM_positive.fam",head=F,stringsAsFactor=F) ## 476 subjects
+case <- read.csv("0.data/case_pheno_new_20180506.csv",head=T,stringsAsFactor=F)
+case$Race[which(case$Race=="White ")] <- "White"
+nonwhite <- case[case$Race!='White',]
+case <- case[case$Race=="White",]	## 448 subjects
+mer <- merge(case,fam,by.x="Sample.Identifier",by.y="V1",all=F,sort=F)	## 445 subjects
+sam.list <- mer[,1]
+sam.list <- cbind(sam.list,sam.list)
+write.table(sam.list,"0.data/white.list",quote=F,row.names=F,col.names=F)
+write.csv(case,"0.data/lam_white_pheno.csv",row.names=F,quote=F)
+
+## common snp /home2/wjkim/project/LAM/final_analysis/ ##
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --filter-females --extract /data/LAM/lam_case/commonSNP_List.txt --out 0.data/common_NHW --make-bed  #619797 snps & 1261 indiv#
+plink --bfile /data/LAM/lam_case/LAM_positive --keep 0.data/white.list --extract /data/LAM/lam_case/commonSNP_List.txt --out 0.data/common_lam --make-bed  #619797 snps & 445 indiv#
+
+
+##각각 QC : /home2/wjkim/project/LAM/final_analysis/##
+#NHW QC#
+#marker QC#
+Per-marker QC of GWA data consists of at least four steps, 
+1) identification of SNPs with an excessive missing genotype, 
+2) identification of SNPs demonstrating a significant deviation from Hardy-Weinberg equilibrium (HWE), 
+3) identification of SNPs with significantly different missing genotype rates between cases and controls and 
+4) the removal of all makers with a very low minor allele frequency
+
+plink --bfile 0.data/common_NHW --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 0.data/snp_qc_NHW  #619797(total)-39(HWE)-40(geno>0.05)-45009(maf<0.05) ~ 574709 snps#
+
+#individual QC#
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile 0.data/snp_qc_NHW --mind 0.05 --out 0.data/indiv_snp_qc_NHW --make-bed 
+
+#Identification of duplicated or related individuals#
+wisard --bed 0.data/indiv_snp_qc_NHW --ibs --makecor --out 0.data/res_corr_ibs_NHW --thread 10
+
+ibs <- read.table("0.data/res_corr_ibs_NHW.ibs.cor",head=T)
+up <- ibs[upper.tri(ibs)]
+a <- 1:nrow(ibs)
+b <- a*(a-1)/2+1
+corr <- which(up>0.8)	# No relatedness
+#gr <- matrix(NA,nrow=length(corr),ncol=2)
+#for(i in 1:length(corr)) {
+#	gr[i,1] <- which(sort(c(b,corr[i]))==corr[i])
+#	gr[i,2] <- corr[i]-b[gr[i,1]-1]+1
+#}
+#snp <- substring(names(ibs),2)
+#list <- snp[gr]
+#fam <- read.table("indiv_snp_qc_NHW.fam",head=F)
+#c <- list[which(list%in%fam[,2])]
+#o <- snp[which(snp%in%c)]
+#oo <- matrix(c(o[-4],o[-4]),ncol=2)
+#colnames(oo) <- c("FID","IID")
+#write.table(oo,"~/LAM/restart/IBS_samplelist_NHW.txt",row.names=F,quote=F)
+
+mv 0.data/indiv_snp_qc_NHW.bed 0.data/clean_indiv_snp_qc_NHW.bed
+mv 0.data/indiv_snp_qc_NHW.bim 0.data/clean_indiv_snp_qc_NHW.bim
+mv 0.data/indiv_snp_qc_NHW.fam 0.data/clean_indiv_snp_qc_NHW.fam
+mv 0.data/indiv_snp_qc_NHW.log 0.data/clean_indiv_snp_qc_NHW.log
+
+
+##lam QC##
+# phenotype code 1 -> 2 #
+fam <- read.table("0.data/common_lam.fam",head=F)
+fam[,6] <- 2
+write.table(fam,"0.data/common_lam.fam",row.names=F,col.names=F,quote=F)
+
+#marker QC#
+Per-marker QC of GWA data consists of at least four steps, 
+1) identification of SNPs with an excessive missing genotype, 
+2) identification of SNPs demonstrating a significant deviation from Hardy-Weinberg equilibrium (HWE), 
+3) identification of SNPs with significantly different missing genotype rates between cases and controls and 
+4) the removal of all makers with a very low minor allele frequency
+
+plink --bfile 0.data/common_lam --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 0.data/snp_qc_lam  #619797(total)-142(HWE)-11702(geno>0.05)-41838(maf<0.05) ~ 566115 snps#
+
+#individual QC#
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile 0.data/snp_qc_lam --mind 0.05 --out 0.data/indiv_snp_qc_lam --make-bed  #12 indiv removed = 433 cases#
+
+
+#Identification of duplicated or related individuals#
+wisard --bed 0.data/indiv_snp_qc_lam --ibs --makecor --out 0.data/res_corr_ibs_lam --thread 10
+
+ibs <- read.table("0.data/res_corr_ibs_lam.ibs.cor",head=T)
+up <- ibs[upper.tri(ibs)]
+a <- 1:nrow(ibs)
+b <- a*(a-1)/2+1
+corr <- which(up>0.8)
+gr <- matrix(NA,nrow=length(corr),ncol=2)
+for(i in 1:length(corr)) {
+	gr[i,1] <- which(sort(c(b,corr[i]))==corr[i])
+	gr[i,2] <- corr[i]-b[gr[i,1]-1]+1
+}
+
+fam <- read.table("0.data/indiv_snp_qc_lam.fam",head=F,stringsAsFactor=F)
+oo <- fam[gr[,1],1:2]
+colnames(oo) <- c("FID","IID")
+write.table(oo,"0.data/IBS_samplelist_lam.txt",row.names=F,quote=F)
+
+#Identification of individuals with elevated missing data rates or outlying heterozygosity rate#
+plink --bfile 0.data/indiv_snp_qc_lam --remove 0.data/IBS_samplelist_lam.txt --make-bed --out 0.data/clean_indiv_snp_qc_lam  # 4 indiv removed = 429 cases#
+
+# remove temp files
+rm 0.data/common*
+rm 0.data/indiv*
+rm 0.data/snp*
+rm 0.data/res*
+
+##after QC, common snp##
+lam <- read.table("0.data/clean_indiv_snp_qc_lam.bim",head=F) # 566115 snps#
+NHW <- read.table("0.data/clean_indiv_snp_qc_NHW.bim",head=F) # 574709 snps#
+common <- merge(NHW,lam,by="V2",all=F) # 559809 snps#
+
+# no chr, pos information in lam -> substitute by NHW
+noinfo <- which(common[,'V1.y']==0)
+common[noinfo,'V1.y'] <- common[noinfo,'V1.x']
+common[noinfo,'V3.y'] <- common[noinfo,'V3.x']
+common[noinfo,'V4.y'] <- common[noinfo,'V4.x']
+chr.diff <- which(!common[,"V1.x"]==common[,"V1.y"]) # remove
+new.common <- common[-chr.diff,]	# 559796 snps (13 snps removed) #
+pos.diff <- which(!new.common[,'V4.x']==new.common[,'V4.y'])	# remove
+newnew.common <- new.common[-pos.diff,]	# 558124 snps (1672 snps removed) #
+snp <- as.character(newnew.common[,1])
+write.table(snp,"0.data/afterQC_common_snp.txt",row.names=F,col.names=F,quote=F)
+
+plink --bfile 0.data/clean_indiv_snp_qc_NHW --extract 0.data/afterQC_common_snp.txt --out 0.data/final_common_NHW --make-bed  # 558124 snps#
+plink --bfile 0.data/clean_indiv_snp_qc_lam --extract 0.data/afterQC_common_snp.txt --out 0.data/final_common_lam --make-bed  # 558124 snps#
+
+##merging##
+plink --bfile 0.data/final_common_NHW --bmerge 0.data/final_common_lam.bed 0.data/final_common_lam.bim 0.data/final_common_lam.fam --make-bed --out 0.data/allmerge # 429 cases & 1261 controls, 558124 snps
+
+###QC###
+##marker QC##
+Per-marker QC of GWA data consists of at least four steps, 
+1) identification of SNPs with an excessive missing genotype, 
+2) identification of SNPs demonstrating a significant deviation from Hardy-Weinberg equilibrium (HWE), 
+3) identification of SNPs with significantly different missing genotype rates between cases and controls and 
+4) the removal of all makers with a very low minor allele frequency
+
+plink --bfile 0.data/allmerge --test-missing --out 0.data/snp_qc 
+
+a <- read.table("0.data/snp_qc.missing",head=T)
+b <- a[which(a$P < 0.00001),1:2] # 8495 snps#
+write.table(b,"0.data/test_missing_snplist.txt",row.names=F,col.names=F,quote=F)
+
+plink --bfile 0.data/allmerge --exclude 0.data/test_missing_snplist.txt --geno 0.05 --maf 0.05 --make-bed --out 0.data/snp_qc  #558124(total)-8495(test-missing)-0(geno>0.05)-30(maf<0.05)=549599 snps#
+
+##individual QC##
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile 0.data/snp_qc --mind 0.05 --out 0.data/indiv_snp_qc --make-bed  #1690 subjects#
+
+#Identification of duplicated or related individuals#
+wisard --bed 0.data/snp_qc --ibs --makecor --out 0.data/res_corr_ibs --thread 10
+
+ibs <- read.table("0.data/res_corr_ibs.ibs.cor",head=T)
+up <- ibs[upper.tri(ibs)]
+a <- 1:nrow(ibs)
+b <- a*(a-1)/2+1
+corr <- which(up>0.8) # no indiv
+#gr <- matrix(NA,nrow=length(corr),ncol=2)
+#for(i in 1:length(corr)) {
+#	gr[i,1] <- which(sort(c(b,corr[i]))==corr[i])
+#	gr[i,2] <- corr[i]-b[gr[i,1]-1]+1
+#}
+#
+#fam <- read.table("snp_qc.fam",head=F,stringsAsFactor=F)
+#oo <- fam[gr[,1],1:2]
+#write.table(oo,"~/LAM/lam_final/IBS_samplelist.txt",col.names=F,row.names=F,quote=F)
+#
+##Identification of individuals with elevated missing data rates or outlying heterozygosity rate#
+#plink --bfile indiv_snp_qc --remove IBS_samplelist.txt --make-bed --out clean_indiv_snp_qc  #4 indiv removed : 429 cases, 1261 controls#
+
+mv 0.data/indiv_snp_qc.bed 0.data/clean_indiv_snp_qc.bed
+mv 0.data/indiv_snp_qc.bim 0.data/clean_indiv_snp_qc.bim
+mv 0.data/indiv_snp_qc.fam 0.data/clean_indiv_snp_qc.fam
+mv 0.data/indiv_snp_qc.log 0.data/clean_indiv_snp_qc.log
+
+##PC score##
+wisard --bed 0.data/clean_indiv_snp_qc.bed --pca --npc 10 --out 0.data/clean_indiv_snp_qc --thread 10
+
+##이상치 detection##
+#MDS plot#
+library(scatterplot3d)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+pc <- read.table("0.data/clean_indiv_snp_qc.pca.res",head=T)
+fam <- read.table("0.data/clean_indiv_snp_qc.fam",head=F)
+obs <- 1:nrow(pc)
+pc <- cbind(pc,obs)
+
+phe <- fam[,6]
+col <- ifelse(phe==1,"dark red","dark blue")
+png("1.MDS_plot/MDS_allmerge.png", width=2000, height=2000, units = "px", bg = "white", res = 200)
+attach(pc)
+par(mfrow=c(2,2))
+plot(PC1,PC2,col=col,main="MDS plot : PC1 and PC2")
+abline(h=0,v=0,lty=2)
+plot(PC1,PC3,col=col,main="MDS plot : PC1 and PC3")
+abline(h=0,v=0,lty=2)
+plot(PC2,PC3,col=col,main="MDS plot : PC2 and PC3")
+abline(h=0,v=0,lty=2)
+scatterplot3d(PC1,PC2,PC3,main="3D Scatterplot")
+abline(h=0,v=0,lty=2)
+dev.off()
+detach(pc)	
+
+outlier <- which(pc$PC3 < -0.3)
+sample <- fam[outlier,1:2]
+colnames(sample) <- c('FID','IID')
+write.table(sample,"0.data/outlier.txt",col.names=F,row.names=F,quote=F) #1 sample  removed#
+
+## remove outliers :1689 samples : 428 cases, 1261 controls ##
+plink --bfile 0.data/clean_indiv_snp_qc --remove 0.data/outlier.txt --make-bed --out 0.data/final_clean
+
+##make pheno file##
+pc <- read.table("0.data/clean_indiv_snp_qc.pca.res",head=T)
+fam <- read.table("0.data/final_clean.fam",head=F)
+PC <- merge(fam,pc,by.x="V2",by.y="IID",all=F,sort=F)
+PC <- PC[,c(7,1,8:17)]
+
+#control#
+cont.info <- read.delim("/data/LAM/Kwiatkowski_ANC159_export.txt",head=T)
+cont <- cont.info[,c('sid','race','Age_Enroll')]
+control <- merge(PC,cont,by.x="V2",by.y="sid",all=F,sort=F)
+control <- cbind(control,1)
+colnames(control)[13:15] <- c('Race','Age','pheno12')
+
+#case#
+case.info <- read.csv("0.data/lam_white_pheno.csv",head=T)
+case.info <- case.info[,c('Sample.Identifier','Date.of.Birth','Race')]
+case <- merge(PC,case.info,by.x="V2",by.y="Sample.Identifier",all=F,sort=F)
+case$Race <- "White"
+
+ageinfo <- as.character(case$Date.of.Birth)
+age <- strsplit(ageinfo,"-")
+ymd <- matrix(as.numeric(unlist(age)), ncol=3, byrow=TRUE)
+
+date <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+month <- rep(0,12)
+for(i in 1:11) month[i+1] <- month[i]+date[i+1]
+
+today <- 2014+(month[7]+30)/365
+Age <- round(today - ymd[,1]+(month[ymd[,2]]+ymd[,3])/365,digit=1)	# 2014/7/30
+case <- cbind(cbind(case,Age),2)
+case <- case[,-13]
+colnames(case)[15] <- 'pheno12'
+phe <- rbind(control,case)
+
+pheno <- merge(fam,phe,by="V2",sort=F)
+pheno <- pheno[,-c(3:7)][,c(2,1,3:15)]
+pheno01 <- pheno$pheno12-1
+pheno <- cbind(pheno,pheno01)
+ 
+Age_sq <- pheno$Age^2
+Pheno <- cbind(pheno,Age_sq)
+Pheno$Race[which(Pheno$Race==1)] <- "White"
+colnames(Pheno)[1:2] <-c("FID","IID") 
+
+
+write.table(Pheno,"0.data/phenofile.txt",col.names=T,row.names=F,quote=F)
+write.table(Pheno,"0.data/phenofile_withage.txt",col.names=T,row.names=F,quote=F)
+write.table(Pheno[,1:2],"0.data/withage.samplist",col.names=F,row.names=F,quote=F)	# 421 case, 1260 controls#
+
+## final dataset : 426 case, 1261 controls 549599 snps#
+plink --bfile 0.data/final_clean --keep 0.data/withage.samplist --make-bed --out 0.data/final_clean_withage 
+
+## rm temp files
+rm 0.data/all*
+rm 0.data/clean*
+rm 0.data/final_common*
+rm 0.data/final_clean.*
+rm 0.data/snp*
+rm 0.data/res*
+
+
+#### association study ####
+## classical logistic : /home2/wjkim/project/LAM/final_analysis/##
+plink --bfile 0.data/final_clean_withage --logistic --pheno 0.data/phenofile_withage.txt --pheno-name pheno12 --covar 0.data/phenofile_withage.txt --covar-name PC1-PC10,Age,Age_sq --out 2.logit/logit_180506  --hide-covar --threads 10 # 428 case, 1261 controls 549599 snps#
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_180506.assoc.logistic",head=T)
+logit <- logit[,c(1,2,9)]
+colnames(logit)<-c("CHR","GENE","p.val")
+write.table(logit,"2.logit/plotdata_logit_180506.txt",row.names=F,quote=F,sep="\t")
+system("Rscript ~/Output_plot.r 2.logit/plotdata_logit_180506.txt 2.logit/logit_180506")
+
+
+
+## conditional logistic (case:control = 1:2) ##
+
+#make raw data
+for(i in 1:22){
+	setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+	#system(paste("mkdir chr",i,sep=""))
+	system(paste("plink --bfile ../0.data/final_clean_withage --recodeA --chr ",i," --out chr",i,"/lam_chr",i," --noweb",sep=""))
+}
+
+
+##Matcing##
+library(Matching)
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+
+phen <- read.table("0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+res <- Match(Tr=phen$pheno01, X=phen[,c("PC1","PC2")],replace=F,M=2)
+cont <- res$index.control; case <- res$index.treat
+matching.index <- cbind(case,cont)
+
+dat1 <- matching.index[seq(1,nrow(matching.index),2),]
+dat2 <- matching.index[seq(2,nrow(matching.index),2),]
+
+matching.index <- merge(dat1,dat2,by="case",sort=F)
+colnames(matching.index) <- c("case","control1","control2")
+write.table(matching.index,"3.clogit/matching_index_1:2.txt",row.names=F,quote=F)
+
+## age
+res <- Match(Tr=phen$pheno01, X=phen[,c("PC1","PC2","Age")],replace=F,M=2)
+cont <- res$index.control; case <- res$index.treat
+matching.index <- cbind(case,cont)
+
+dat1 <- matching.index[seq(1,nrow(matching.index),2),]
+dat2 <- matching.index[seq(2,nrow(matching.index),2),]
+
+matching.index <- merge(dat1,dat2,by="case",sort=F)
+colnames(matching.index) <- c("case","control1","control2")
+write.table(matching.index,"3.clogit/matching_index_1:2_age.txt",row.names=F,quote=F)
+
+
+#make pair variable#
+phe <- read.table("0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+match <- read.table("3.clogit/matching_index_1:2.txt",head=T)
+sort <- as.matrix(matching.index)
+pair <- rep(NA,nrow(phen))
+for(i in 1:nrow(sort)) pair[sort[i,]] <- i
+phen$pair <- pair
+
+match <- read.table("3.clogit/matching_index_1:2_age.txt",head=T)
+sort <- as.matrix(matching.index)
+pair <- rep(NA,nrow(phen))
+for(i in 1:nrow(sort)) pair[sort[i,]] <- i
+phen$pair_age <- pair
+write.table(phen,"/home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt",row.names=F,quote=F)
+
+
+
+##conditional logit##
+library(survival)
+library(parallel)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+#system("plink --bfile final_clean_withage --freq --out MAF")
+#maf <- read.table("MAF.frq",head=T,stringsAsFactor=F)
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+
+for(i in 1:22){
+	print(paste("chromosome ",i,sep=""))
+	setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+	raw <- read.table(paste("chr",i,"/lam_chr",i,".raw",sep=""),head=T)
+	phe <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt",head=T)
+	n.snp <- ncol(raw)-6
+	name.snp <- colnames(raw)[-c(1:6)]
+	name.snp <- gsub("_[ATGC]","",name.snp)
+
+	pair.data <- phe[which(!is.na(phe$pair)),]
+	pair.raw <- raw[which(!is.na(phe$pair)),]
+
+	pair_age.data <- phe[which(!is.na(phe$pair_age)),]
+	pair_age.raw <- raw[which(!is.na(phe$pair_age)),]
+
+	con.logit <- function(ii){
+		if(ii%%100==0) print(ii)
+		snp <- pair.raw[,6+ii]
+		dat <- cbind(pair.data,snp)
+		fit.lam <- clogit(pheno01 ~ snp + strata(pair), method="exact", data=dat)
+		res.coef <- summary(fit.lam)$coef
+		res <- c(i,name.snp[ii],res.coef)
+
+		snp <- pair_age.raw[,6+ii]
+		dat <- cbind(pair_age.data,snp)
+		fit.lam <- clogit(pheno01 ~ snp + strata(pair_age), method="exact", data=dat)
+		res.coef <- summary(fit.lam)$coef
+		res <- c(res,res.coef)
+	
+		return(res)
+	}
+	outI <- mclapply(1:n.snp,con.logit,mc.cores=15)
+	outII <- do.call(rbind,outI)
+	colnames(outII) <- c("chr","snp","beta","exp(beta)","se(beta)","z","p_value","beta.age","exp(beta).age","se(beta).age","z.age","p_value.age")
+	write.table(outII,paste("chr",i,"/clogit_chr",i,"_180506.txt",sep=""),row.names=F,quote=F)
+}
+
+clogit <- c()
+clogit_age <- c()
+for(i in 1:22){
+	print(i)
+	setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+	res <- read.table(paste("chr",i,"/clogit_chr",i,"_180506.txt",sep=""),head=T)
+	dat <- res[,c(1,2,7)]
+	dat_age <- res[,c(1,2,12)]
+	clogit <- rbind(clogit,dat)
+	clogit_age <- rbind(clogit_age,dat_age)
+}
+colnames(clogit) <- c("CHR","GENE","p.val")
+colnames(clogit_age) <- c("CHR","GENE","p.val")
+write.table(clogit,"plotdata_clogit_180506.txt",row.names=F,quote=F,sep="\t")
+write.table(clogit_age,"plotdata_clogit_age_180506.txt",row.names=F,quote=F,sep="\t")
+
+system("Rscript ~/Output_plot.r plotdata_clogit_180506.txt clogit_180506")
+system("Rscript ~/Output_plot.r plotdata_clogit_age_180506.txt clogit_age_180506")
+
+
+
+############### haploview ##########################
+## haploview input
+# working directory : /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/final_clean_withage --snps rs8035562,rs8035878,rs7165153,rs8025611,rs7163129,rs16975408,rs7170179,rs6496127,rs4544201,rs4561414,rs2397804,rs2006950 --recode --noweb --out 7.haploview/1.input/rs4544201_LD
+awk '{print $2,$4}' 7.haploview/1.input/rs4544201_LD.map > 7.haploview/1.input/rs4544201_LD.info
+rm 7.haploview/1.input/rs4544201_LD.map
+
+
+
+
+
+################ Annotation of candidate SNPs of PICS analysis ###############
+setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/0.data")
+ref <- read.table("/data/1000G/Phase3_impute2/snponly/snponly_chr15_new.legend",head=T,stringsAsFactor=F)
+PICS_rs4544201 <- read.table("rs4544201_pics.txt",head=T,sep='\t',stringsAsFactor=F)[-1,]
+PICS_rs2006950 <- read.table("rs2006950_pics.txt",head=T,sep='\t',stringsAsFactor=F)[-1,]
+
+o1 <- ref[with(PICS_rs4544201,match(Linked_SNP,ref$id)),c('position','position','a0','a1','id')]
+oo1 <- data.frame(chr=15,o1); oo1 <- oo1[complete.cases(oo1),]
+
+o2 <- ref[with(PICS_rs2006950,match(Linked_SNP,ref$id)),c('position','position','a0','a1','id')]
+oo2 <- data.frame(chr=15,o2); oo2 <- oo2[complete.cases(oo2),]
+
+setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input")
+write.table(oo1,'rs4544201.avinput',col.names=F,row.names=F,quote=F)
+write.table(oo2,'rs2006950.avinput',col.names=F,row.names=F,quote=F)
+
+
+########## run annovar
+
+##### rs4544201
+##gene based annotation : /home2/wjkim/project/breast/annovar/gene_based ##
+annotate_variation.pl -out /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/2.output/gene_rs4544201 -build hg19 /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input/rs4544201.avinput .
+
+##region based annotation : /home2/wjkim/project/breast/annovar ##
+annotate_variation.pl -regionanno -build hg19 -out /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/2.output/region_rs4544201 -dbtype phastConsElements46way /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input/rs4544201.avinput .
+
+##filter based annotation : /home2/wjkim/project/breast/annovar ##
+table_annovar.pl /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input/rs4544201.avinput -protocol ljb26_all -operation f -buildver hg19 -out /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/2.output/multianno_rs4544201 . -otherinfo
+
+
+##### rs2006950
+##gene based annotation : /home2/wjkim/project/breast/annovar/gene_based ##
+annotate_variation.pl -out /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/2.output/gene_rs2006950 -build hg19 /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input/rs2006950.avinput .
+
+##region based annotation : /home2/wjkim/project/breast/annovar ##
+annotate_variation.pl -regionanno -build hg19 -out /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/2.output/region_rs2006950 -dbtype phastConsElements46way /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input/rs2006950.avinput .
+
+##filter based annotation : /home2/wjkim/project/breast/annovar ##
+table_annovar.pl /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/1.input/rs2006950.avinput -protocol ljb26_all -operation f -buildver hg19 -out /home2/wjkim/project/LAM/final_analysis/6.PICS/1.annovar/2.output/multianno_rs2006950 . -otherinfo
+
+
+########### eQTL analysis : GTEx ###############
+<python>
+f= gzip.open('/data/GTEx/V6p/all_snpgene_pairs/Thyroid_Analysis.v6p.all_snpgene_pairs.txt.gz','rb')
+LD = [f.readline().rstrip()]
+
+for line in f:
+  ele = line.split('\t')[1].split('_')
+  if ele[0]=='15' and int(ele[1])>96045820 and int(ele[1])<96277394 :
+    LD.append(line.rstrip())
+
+eQTL = open('/home2/wjkim/project/LAM/final_analysis/5.eQTL/1.GTEx/1.Thyroid/all_snpgene_pairs.txt','w')
+eQTL.write('\n'.join(LD))
+eQTL.close()
+
+
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/5.eQTL/1.GTEx/1.Thyroid")
+eQTL <- read.table("all_snpgene_pairs.txt",head=T,sep="\t",stringsAsFactor=F)
+clogit <- read.csv("/home2/wjkim/project/LAM/final_analysis/4.impute_web/2.clogit/clogit_pbwt.csv",head=T,stringsAsFactor=F)
+eQTL$Position <- as.numeric(do.call(rbind,strsplit(eQTL$variant_id,"_"))[,2])
+
+mer <- merge(eQTL,clogit,by="Position",sort=F,all=T)
+mer <- mer[,c('CHR','gene_id','SNP','Position','pval_nominal','p_value')]
+colnames(mer)[5:6] <- c('P_eQTL','P_clogit')
+mer <- mer[complete.cases(mer),]
+
+getSig <- function(p_eqtl,p_clogit) {
+	sig <- mer[mer$P_eQTL<p_eqtl & mer$P_clogit<p_clogit,]
+	write.csv(sig,paste0('sig_eQTL<',p_eqtl,'_clogit<',p_clogit,'.csv'),row.names=F,quote=F)
+	return(sig)
+}
+
+getSig(p_eqtl=1e-2,p_clogit=1e-7)
+getSig(p_eqtl=0.05,p_clogit=1e-7)
+getSig(p_eqtl=5e-3,p_clogit=1e-7)
+getSig(p_eqtl=1e-5,p_clogit=1)
+
+
+################ Proportion of variance explained by all SNPs : /home2/wjkim/project/LAM/final_analysis/0.data/ ##################
+## input files
+
+cat phenofile_withage.txt | sed '1d' | awk '{print $1,$2,$16}' > ../10.gcta/1.input/pheno_gcta.txt
+cat phenofile_withage.txt | sed '1d' | awk '{print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$14,$17}' > ../10.gcta/1.input/qcovar_gcta.txt
+
+## run gcta
+library(parallel)
+setwd("/home2/wjkim/project/LAM/final_analysis/10.gcta/")
+system("gcta64 --bfile ../0.data/final_clean_withage --make-grm --autosome --out 1.input/LAM_GRM --thread-num 20")
+GCTA <- function(n) system(paste0("gcta64 --grm 1.input/LAM_GRM --reml --pheno 1.input/pheno_gcta.txt --qcovar 1.input/qcovar_gcta.txt --grm-cutoff 0.025 --out 2.output/gcta_res_1e-",n," --prevalence ",10^-n))
+gg <- mclapply(1:6,GCTA,mc.cores=6)
+system("rm 1.input/LAM_GRM*")
+
+
+
+######################## winner's curse correction : /home2/wjkim/project/LAM/final_analysis/0.data/ ####################
+#### br2
+cd /home2/wjkim/project/LAM/final_analysis/0.data/
+plink --bfile final_clean_withage --snps rs4544201,rs2006950 --recode --out sigSNPs
+plink --bfile final_clean_withage --snps rs4544201,rs2006950 --freq --out sigSNPs
+cat phenofile_withage.txt | sed '1d' | awk '{print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$14}' > br2_covar.txt		# because of multi-collinearity, age^2 was excluded from the covariates
+br2 --file sigSNPs --alpha 9.097e-8 --test LOGISTIC --estimate LOGISTIC --covar br2_covar.txt --B1 1394 --out ../2.logit/adjOR_br2
+rm temp.br2*
+
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis")
+br2 <- read.table("2.logit/adjOR_br2",head=T,stringsAsFactor=F)
+freq <- read.table("0.data/sigSNPs.frq",head=T,stringsAsFactor=F)
+
+ScaleCvt <- function(ho,K,P){
+	# ho : heritability on observed scale
+	# K : prevalence
+	# P : proportion of cases in the sample
+	hl = (ho*K*(1-K)/dnorm(qnorm(K,lower.tail=F)))*(K*(1-K)/(P*(1-P)))	# heritability on liability scale
+	return(hl)
+}
+
+get_prop_var <- function(i,n){
+	aa <- readLines(paste0('10.gcta/2.output/gcta_res_1e-',n,'.hsq'))
+	bb <- strsplit(aa[8],'')[[1]]
+	cc <- which(bb=='\t')
+	VG <- as.numeric(paste(bb[(cc[1]+1):(cc[2]-1)],collapse=''))
+
+	ori.OR <- 1/br2[i,'OR']
+	adj.OR <- 1/br2[i,'UBOOT']
+	maf <- freq[freq$SNP==br2[i,'SNP'],'MAF']
+	nom <- maf*(1-maf)*log(adj.OR)^2
+	denom <- 1.6^2+nom
+	whole.prop.obs <- nom/denom								# proportion of variance of LAM explained by index SNP on observed scale
+	whole.prop.lib <- ScaleCvt(whole.prop.obs,as.numeric(paste0('1e-',n)),0.2498513)	# proportion of variance of LAM explained by index SNP on liability scale
+	SNP.prop.lib <- whole.prop.lib/VG							# proportion of variance of whole SNPs explained by index SNP
+	res <- data.frame(br2[i,c('CHR','SNP','BP'),drop=F],OR_ori=ori.OR,OR_adj=adj.OR,Pvalue=br2[i,'P'],VG=VG,prop_pheno_var=whole.prop.lib,prop_SNP_var=SNP.prop.lib,prev=as.numeric(paste0('1e-',n)))
+	return(res)
+}
+
+get_adjOR <- function(n) {
+	res.I <- lapply(1:nrow(br2),get_prop_var,n=n)
+	res.II <- do.call(rbind,res.I)
+}
+RES <- lapply(1:6,get_adjOR)
+RES.1 <- do.call(rbind,RES)
+write.csv(RES.1,"9.tables/winners_adj_OR.csv",row.names=F,quote=F)
+
+
+#### 10^-4~10^-6 dense graph
+## run gcta
+library(parallel)
+setwd("/home2/wjkim/project/LAM/final_analysis/10.gcta/")
+system("gcta64 --bfile ../0.data/final_clean_withage --make-grm --autosome --out 1.input/LAM_GRM --thread-num 20")
+aa <- seq(10^-6,10^-4,length.out=400)
+GCTA <- function(n) system(paste0("gcta64 --grm 1.input/LAM_GRM --reml --pheno 1.input/pheno_gcta.txt --qcovar 1.input/qcovar_gcta.txt --grm-cutoff 0.025 --out 2.output/gcta_res_",n," --prevalence ",aa[n]))
+gg <- mclapply(1:400,GCTA,mc.cores=10)
+# next figure and table.txt
+
+
+########################### PICS ~ eQTL :/home2/wjkim/project/LAM/final_analysis/
+plink --bfile 4.impute_web/1.logit/0.data/final_clean_shapeit --snps rs58878263,rs16975396 --recodeA --out 6.PICS/2.regression_eQTL/PICS_enhancer
+
+#### haplotype estimation for eQTL SNPs
+Phasing <- function(i){
+	setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/2.regression_eQTL")
+	# Extract chromosome 15
+	system(paste("plink --bfile ../../4.impute_web/1.logit/0.data/final_clean_shapeit --recode --chr ",i," --out chr",i,sep=""))
+	
+	# Check allele alignment
+	system(paste("shapeit -check -P chr",i," -M /data/1000G/Phase3_impute2/genetic_map_chr",i,"_combined_b37.txt --input-ref /data/1000G/Phase3_impute2/1000GP_Phase3_chr",i,".hap.gz /data/1000G/Phase3_impute2/1000GP_Phase3_chr",i,".legend.gz /data/1000G/Phase3_impute2/1000GP_Phase3.sample --output-log gwas.alignments",sep=""))
+	
+	# Haplotype Phasing
+	system(paste("shapeit -P chr",i," -M /data/1000G/Phase3_impute2/genetic_map_chr",i,"_combined_b37.txt --input-ref /data/1000G/Phase3_impute2/1000GP_Phase3_chr",i,".hap.gz /data/1000G/Phase3_impute2/1000GP_Phase3_chr",i,".legend.gz /data/1000G/Phase3_impute2/1000GP_Phase3.sample --exclude-snp gwas.alignments.snp.strand.exclude -O chr",i,".phased.with.ref -T 12",sep=""))
+	system("rm shapeit*")
+	system(paste0("rm chr",i,".ped"))
+	system(paste0("rm chr",i,".map"))
+}
+Phasing(15)
+
+## Extract LD block : /home2/wjkim/project/LAM/final_analysis/6.PICS/2.regression_eQTL ##
+hap = file("chr15.phased.with.ref.haps")
+LD2 = ["rs11854008","rs74371750","rs74918319","rs4561414"]
+
+LD2_hap = []
+for line in hap:
+ ele = line.split()
+ if ele[1] in LD2:
+  LD2_hap.append(line.rstrip())
+ else:
+  pass
+
+LD2 = file("eQTL_sigSNPs.haps","w")
+LD2.write('\n'.join(LD2_hap))
+LD2.close()
+
+
+
+setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/2.regression_eQTL")
+Hap2 <- read.table("eQTL_sigSNPs.haps",head=F,stringsAsFactor=F)
+Sample <- read.table("chr15.phased.with.ref.sample",head=T,stringsAsFactor=F)[-1,-3]
+Sample[,6] <- as.numeric(Sample[,6])-1
+
+give.hap <- function(Hap){
+	dat <- t(as.matrix(Hap))[-c(1:5),]
+	colnames(dat) <- Hap[,1]
+	new.dat <- apply(dat,1,function(i) paste(c('hap_',i),collapse=""))
+	matrix(new.dat,ncol=2,byrow=T)
+}
+
+LD2 <- give.hap(Hap2)
+new.LD2 <- data.frame(Sample,LD2)
+colnames(new.LD2)[1:8] <- c("FID","IID","PID","MID","Sex","Phenotype","haplo1","haplo2")
+write.table(new.LD2,"eQTL_sigSNPs.ped",row.names=F,quote=F)	# no problem with sample order
+
+
+## Predictions ##
+# LD2
+setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/2.regression_eQTL")
+dat <- read.table("eQTL_sigSNPs.ped",head=T)
+mat1 <- model.matrix(~factor(dat[,"haplo1"])+0)
+mat2 <- model.matrix(~factor(dat[,"haplo2"])+0)
+mat <- (mat1+mat2)/2; mat <- mat[,-ncol(mat)]
+colnames(mat) <- gsub("^.+[)]","",colnames(mat))
+
+raw <- read.table("PICS_enhancer.raw",head=T,stringsAsFactor=F)
+n.snps <- ncol(raw)-6
+
+do.cv <- function(i){
+	library(boot)
+	temp.raw <- raw[,c(1,(i+6)),drop=F]
+	snpid <- gsub("_[AGCT]","",colnames(temp.raw)[2])
+	colnames(temp.raw)[2] <- "PICS_snp"
+	temp.dat <- cbind(temp.raw[,-1,drop=F],mat)
+	
+	nullmodel <- glm(PICS_snp ~ .,data=temp.dat,family=gaussian)
+	CVmodel <- cv.glm(temp.dat,nullmodel,K=10)
+	res <- c(snpid,CVmodel$delta[2])
+	return(res)
+}
+
+res.I <- lapply(1:n.snps,do.cv)
+res.II <- do.call(rbind,res.I)
+colnames(res.II) <- c('SNP','10-fold_CV_error')
+
+write.csv(res.II,"PICS_enhancer_eQTL_10fold_CV_error.csv",row.names=F,quote=F)
+
+
+
+
+########################### Haplotype analysis : LAM ~ sigSNPs in eQTL & GWAS
+## Extract LD block : /home2/wjkim/project/LAM/final_analysis/13.haplo_analysis ##
+hap = file("/home2/wjkim/project/LAM/final_analysis/6.PICS/2.regression_eQTL/chr15.phased.with.ref.haps")
+LD2 = ["rs11854008","rs74371750","rs74918319","rs4561414","rs4544201","rs2006950"]
+
+LD2_hap = []
+for line in hap:
+ ele = line.split()
+ if ele[1] in LD2:
+  LD2_hap.append(line.rstrip())
+ else:
+  pass
+
+LD2 = file("eQTL_GWAS_sigSNPs.haps","w")
+LD2.write('\n'.join(LD2_hap))
+LD2.close()
+
+
+
+setwd("/home2/wjkim/project/LAM/final_analysis/13.haplo_analysis")
+Hap2 <- read.table("eQTL_GWAS_sigSNPs.haps",head=F,stringsAsFactor=F)
+pheno <- read.table("../0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+Sample <- read.table("../6.PICS/2.regression_eQTL/chr15.phased.with.ref.sample",head=T,stringsAsFactor=F)[-1,-3]
+Sample[,6] <- as.numeric(Sample[,6])-1
+
+give.hap <- function(Hap){
+	dat <- t(as.matrix(Hap))[-c(1:5),]
+	colnames(dat) <- Hap[,1]
+	new.dat <- apply(dat,1,function(i) paste(c('hap_',i),collapse=""))
+	matrix(new.dat,ncol=2,byrow=T)
+}
+
+LD2 <- give.hap(Hap2)
+LD2.factor <- cbind(names(sort(table(LD2))),c(rep("e",3),"d","c","b","a"))
+new.LD2 <- cbind(LD2.factor[match(LD2[,1],LD2.factor[,1]),2],LD2.factor[match(LD2[,2],LD2.factor[,1]),2])
+new.LD2 <- cbind(Sample,cbind(LD2,new.LD2))
+new.LD2 <- cbind(new.LD2,pheno[match(pheno[,1],new.LD2[,1]),c(3:12,14,17)])
+
+colnames(new.LD2)[1:10] <- c("FID","IID","PID","MID","Sex","Phenotype","haplo1","haplo2","allele1","allele2")
+write.table(new.LD2,"eQTL_GWAS_sigSNPs.ped",row.names=F,quote=F)
+
+
+### Association study
+setwd("/home2/wjkim/project/LAM/final_analysis/13.haplo_analysis")
+dat <- read.table("eQTL_GWAS_sigSNPs.ped",head=T)
+mat1 <- model.matrix(~factor(dat[,"allele1"])+0)
+mat2 <- model.matrix(~factor(dat[,"allele2"])+0)
+mat <- (mat1+mat2)/2; mat <- mat[,-ncol(mat)]
+colnames(mat) <- gsub("^.+[)]","",colnames(mat))
+
+glm.0 <- glm(Phenotype ~ Age+Age_sq+PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10,data=dat,family=binomial())
+glm.1 <- glm(Phenotype ~ Age+Age_sq+PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+mat,data=dat,family=binomial())
+
+## Write results
+# anova table
+sink("ANOVA.txt")
+anova(glm.0,glm.1,test="Chisq")
+sink()
+
+# contingency table (phenotype vs haplotype)
+cont.tab <- with(dat,table(Phenotype,allele1)+table(Phenotype,allele2))
+write.table(cont.tab,"Contingtab_pheno_VS_haplo.txt",quote=F)
+
+# coeffcient table
+write.table(summary(glm.1)$coef,"Coef.txt",row.names=F,quote=F)
+
+
+
+
+
+################# DEG analysis ###################
+
+library(limma)
+library(edgeR)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/15.DEG/0.data")
+
+# LAM&AML
+case <- readLines('AML-rpkm.gct')
+Colname <- strsplit(case[3],"\t")[[1]]
+case_rpkm <- as.data.frame(do.call(rbind,strsplit(case[-c(1:3)],"\t")))
+colnames(case_rpkm) <- Colname
+for(i in 3:ncol(case_rpkm)) case_rpkm[,i] <- as.numeric(as.character(case_rpkm[,i]))
+
+# GTEx
+cont_rpkm <- read.table("GTEx_Lung.txt",head=T,sep="\t",stringsAsFactor=F)
+
+# combined
+comb <- merge(case_rpkm,cont_rpkm,by='Name',sort=F,all=F)
+
+# make matrix (row : gene, col : sample)
+mat <- as.matrix(comb[,-c(1,2,8)])
+
+sampleid <- colnames(comb)[-c(1,2,8)]
+geneid <- as.character(comb[,1])
+geneid <- gsub("\\..+","",geneid)
+group <- c(rep('case',5),rep('control',ncol(cont_rpkm)-2))
+
+# QC
+Removed_ID <- c()
+for (i in 1:nrow(mat)){
+        foo <- mat[i,]
+        if( sum(foo) < ncol(mat)/10 ) { # It should be properly modified depending on data 
+                Removed_ID <- c(Removed_ID,i)
+        }
+}
+
+new.mat <- log(mat[-Removed_ID,]+0.5,2)
+new.geneid <- geneid[-Removed_ID]
+
+fit <- lmFit(new.mat,model.matrix(~group))
+fit.1 <- eBayes(fit)
+pval <- fit.1$p.value[,2]
+padj <- p.adjust(pval,method="fdr")
+mean_case <- rowMeans(mat[-Removed_ID,c(1:5)])+0.5
+mean_cont <- rowMeans(mat[-Removed_ID,-c(1:5)])+0.5
+FC <- log2(mean_case)-log2(mean_cont)
+res <- data.frame(gene=new.geneid,pvalue=pval,fdr=padj,FC=FC)
+sort.res <- res[order(res$fdr),]
+#sig_genes <- as.character(sort.res[sort.res$fdr<0.05 & abs(sort.res$FC)>=1,1])
+sig_genes <- as.character(sort.res[sort.res$fdr<0.01 & abs(sort.res$FC)>=1,1])
+remain_genes <- sort.res[!sort.res$gene%in%sig_genes,1]
+write.table(res,"../1.output/Lung/limma_results.txt",row.names=F,quote=F)
+#write.table(sig_genes,"../1.output/Lung/limma_target_genes.txt",row.names=F,col.names=F,quote=F)
+#write.table(remain_genes,"../1.output/Lung/limma_background_genes.txt",row.names=F,col.names=F,quote=F)
+write.table(sig_genes,"../1.output/Lung/limma_target_genes_001.txt",row.names=F,col.names=F,quote=F)
+write.table(remain_genes,"../1.output/Lung/limma_background_genes_001.txt",row.names=F,col.names=F,quote=F)
+
+
+
+
+############### haploview for imputed data ##########################
+## haploview input
+# working directory : /home2/wjkim/project/LAM/final_analysis
+cd /home2/wjkim/project/LAM/final_analysis
+plink --bfile 4.impute_web/1.logit/0.data/final_clean_shapeit --chr 15 --from-bp 96100000 --to-bp 96200000 --recode --out 7.haploview/1.input/LD_impute 
+awk '{print $2,$4}' 7.haploview/1.input/LD_impute.map > 7.haploview/1.input/LD_impute.info
+rm 7.haploview/1.input/LD_impute.map
+
+
+############### Determine K #######################
+setwd('~/project/LAM/final_analysis/3.clogit/determineK')
+library(parallel)
+aa <- lapply(1:5,function(K) system(paste0('admixture --cv ../../0.data/final_clean_withage.bed ',K,' -j20 | tee log',K,'.out')))
+
+
+
+###########################################################################################################################
+###########################################################################################################################
+############################# Sep 24, 2018 Discovery study using matched samples used for CLR #############################
+###########################################################################################################################
+###########################################################################################################################
+
+#################### association study #######################
+# R
+setwd('/home2/wjkim/project/LAM/final_analysis/')
+pheno <- read.table("0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+matched <- pheno[!is.na(pheno$pair),]
+write.table(matched,'2.logit/matched.txt',row.names=F,quote=F)
+
+
+## classical logistic ##
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/final_clean_withage --logistic --keep 2.logit/matched.txt --pheno 0.data/phenofile_withage.txt --pheno-name pheno12 --covar 0.data/phenofile_withage.txt --covar-name PC1-PC10,Age,Age_sq --out 2.logit/logit_matched_20180924  --hide-covar --threads 10 # 428 case, 856 controls 549599 snps#
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_matched_20180924.assoc.logistic",head=T)
+logit <- logit[,c(1,2,9)]
+colnames(logit)<-c("CHR","GENE","p.val")
+write.table(logit,"2.logit/plotdata_logit_matched_20180924.txt",row.names=F,quote=F,sep="\t")
+system("Rscript ~/Output_plot.r 2.logit/plotdata_logit_matched_20180924.txt 2.logit/logit_matched_20180924")
+
+
+
+
+
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/clean_indiv_snp_qc_NHW --remove 11.replication/3.control/1.reFemales/matched.txt --make-bed --out 11.replication/3.control/1.reFemales/indiv_snp_qc_NHW
+# 405 females remained.
+
+## merge controls to the NHW LAM subjects for two significant SNPs
+cd /home2/wjkim/project/LAM/final_analysis/11.replication/
+plink --bfile 4.sigSNPs/0.data/indiv_snp_qc_lam_NHW --bmerge 3.control/1.reFemales/indiv_snp_qc_NHW.bed 3.control/1.reFemales/indiv_snp_qc_NHW.bim 3.control/1.reFemales/indiv_snp_qc_NHW.fam --make-bed --out 4.sigSNPs/0.data/1.reFemales/allmerge_NHW
+
+plink --bfile 4.sigSNPs/0.data/1.reFemales/allmerge_NHW --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 4.sigSNPs/0.data/1.reFemales/snp_qc_all_NHW
+plink --bfile 4.sigSNPs/0.data/1.reFemales/snp_qc_all_NHW --mind 0.05 --out 4.sigSNPs/0.data/1.reFemales/clean_all_NHW --make-bed
+
+############### association study ##################
+cd /home2/wjkim/project/LAM/final_analysis/11.replication
+plink --bfile 4.sigSNPs/0.data/1.reFemales/clean_all_NHW --logistic hide-covar --covar 0.data/age.txt --covar-name age,age2 --out 4.sigSNPs/1.logit/logit_NHW_reFemales_20180924
+
+
+
+############### Subject information ##################
+
+###### Discovery
+
+total <- read.table("/data/LAM/lam_case/LAM_positive.fam",head=F,stringsAsFactor=F)
+
+## QC1
+QC1 <- QC1_desc <- rep("",nrow(total))
+
+# Non-White (34 subejcts)
+setwd("/home2/wjkim/project/LAM/final_analysis")
+NW <- read.table("0.data/white.list",head=F,stringsAsFactor=F)
+QC1_desc[!total$V2%in%NW$V2] <- "Non_White"
+
+# Missing genotype rate (12 subjects)
+miss <- read.table("0.data/indiv_snp_qc_lam.fam",head=F,stringsAsFactor=F)
+QC1_desc[!total$V2%in%miss$V2 & QC1_desc==""] <- "Missing_GT"
+
+# IBS (4 subjects)
+IBS <- read.table("0.data/IBS_samplelist_lam.txt",head=T,stringsAsFactor=F)
+QC1_desc[total$V2%in%IBS$IID & QC1_desc==""] <- "IBS"
+
+QC1[QC1_desc!=""] <- "QC1"
+
+## QC2
+QC2_desc <- rep("",nrow(total))
+
+# Outlier (1 subejct)
+OL <- read.table("0.data/outlier.txt",head=F,stringsAsFactor=F)
+QC2_desc[total$V2%in%OL$V2 & QC2_desc==""] <- "Outlier"
+QC1_desc[total$V2%in%OL$V2 & QC1_desc==""] <- "Outlier"
+
+QC1[QC2_desc!=""] <- "QC2"
+
+sbjQC_info <- cbind(total[,1:2],QC1,QC1_desc)
+colnames(sbjQC_info) <- c('FID','IID','QC','QC_Description')
+write.csv(sbjQC_info,"0.data/sbjQC_info_dis.csv",row.names=F,quote=F)
+
+
+
+###### Replication
+setwd("/home2/wjkim/project/LAM/final_analysis/11.replication")
+total <- read.table("4.sigSNPs/0.data/snp_qc_lam.fam",head=F,stringsAsFactor=F)
+
+## QC1
+QC1 <- QC1_desc <- rep("",nrow(total))
+
+# Non-White (34 subejcts)
+NW <- read.table("2.openarray/0.data/NHW.list",head=F,stringsAsFactor=F)
+QC1_desc[!total$V2%in%NW$V2] <- "Non_White"
+
+# Missing genotype rate (12 subjects)
+miss <- read.table("4.sigSNPs/0.data/indiv_snp_qc_lam_NHW.fam",head=F,stringsAsFactor=F)
+QC1_desc[!total$V2%in%miss$V2 & QC1_desc==""] <- "Missing_GT"
+
+QC1[QC1_desc!=""] <- "QC"
+
+sbjQC_info <- cbind(total[,1:2],QC1,QC1_desc)
+colnames(sbjQC_info) <- c('FID','IID','QC','QC_Description')
+setwd("/home2/wjkim/project/LAM/final_analysis")
+write.csv(sbjQC_info,"0.data/sbjQC_info_rep.csv",row.names=F,quote=F)
+
