@@ -4,7 +4,7 @@ omitted <- read.csv('0.data/no_age_info.csv',head=T,stringsAsFactor=F)
 case[match(omitted$Sample.Identifier,case$Sample.Identifier),'Date.of.Birth'] <- omitted[,'Date.of.Birth']
 write.csv(case,"0.data/case_pheno_new_20180416.csv",row.names=F,quote=F)
 
-## 2¸íÀÇ missing age Á¤º¸ ¾÷µ¥ÀÌÆ®ÇÏ¿© 0.data/case_pheno_new_20180506.csv¿¡ ÀúÀå
+## 2ï¿½ï¿½ï¿½ï¿½ missing age ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½Ï¿ï¿½ 0.data/case_pheno_new_20180506.csvï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 
 ## remove non-white from case ##
 setwd("/home2/wjkim/project/LAM/final_analysis/")
@@ -25,7 +25,7 @@ plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --filter-females --extract /
 plink --bfile /data/LAM/lam_case/LAM_positive --keep 0.data/white.list --extract /data/LAM/lam_case/commonSNP_List.txt --out 0.data/common_lam --make-bed  #619797 snps & 445 indiv#
 
 
-##°¢°¢ QC : /home2/wjkim/project/LAM/final_analysis/##
+##ï¿½ï¿½ï¿½ï¿½ QC : /home2/wjkim/project/LAM/final_analysis/##
 #NHW QC#
 #marker QC#
 Per-marker QC of GWA data consists of at least four steps, 
@@ -46,7 +46,7 @@ Per-individual QC of GWA data consists of at least four steps,
 plink --bfile 0.data/snp_qc_NHW --mind 0.05 --out 0.data/indiv_snp_qc_NHW --make-bed 
 
 #Identification of duplicated or related individuals#
-wisard --bed 0.data/indiv_snp_qc_NHW --ibs --makecor --out 0.data/res_corr_ibs_NHW --thread 10
+wisard --bed 0.data/indiv_snp_qc_NHW --ibs --makecor --out 0.data/res_corr_ibs_NHW --thread 24
 
 ibs <- read.table("0.data/res_corr_ibs_NHW.ibs.cor",head=T)
 up <- ibs[upper.tri(ibs)]
@@ -201,9 +201,9 @@ mv 0.data/indiv_snp_qc.fam 0.data/clean_indiv_snp_qc.fam
 mv 0.data/indiv_snp_qc.log 0.data/clean_indiv_snp_qc.log
 
 ##PC score##
-wisard --bed 0.data/clean_indiv_snp_qc.bed --pca --npc 10 --out 0.data/clean_indiv_snp_qc --thread 10
+wisard --bed 0.data/clean_indiv_snp_qc.bed --pca --npc 10 --out 0.data/clean_indiv_snp_qc --thread 24
 
-##ÀÌ»óÄ¡ detection##
+## Outlier detection ##
 #MDS plot#
 library(scatterplot3d)
 
@@ -214,7 +214,7 @@ obs <- 1:nrow(pc)
 pc <- cbind(pc,obs)
 
 phe <- fam[,6]
-col <- ifelse(phe==1,"dark red","dark blue")
+col <- ifelse(phe==2,"dark red","dark blue")
 png("1.MDS_plot/MDS_allmerge.png", width=2000, height=2000, units = "px", bg = "white", res = 200)
 attach(pc)
 par(mfrow=c(2,2))
@@ -944,4 +944,26 @@ sbjQC_info <- cbind(total[,1:2],QC1,QC1_desc)
 colnames(sbjQC_info) <- c('FID','IID','QC','QC_Description')
 setwd("/home2/wjkim/project/LAM/final_analysis")
 write.csv(sbjQC_info,"0.data/sbjQC_info_rep.csv",row.names=F,quote=F)
+
+
+##############################################################################
+############### Compare SNP MAFs in US LAM vs nonUS LAM ######################
+##############################################################################
+### Make a USA list
+setwd("/home2/wjkim/project/LAM/final_analysis")
+country <- read.csv("0.data/country of origin data.csv",head=T,stringsAsFactor=F)
+patient <- read.csv("/data/LAM/lam_case/LAMGWAS_plate_submission.csv",head=T,stringsAsFactor=F)
+CLR_sbj <- read.table("0.data/CLR_sbj.list",head=F,stringsAsFactor=F)
+
+indata <- patient[patient$Sample.Identifier%in%CLR_sbj$V2,]
+mer <- merge(indata,country,by.x="Patient..",by.y="Patient.number",sort=F,all.x=T)
+USA.list <- mer[mer$Country=="USA","Sample.Identifier"]	# 191 subejcts
+nonUSA.list <- mer[mer$Country!="USA","Sample.Identifier"]	# 237 subjects
+write.table(cbind(USA.list,USA.list),"20.US_VS_nonUS/USA_list.txt",row.names=F,quote=F,col.names=F)
+write.table(cbind(nonUSA.list,nonUSA.list),"20.US_VS_nonUS/nonUSA_list.txt",row.names=F,quote=F,col.names=F)
+
+### Calculate MAFs in US and nonUS
+cd /home2/wjkim/project/LAM/final_analysis
+plink --bfile 0.data/final_clean_withage --keep 20.US_VS_nonUS/USA_list.txt --freq --snps rs4544201,rs2006950 --out 20.US_VS_nonUS/USA_lam
+plink --bfile 0.data/final_clean_withage --keep 20.US_VS_nonUS/nonUSA_list.txt --freq --snps rs4544201,rs2006950 --out 20.US_VS_nonUS/nonUSA_lam
 
