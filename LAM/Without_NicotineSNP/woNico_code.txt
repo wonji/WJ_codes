@@ -114,3 +114,10 @@ plink --bfile 0.data/final_clean_withage --exclude 17.wo_nicotineSNP/2.LD/1.LD/i
 
 
 
+#############################################################################
+################# Check p-value for 8 SNPs (ND and NU) ######################
+#############################################################################
+
+cd /home2/wjkim/project/LAM/final_analysis/17.wo_nicotineSNP/2.LD/1.LD
+sh check_pval.sh > clogit_NDSNPs.txt
+
