@@ -626,4 +626,35 @@ dev.off()
 
 
 
+################# Revision ##################
+################# Using CLR subjects ################
+
+
+########### Table 1 #############
+
+### MAFs
+cd /home2/wjkim/project/LAM/final_analysis/0.data
+plink --bfile final_clean_withage --keep CLR_sbj.list --snps rs4544201,rs2006950 --filter-cases --freq --out sigSNPs_cases
+plink --bfile final_clean_withage --keep CLR_sbj.list --snps rs4544201,rs2006950 --filter-controls --freq --out sigSNPs_controls
+
+### Genotype counts for subject CLR
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+raw <- read.table("sigSNPs.raw",head=T,stringsAsFactor=F)
+CLRsbj <- read.table("CLR_sbj.list",head=F,stringsAsFactor=F)
+new.raw <- raw[raw$FID%in%CLRsbj$V1,]
+table(new.raw[,6],new.raw[,7])	# rs4544201
+table(new.raw[,6],new.raw[,8])	# rs2006950
+
+### ORs
+## Original
+cd /home2/wjkim/project/LAM/final_analysis/3.clogit/chr15
+grep -E 'rs4544201|rs2006950' clogit_chr15_2PCs.txt | awk '{print $4}'
+
+## Bias adjusted
+cd /home2/wjkim/project/LAM/final_analysis/0.data/
+plink --bfile final_clean_withage --snps rs4544201,rs2006950 --recode --keep CLR_sbj.list --out sigSNPs_CLRsbj
+plink --bfile final_clean_withage --snps rs4544201,rs2006950 --freq --keep CLR_sbj.list --out sigSNPs_CLRsbj
+cat phenofile_withage.txt | sed '1d' | awk '{if($19!="") {print $1,$2,$3,$4,$14}}' > br2_covar_CLRsbj.txt
+br2 --file sigSNPs_CLRsbj --alpha 9.097e-8 --test LOGISTIC --estimate LOGISTIC --covar br2_covar_CLRsbj.txt --B1 1394 --out ../2.logit/adjOR_br2_CLRsbj
+rm temp.br2*
 
