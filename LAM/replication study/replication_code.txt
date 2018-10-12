@@ -243,5 +243,33 @@ plink --bfile 4.sigSNPs/0.data/1.reFemales/clean_all_NHW --logistic hide-covar -
 
 
 
+###########################################################################################################################
+###########################################################################################################################
+## Oct 12, 2018 Replication study using remaining COPDGene females after matching cases and controls for discovery study - Method 2##
+###########################################################################################################################
+###########################################################################################################################
+
+#################### association study #######################
+# R
+setwd('/home2/wjkim/project/LAM/final_analysis/')
+pheno <- read.table("0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+matched <- pheno[which(!is.na(pheno$pair_age) & !pheno$pair_age%in%c(140,217)),]
+write.table(matched,'11.replication/3.control/1.reFemales/matched_method2.txt',row.names=F,quote=F)
+
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/clean_indiv_snp_qc_NHW --remove 11.replication/3.control/1.reFemales/matched_method2.txt --make-bed --out 11.replication/3.control/1.reFemales/indiv_snp_qc_NHW_method2
+# 409 females remained.
+
+## merge controls to the NHW LAM subjects for two significant SNPs
+cd /home2/wjkim/project/LAM/final_analysis/11.replication/
+plink --bfile 4.sigSNPs/0.data/indiv_snp_qc_lam_NHW --bmerge 3.control/1.reFemales/indiv_snp_qc_NHW_method2 --make-bed --out 4.sigSNPs/0.data/1.reFemales/allmerge_NHW_method2
+
+plink --bfile 4.sigSNPs/0.data/1.reFemales/allmerge_NHW_method2 --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out 4.sigSNPs/0.data/1.reFemales/snp_qc_all_NHW_method2
+plink --bfile 4.sigSNPs/0.data/1.reFemales/snp_qc_all_NHW_method2 --mind 0.05 --out 4.sigSNPs/0.data/1.reFemales/clean_all_NHW_method2 --make-bed
+
+############### association study ##################
+cd /home2/wjkim/project/LAM/final_analysis/11.replication
+plink --bfile 4.sigSNPs/0.data/1.reFemales/clean_all_NHW_method2 --logistic hide-covar --covar 0.data/age.txt --covar-name age,age2 --out 4.sigSNPs/1.logit/logit_NHW_reFemales_20181012_method2
+
 
 

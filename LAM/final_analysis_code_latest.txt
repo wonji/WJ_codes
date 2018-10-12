@@ -953,17 +953,31 @@ write.csv(sbjQC_info,"0.data/sbjQC_info_rep.csv",row.names=F,quote=F)
 setwd("/home2/wjkim/project/LAM/final_analysis")
 country <- read.csv("0.data/country of origin data.csv",head=T,stringsAsFactor=F)
 patient <- read.csv("/data/LAM/lam_case/LAMGWAS_plate_submission.csv",head=T,stringsAsFactor=F)
-CLR_sbj <- read.table("0.data/CLR_sbj.list",head=F,stringsAsFactor=F)
+CLR_sbj <- read.table("0.data/CLR_sbj_method2.list",head=F,stringsAsFactor=F)
 
 indata <- patient[patient$Sample.Identifier%in%CLR_sbj$V2,]
 mer <- merge(indata,country,by.x="Patient..",by.y="Patient.number",sort=F,all.x=T)
-USA.list <- mer[mer$Country=="USA","Sample.Identifier"]	# 191 subejcts
-nonUSA.list <- mer[mer$Country!="USA","Sample.Identifier"]	# 237 subjects
-write.table(cbind(USA.list,USA.list),"20.US_VS_nonUS/USA_list.txt",row.names=F,quote=F,col.names=F)
-write.table(cbind(nonUSA.list,nonUSA.list),"20.US_VS_nonUS/nonUSA_list.txt",row.names=F,quote=F,col.names=F)
+USA.list <- mer[mer$Country=="USA","Sample.Identifier"]	# 190 subejcts
+nonUSA.list <- mer[mer$Country!="USA","Sample.Identifier"]	# 236 subjects
+write.table(cbind(USA.list,USA.list),"20.US_VS_nonUS/USA_list_method2.txt",row.names=F,quote=F,col.names=F)
+write.table(cbind(nonUSA.list,nonUSA.list),"20.US_VS_nonUS/nonUSA_list_method2.txt",row.names=F,quote=F,col.names=F)
 
 ### Calculate MAFs in US and nonUS
 cd /home2/wjkim/project/LAM/final_analysis
-plink --bfile 0.data/final_clean_withage --keep 20.US_VS_nonUS/USA_list.txt --freq --snps rs4544201,rs2006950 --out 20.US_VS_nonUS/USA_lam
-plink --bfile 0.data/final_clean_withage --keep 20.US_VS_nonUS/nonUSA_list.txt --freq --snps rs4544201,rs2006950 --out 20.US_VS_nonUS/nonUSA_lam
+plink --bfile 0.data/final_clean_withage --keep 20.US_VS_nonUS/USA_list_method2.txt --freq --snps rs4544201,rs2006950 --out 20.US_VS_nonUS/USA_lam_method2
+plink --bfile 0.data/final_clean_withage --keep 20.US_VS_nonUS/nonUSA_list_method2.txt --freq --snps rs4544201,rs2006950 --out 20.US_VS_nonUS/nonUSA_lam_method2
 
+
+CAtest <- function(Ncase,pcase,Ncont,pcont){
+	A <- 2*Ncase*Ncont*(pcase-pcont)
+	varA <- 2*Ncase*Ncont*(Ncont*pcase*(1-pcase) + Ncase*pcont*(1-pcont))
+	Z <- A/sqrt(varA)
+	Pval <- pnorm(abs(Z),lower.tail=F)*2
+	return(c(Z,Pval))
+}
+
+CI <- function(N,maf,alpha){
+	LB <- maf - qnorm(alpha/2,lower.tail=F)*sqrt(maf*(1-maf)/(2*N))
+	UB <- maf + qnorm(alpha/2,lower.tail=F)*sqrt(maf*(1-maf)/(2*N))
+	return(c(LB,UB))
+} 

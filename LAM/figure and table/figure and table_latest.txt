@@ -630,31 +630,78 @@ dev.off()
 ################# Using CLR subjects ################
 
 
-########### Table 1 #############
+########### Table 1 : CLR Method 2 (Using previous matching results & exclude 6 subjects (two cases(outliser), 4 controls))#############
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+phe <- read.table("0.data/phenofile_withage.txt",head=T)
+rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+CLR_sbj <- phe[!is.na(phe$pair_age),1:2]
+write.table(CLR_sbj,"0.data/CLR_sbj_method2.list",col.names=F,row.names=F,quote=F) 
 
 ### MAFs
 cd /home2/wjkim/project/LAM/final_analysis/0.data
-plink --bfile final_clean_withage --keep CLR_sbj.list --snps rs4544201,rs2006950 --filter-cases --freq --out sigSNPs_cases
-plink --bfile final_clean_withage --keep CLR_sbj.list --snps rs4544201,rs2006950 --filter-controls --freq --out sigSNPs_controls
+plink --bfile final_clean_withage --keep CLR_sbj_method2.list --snps rs4544201,rs2006950 --filter-cases --freq --out sigSNPs_cases
+plink --bfile final_clean_withage --keep CLR_sbj_method2.list --snps rs4544201,rs2006950 --filter-controls --freq --out sigSNPs_controls
 
 ### Genotype counts for subject CLR
 setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
 raw <- read.table("sigSNPs.raw",head=T,stringsAsFactor=F)
-CLRsbj <- read.table("CLR_sbj.list",head=F,stringsAsFactor=F)
+CLRsbj <- read.table("CLR_sbj_method2.list",head=F,stringsAsFactor=F)
 new.raw <- raw[raw$FID%in%CLRsbj$V1,]
+new.raw[is.na(new.raw[,7]),7] <- 'missing' 
+new.raw[is.na(new.raw[,8]),8] <- 'missing' 
 table(new.raw[,6],new.raw[,7])	# rs4544201
 table(new.raw[,6],new.raw[,8])	# rs2006950
 
 ### ORs
 ## Original
-cd /home2/wjkim/project/LAM/final_analysis/3.clogit/chr15
-grep -E 'rs4544201|rs2006950' clogit_chr15_2PCs.txt | awk '{print $4}'
+cd /home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision/chr15
+grep -E 'rs4544201|rs2006950' clogit_chr15_181012_method2.txt | awk '{print $4}'
 
 ## Bias adjusted
 cd /home2/wjkim/project/LAM/final_analysis/0.data/
-plink --bfile final_clean_withage --snps rs4544201,rs2006950 --recode --keep CLR_sbj.list --out sigSNPs_CLRsbj
-plink --bfile final_clean_withage --snps rs4544201,rs2006950 --freq --keep CLR_sbj.list --out sigSNPs_CLRsbj
-cat phenofile_withage.txt | sed '1d' | awk '{if($19!="") {print $1,$2,$3,$4,$14}}' > br2_covar_CLRsbj.txt
+plink --bfile final_clean_withage --snps rs4544201,rs2006950 --recode --keep CLR_sbj_method2.list --out sigSNPs_CLRsbj_method2
+plink --bfile final_clean_withage --snps rs4544201,rs2006950 --freq --keep CLR_sbj_method2.list --out sigSNPs_CLRsbj_method2
+cat phenofile_withage.txt | sed '1d' | awk '{if($19!="NA" && $19!=140 && $19!=217) {print $1,$2,$3,$4,$14}}' > br2_covar_CLRsbj_method2.txt
 br2 --file sigSNPs_CLRsbj --alpha 9.097e-8 --test LOGISTIC --estimate LOGISTIC --covar br2_covar_CLRsbj.txt --B1 1394 --out ../2.logit/adjOR_br2_CLRsbj
-rm temp.br2*
+# exp(-log(UBOOT))
+
+### P-values
+cd /home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision/chr15
+grep -E 'rs4544201|rs2006950' clogit_chr15_181012_method2.txt
+
+########################## MDS plot using CLR subjects ####################################
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+pc <- read.table("0.data/clean_indiv_snp_qc.pca.res",head=T)
+fam <- read.table("0.data/clean_indiv_snp_qc.fam",head=F)
+obs <- 1:nrow(pc)
+pc <- cbind(pc,obs)
+CLR_sbj <- read.table("0.data/CLR_sbj.list",head=F)
+pc <- pc[pc$IID%in%CLR_sbj$V2,]
+
+png("MDS_CLRsbj.png", width=1800, height=650, units = "px", bg = "white", res = 200)
+phe <- fam[,6]
+col <- ifelse(phe==1,"dark blue",ifelse(phe==2,"dark red","light gray"))
+par(mfrow=c(1,3))
+# PC1 vs PC2
+with(pc,plot(PC1,PC2,col=col,main="MDS plot : PC1 and PC2",type='n'))
+points(pc$PC1[phe==-9],pc$PC2[phe==-9],col=col[phe==-9])
+points(pc$PC1[phe==1],pc$PC2[phe==1],col=col[phe==1])
+points(pc$PC1[phe==2],pc$PC2[phe==2],col=col[phe==2])
+
+# PC1 vs PC3
+with(pc,plot(PC1,PC3,col=col,main="MDS plot : PC1 and PC3",type='n'))
+points(pc$PC1[phe==-9],pc$PC3[phe==-9],col=col[phe==-9])
+points(pc$PC1[phe==1],pc$PC3[phe==1],col=col[phe==1])
+points(pc$PC1[phe==2],pc$PC3[phe==2],col=col[phe==2])
+
+# PC2 vs PC3
+with(pc,plot(PC2,PC3,col=col,main="MDS plot : PC2 and PC3",type='n'))
+points(pc$PC2[phe==-9],pc$PC3[phe==-9],col=col[phe==-9])
+points(pc$PC2[phe==1],pc$PC3[phe==1],col=col[phe==1])
+points(pc$PC2[phe==2],pc$PC3[phe==2],col=col[phe==2])
+dev.off()
+
 
