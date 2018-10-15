@@ -361,7 +361,7 @@ write.csv(LD,"tab5.csv",row.names=F,quote=F)
 
 
 
-
+  
 
 #### Table 6 : PICS SNPs for rs4544201 and rs2006950
 setwd("/home2/wjkim/project/LAM/final_analysis/6.PICS/0.data")

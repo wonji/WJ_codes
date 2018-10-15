@@ -981,3 +981,21 @@ CI <- function(N,maf,alpha){
 	UB <- maf + qnorm(alpha/2,lower.tail=F)*sqrt(maf*(1-maf)/(2*N))
 	return(c(LB,UB))
 } 
+
+
+##########################################################
+############### Country information ######################
+##########################################################
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+country <- read.csv("0.data/country of origin data.csv",head=T,stringsAsFactor=F)
+patient <- read.csv("/data/LAM/lam_case/LAMGWAS_plate_submission.csv",head=T,stringsAsFactor=F)
+CLR_sbj <- read.table("0.data/CLR_sbj_method2.list",head=F,stringsAsFactor=F)
+
+indata <- patient[patient$Sample.Identifier%in%CLR_sbj$V2,]
+mer <- merge(indata,country,by.x="Patient..",by.y="Patient.number",sort=F,all.x=T)
+country.info <- table(mer$Country)
+country.info <- as.matrix(country.info[order(country.info,decreasing=T)])
+colnames(country.info) <- 'Discovery'
+write.csv(country.info,"9.tables/Country_info.csv",quote=F)
+

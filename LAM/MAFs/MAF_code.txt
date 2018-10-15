@@ -156,8 +156,8 @@ setwd('/data/1000G/Phase3_impute2/snponly/')
 rs4544201.idx <- as.numeric(system("grep -n 'rs4544201' snponly_chr15_new.legend | cut -d: -f1",intern=T))-1
 rs2006950.idx <- as.numeric(system("grep -n 'rs2006950' snponly_chr15_new.legend | cut -d: -f1",intern=T))-1
 
-system(paste0("awk 'NR==",rs4544201.idx,"' snponly_chr15.haplotypes > /home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/rs4544201.haps"))
-system(paste0("awk 'NR==",rs2006950.idx,"' snponly_chr15.haplotypes > /home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/rs2006950.haps"))
+#system(paste0("awk 'NR==",rs4544201.idx,"' snponly_chr15.haplotypes > /home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/rs4544201.haps"))
+#system(paste0("awk 'NR==",rs2006950.idx,"' snponly_chr15.haplotypes > /home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/rs2006950.haps"))
 
 setwd('/data/1000G/Phase3_impute2/snponly/')
 samples <- read.table("../1000GP_Phase3.sample",head=T,stringsAsFactor=F)
@@ -165,16 +165,29 @@ setwd('/home2/wjkim/project/LAM/final_analysis/18.MAF/3.1000G/0.data/')
 rs4544201 <- read.table('rs4544201.haps',head=F)
 rs2006950 <- read.table('rs2006950.haps',head=F)
 
-EUR.M <- with(samples,which(GROUP=='EUR'&SEX=='male'))	#240
-EUR.FM <- with(samples,which(GROUP=='EUR'&SEX=='female'))	#263
+## USA
+EUR.M <- with(samples,which(POP=='CEU'&GROUP=='EUR'&SEX=='male'))	#49
+EUR.FM <- with(samples,which(POP=='CEU'&GROUP=='EUR'&SEX=='female'))	#50
 
 # rs4544201
-maf.FM <- sum(rs4544201[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2357414
-maf.M <- sum(rs4544201[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.23125
+maf.FM <- sum(rs4544201[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2600
+maf.M <- sum(rs4544201[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.2041
 
 # rs2006950
-maf.FM <- sum(rs2006950[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2186312
-maf.M <- sum(rs2006950[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.208333
+maf.FM <- sum(rs2006950[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2300
+maf.M <- sum(rs2006950[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.2041
+
+## EUR
+EUR.M <- with(samples,which(POP!='CEU'&GROUP=='EUR'&SEX=='male'))	#191
+EUR.FM <- with(samples,which(POP!='CEU'&GROUP=='EUR'&SEX=='female'))	#213
+
+# rs4544201
+maf.FM <- sum(rs4544201[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2300
+maf.M <- sum(rs4544201[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.2382
+
+# rs2006950
+maf.FM <- sum(rs2006950[1,sort(c(EUR.FM*2-1,EUR.FM*2))])/length(EUR.FM)/2	#0.2160
+maf.M <- sum(rs2006950[1,sort(c(EUR.M*2-1,EUR.M*2))])/length(EUR.M)/2	#0.2094
 
 
 #### ECLIPSE (Channing server)
