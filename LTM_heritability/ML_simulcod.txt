@@ -157,7 +157,7 @@ source('~/paper/heritability/ML/LTM_heritability_ML.R')
 ############### Ascertained samples ###################
 #######################################################
 
-#### Ascertained samples
+#### Ascertained samples - n14
 ## family size : 500
 source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
 num_snp=1;n.cores=32
@@ -185,9 +185,9 @@ for(prev in c(0.1,0.2)){
 }
 
 
-## robust version
+## robust version - n8
 source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
-num_snp=1;n.cores=20
+num_snp=1;n.cores=24
 for(prev in c(0.1,0.2)){
 	for(h2 in c(0.2, 0.4)){
 		for(totalfam in c(500)){
