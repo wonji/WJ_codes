@@ -1,0 +1,215 @@
+#### Generate simulation data
+# prev : 0.1,0.2 | h2 : 0.2,0.4
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		print(paste0('prevalence:',prev,', heritability:',h2))
+		setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/")
+		system(paste0("mkdir prev_",prev,"_h2_",h2))
+		dataset = genNucFam(totalfam=10000,MAF=0.2,h2,ha2=0.05,prev,num_snp=1)
+		write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),row.names=F,quote=F)
+	}
+}
+
+
+
+
+#### Convergence of heritability
+## family size : 500
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+num_snp=1;n.cores=20
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		for(totalfam in c(500)){
+			print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+			library(kinship2)
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/")
+			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+			model <- Y~std_snp-1
+			write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),paste0("prev_",prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
+			Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores)
+		}
+	}
+}
+
+
+#### When prevalence is misspecified
+## scenario 1 : assumped prev = true prev+0.1, 
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+num_snp=1;n.cores=20
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		for(totalfam in c(500)){
+			assumed_prev=prev+0.1
+			print(paste0('true prevalence:',prev,', assumed prevalence:',assumed_prev,' heritability:',h2,', number of families:',totalfam))
+			library(kinship2)
+
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam")
+			system(paste0("mkdir misspecified/prev_",assumed_prev,"_h2_",h2))
+			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+			model <- Y~std_snp-1
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/misspecified")
+			write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),paste0("prev_",assumed_prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
+			Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=assumed_prev,model=model,n.cores=n.cores)
+		}
+	}
+}
+
+
+
+## robust version
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+num_snp=1;n.cores=20
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		for(totalfam in c(500)){
+			assumed_prev=prev+0.1
+			print(paste0('true prevalence:',prev,', assumed prevalence:',assumed_prev,' heritability:',h2,', number of families:',totalfam))
+			library(kinship2)
+
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam")
+			system(paste0("mkdir robust_prev_intercept/prev_",assumed_prev,"_h2_",h2))
+			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+			model <- Y~std_snp
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/robust_prev_intercept")
+			write.table(data.frame('obs','tau','beta_std_snp','h2','n_iteration'),paste0("prev_",assumed_prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
+			Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=c(0,1),init_h2=h2,totalfam=totalfam,assumed_prev=assumed_prev,model=model,n.cores=n.cores)
+		}
+	}
+}
+
+
+
+
+
+## robust version
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_robust.R')
+num_snp=1;n.cores=20
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		for(totalfam in c(500)){
+			assumed_prev=prev+0.1
+			print(paste0('true prevalence:',prev,', assumed prevalence:',assumed_prev,' heritability:',h2,', number of families:',totalfam))
+			library(kinship2)
+
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam")
+			system(paste0("mkdir robust_prev/prev_",assumed_prev,"_h2_",h2))
+			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+			model <- Y~std_snp-1
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/robust_prev")
+			write.table(data.frame('obs','beta_std_snp','h2','c','n_iteration'),paste0("prev_",assumed_prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
+			Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=1,init_h2=h2,init_c=0,totalfam=totalfam,assumed_prev=assumed_prev,model=model,n.cores=n.cores)
+		}
+	}
+}
+
+
+
+
+
+
+
+
+setwd("C:\\Users\\Wonji\\Dropbox\\paper\\my_paper\\heritability\\simulation\\well_specified\\prev_0.1_h2_0.2")
+aa <- read.table("Esth2_500.txt",head=F)
+hist(aa$V3,xlim=c(0,1),main='Prevalence:0.1 & Heritability:0.2',xlab='h2')
+
+h2 = 0.2; prev=0.1
+Esth2 <- aa
+			x.point <- c(1:length(Esth2[,3]))
+			Y.point <- cumsum(Esth2[,3])/x.point
+			png(paste0("Esth2_",totalfam,".png"), width=1700, height=1000, units = "px", bg = "white", res = 200)
+			plot(x.point,Y.point,xlab="Cumulative number of families",ylab="Sample mean of estmated heritabilities",main="Convergence of estimate",ylim=c(0,1),type="l")
+			legend("topright",legend=paste0("True h2 : ",h2," & prev : ",prev))
+			abline(h=h2,lty=2,col="dark gray")
+			dev.off()
+
+
+setwd("C:\\Users\\Wonji\\Dropbox\\paper\\my_paper\\heritability\\simulation\\well_specified\\prev_0.1_h2_0.4")
+aa <- read.table("Esth2_500.txt",head=F)
+hist(aa$V3,xlim=c(0,1),main='Prevalence:0.1 & Heritability:0.4',xlab='h2')
+
+h2 = 0.4; prev=0.1
+Esth2 <- aa
+			x.point <- c(1:length(Esth2[,3]))
+			Y.point <- cumsum(Esth2[,3])/x.point
+			png(paste0("Esth2_",totalfam,".png"), width=1700, height=1000, units = "px", bg = "white", res = 200)
+			plot(x.point,Y.point,xlab="Cumulative number of families",ylab="Sample mean of estmated heritabilities",main="Convergence of estimate",ylim=c(0,1),type="l")
+			legend("topright",legend=paste0("True h2 : ",h2," & prev : ",prev))
+			abline(h=h2,lty=2,col="dark gray")
+			dev.off()
+
+
+
+
+
+
+
+source('~/paper/heritability/ML/LTM_heritability_ML.R')
+
+
+
+#######################################################
+############### Ascertained samples ###################
+#######################################################
+
+#### Ascertained samples
+## family size : 500
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+num_snp=1;n.cores=32
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		for(totalfam in c(500)){
+			print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+			library(kinship2)
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/")
+			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+			model <- Y~std_snp-1
+
+			# families containing at least one affected member
+			all.famlist <- unique(fin.dat$FID)
+			num.aff <- sapply(all.famlist,function(i) sum(fin.dat$Y[fin.dat$FID==i]))
+			fin.dat <- fin.dat[fin.dat$FID%in%all.famlist[num.aff>0],]
+
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/ascertained")
+			write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),paste0("prev_",prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
+
+			Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores)
+		}
+	}
+}
+
+
+## robust version
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+num_snp=1;n.cores=20
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.2, 0.4)){
+		for(totalfam in c(500)){
+			assumed_prev=prev+0.1
+			print(paste0('true prevalence:',prev,', assumed prevalence:',assumed_prev,' heritability:',h2,', number of families:',totalfam))
+			library(kinship2)
+
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam")
+			system(paste0("mkdir robust_prev_intercept/prev_",assumed_prev,"_h2_",h2))
+			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+			model <- Y~std_snp
+
+			# families containing at least one affected member
+			all.famlist <- unique(fin.dat$FID)
+			num.aff <- sapply(all.famlist,function(i) sum(fin.dat$Y[fin.dat$FID==i]))
+			fin.dat <- fin.dat[fin.dat$FID%in%all.famlist[num.aff>0],]
+
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/ascertained/robust_prev_intercept")
+			write.table(data.frame('obs','tau','beta_std_snp','h2','n_iteration'),paste0("prev_",assumed_prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
+			Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=c(0,1),init_h2=h2,totalfam=totalfam,assumed_prev=assumed_prev,model=model,n.cores=n.cores)
+		}
+	}
+}
+
