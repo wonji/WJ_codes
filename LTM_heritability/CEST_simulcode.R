@@ -26,28 +26,15 @@ for(prev in c(0.1,0.2)){
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
       fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
       fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
-      
-      # dataset : data.frame
-      # dataset = fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),500),]
-      X <- as.matrix(dataset[,'std_snp',drop=F])
-      Y <- as.matrix(dataset[,'Y',drop=F])
-      init_beta <- matrix(2.5,1,1)
-      famid <- dataset$FID
-      total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
-      V <- 2*as.matrix(kinship(total_ped))
-      
+	  init_beta=matrix(0.3,1,1)
       model <- Y~std_snp-1
       
-      # families containing at least one affected member
-      all.famlist <- unique(fin.dat$FID)
-      num.aff <- sapply(all.famlist,function(i) sum(fin.dat$Y[fin.dat$FID==i]))
-      fin.dat <- fin.dat[fin.dat$FID%in%all.famlist[num.aff>0],]
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      write.table(data.frame('Chisq','Pvalue'),paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
       
-      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/ascertained")
-      write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),paste0("prev_",prev,"_h2_",h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F)
-      
-      Esth2 <- sapply(1:300,getEsth2,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores)
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores)
     }
   }
 }
+
 
