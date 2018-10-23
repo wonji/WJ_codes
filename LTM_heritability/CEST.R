@@ -63,8 +63,8 @@ Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1,version=1){
     Vi <- V[fam.idx,fam.idx,drop=F]
     Xi <- X[fam.idx,,drop=F]
     B0i <- finalAB[fam.idx,'Bij',drop=F]
-	A0i <- B0i%*%t(B0i)
-	diag(A0i) <- finalAB[fam.idx,'Aij']
+	  A0i <- B0i%*%t(B0i)
+	  diag(A0i) <- finalAB[fam.idx,'Aij']
     
     S0i_1 <- t(Xi)%*%B0i - t(Xi)%*%Xi%*%beta.new
     S0i_2 <- -tr(Vi-diag(length(fam.idx)))/2 + tr((Vi-diag(length(fam.idx)))%*%A0i)/2-t(Xi%*%beta.new)%*%(Vi-diag(length(fam.idx)))%*%(B0i-Xi%*%beta.new/2)
@@ -74,18 +74,22 @@ Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1,version=1){
   
   Scores <- lapply(FAMID,get.Score)
   S <- Reduce('+',Scores)
-  if(version==1){
-    M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
-  } else {
-    M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
-  }
-  
-  h2.idx <- nrow(M)
+  h2.idx <- nrow(S)
   S.h2 <- S[h2.idx,,drop=F]
-  varS.h2 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
-  T.h2 <- S.h2%*%solve(varS.h2)%*%S.h2
-  pval <- pchisq(2*T.h2,df=1,lower.tail=F)
-  
+  if(S.h2[1,1]<=0){
+    T.h2 <- 0
+    pval <- 1/2
+  } else{
+    if(version==1){
+      M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
+    } else {
+      M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
+    }
+    
+    varS.h2 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
+    T.h2 <- S.h2%*%solve(varS.h2)%*%S.h2
+    pval <- pchisq(T.h2,df=1,lower.tail=F)/2
+  }
   return(data.frame(Chisq=T.h2,Pvalue=pval))
 }
 
@@ -109,7 +113,7 @@ DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta,prev,h2,n.cores=1,out
 
 
 ########## H0 : beta=0
-Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores=1){
+Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores=1,version=1){
 	## This function depends on a package; tmvtnorm
 	## model : Y~X 
 	## init_beta : initial value for beta (p+1 vector)
@@ -337,7 +341,11 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,test.beta.idx,max.it
 	
 	#### Now, we have MLE for h2 under the H0: beta=0.
 	FAMID <- unique(famid)
-	resAB <- mclapply(FAMID,getAB,h2.old=h2.new,beta.old=beta.new,famid=famid,mc.cores=n.cores)
+	X <- full.X
+	final.beta <- matrix(0,ncol(full.X),1)
+	final.beta[-test.beta.idx,1] <- beta.new[,1]
+	
+	resAB <- mclapply(FAMID,getAB,h2.old=h2.new,beta.old=final.beta,famid=famid,mc.cores=n.cores)
 
 	## Score under the H0: beta=0
 	get.Score <- function(ii){
@@ -346,10 +354,8 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,test.beta.idx,max.it
 	  Vi <- resAB[[ii]]$Vi
 	  Si <- h2.new*Vi+(1-h2.new)*diag(length(fam.idx))
 	  invSi <- solve(Si)
-	  final.beta <- matrix(0,ncol(full.X),1)
-	  final.beta[-test.beta.idx,1] <- beta.new[,1]
 	  
-	  Ci <- -Si%*%(Vi-diag(length(fam.idx)))%*%Si
+	  Ci <- -invSi%*%(Vi-diag(length(fam.idx)))%*%invSi
 	  Xi <- full.X[fam.idx,,drop=F]
 	  B0i <- resAB[[ii]]$Bi
 	  A0i <- resAB[[ii]]$Ai
@@ -362,19 +368,24 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,test.beta.idx,max.it
 	
 	Scores <- lapply(1:length(FAMID),get.Score)
 	S <- Reduce('+',Scores)
-	M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
+	if(version==1){
+	  M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
+	} else {
+	  M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
+	}
 	
 	beta.idx <- test.beta.idx
 	S.beta <- S[beta.idx,,drop=F]
 	varS.beta <- M[beta.idx,beta.idx,drop=F]-M[beta.idx,-beta.idx,drop=F]%*%solve(M[-beta.idx,-beta.idx,drop=F])%*%M[-beta.idx,beta.idx,drop=F]
 	T.beta <- S.beta%*%solve(varS.beta)%*%S.beta
 	pval <- pchisq(T.beta,df=length(test.beta.idx),lower.tail=F)
-	
+
+	return(data.frame(Chisq=T.beta,Pvalue=pval))
 }			
 
 
 
-DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,h2,n.cores=1){
+DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,h2,n.cores=1,version=1){
 	print(obs) 
 
 	# Sampling test data
@@ -389,6 +400,52 @@ DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,h2,n
   V <- 2*as.matrix(kinship(total_ped))
 
 	# Testing
-	Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
+	Testing.res <- Testing.beta(famid,V,init_beta,prev,X,Y,n.cores,version=version)
 	write.table(Testing.res,paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,".txt"),col.names=F,row.names=F,quote=F,append=TRUE)
+}
+
+
+##### Summarize : QQ plot & power table
+get.Summary <- function(IN,OUT,prev,h2,totalfam,alpha,type=c("size","power"),dist=c("mixture","chisq")){
+  ## Table
+  dat <- read.table(IN,head=T)
+  # pval <- pchisq(dat[,'Chisq'],df=1,lower.tail=F)/2
+  pval <- dat[,'Pvalue']
+  res <- lapply(alpha,function(i) data.frame(pvalue=sum(pval<i)/length(pval)))
+  res.I <- do.call(rbind,res)
+  rownames(res.I) <- alpha
+  colnames(res.I) <- "Proportion"
+  write.table(res.I,paste0(OUT,"_power.txt"),quote=F)
+  
+  if(type=="size"){
+    ## QQ plots
+    p.val <- pval
+    png(paste0(OUT,"_QQ.png"), width=1000, height=1000, units = "px", bg = "white", res = 200)
+
+    y <- -log(p.val,10)
+    o.y <- sort(y[is.finite(y)],decreasing=T)
+    if(dist=="mixture"){
+      xx<- (1:length(o.y))/length(o.y)/2
+    } else {
+      xx<- (1:length(o.y))/length(o.y)
+    }
+    x <- -log(xx,10)
+    ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
+    
+    plot(YY, YY, main="Empirical Size",type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
+    N=length(o.y)
+    c95 <- rep(0,N)
+    c05 <- rep(0,N)
+    for(i in 1:N){
+      c95[i] <- ifelse(dist=="mixture",qbeta(0.95,i,N-i+1)/2,qbeta(0.95,i,N-i+1))
+      c05[i] <- ifelse(dist=="mixture",qbeta(0.05,i,N-i+1)/2,qbeta(0.05,i,N-i+1))
+    }
+    abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
+    polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
+    abline(a=0,b=1,col="black", lty=1)
+    points(x, o.y, cex = .5, col = "dark red")
+
+    dev.off()
+  }
+  return(res.I)
 }

@@ -42,7 +42,7 @@ for(prev in c(0.1,0.2)){
   }
 }
 
-###### Ver 2 : Remove Information matrix latter part
+###### Ver 2 : Remove Information matrix latter part (n9)
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
 n.cores=24
 for(prev in c(0.1,0.2)){
@@ -68,6 +68,51 @@ for(prev in c(0.1,0.2)){
   }
 }
 
+###### Ver 3 : Remove Information matrix latter part (n14 & n9) & consider sign of score (S<0 -> 1/2, S>0 ~ chisq()/2 )
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+n.cores=32
+for(prev in c(0.1)){
+  for(h2 in c(0, 0.2, 0.4)){
+    for(totalfam in c(500)){
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+      library(kinship2)
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+      init_beta=matrix(0,1,1)
+      model <- Y~std_snp-1
+      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_ver3.txt")
+      
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      write.table(data.frame('Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,version=2)
+    }
+  }
+}
+
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+n.cores=24
+for(prev in c(0.2)){
+  for(h2 in c(0, 0.2, 0.4)){
+    for(totalfam in c(500)){
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+      library(kinship2)
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+      init_beta=matrix(0,1,1)
+      model <- Y~std_snp-1
+      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_ver3.txt")
+      
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      write.table(data.frame('Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,version=2)
+    }
+  }
+}
+
 
 
 ###### Test beta
@@ -80,14 +125,14 @@ for(prev in c(0.1,0.2)){
       print(paste0('prevalence:',prev,', heritability:',h2,ifelse(num_snp==0,", size",", power")))
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
       system(paste0("mkdir prev_",prev,"_h2_",h2,"_",ifelse(num_snp==0,"size","power")))
-      dataset = genNucFam(totalfam=10000,MAF=0.2,h2,ha2=0.05,prev,num_snp=1)
+      dataset = genNucFam(totalfam=10000,MAF=0.2,h2,ha2=0.05,prev,num_snp=num_snp)
       write.table(dataset,paste0("prev_",prev,"_h2_",h2,"_",ifelse(num_snp==0,"size","power"),"/dataset.txt"),row.names=F,quote=F)
     }
   }
 }
 
 
-
+##### version 2 ()
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
 n.cores=24
 for(prev in c(0.1,0.2)){
@@ -99,7 +144,7 @@ for(prev in c(0.1,0.2)){
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
       fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"_",type,"/dataset.txt"),head=T,stringsAsFactor=F)
       fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
-      model <- Y~std_snp-1
+      model <- Y~std_snp
       
       test.beta <- 'std_snp'
       init_h2 <- h2
@@ -117,61 +162,51 @@ for(prev in c(0.1,0.2)){
 
 ##### Summarize #####
 
-get.Summary <- function(IN,OUT,prev,h2,totalfam,alpha){
-  ## Table
-  dat <- read.table(IN,head=T)
-  pval <- dat[,2]
-  new.pval <- pchisq(dat[,1],df=1,lower.tail=F)
-  res <- lapply(alpha,function(i) data.frame(pvalue=sum(pval<i)/length(pval),new_pvalue=sum(new.pval<i)/length(new.pval)))
-  res.I <- do.call(rbind,res)
-  rownames(res.I) <- alpha
-  colnames(res.I) <- c("Version 1","Version 2")
-  write.table(res.I,paste0(OUT,"_power.txt"),quote=F)
 
-  ## QQ plots
-  p.val <- cbind(pval,new.pval)
-  png(paste0(OUT,"_QQ.png"), width=2000, height=1000, units = "px", bg = "white", res = 200)
-  par(mfrow=c(1,2))
-
-  title <- c("Version 1","Version 2")
-  for(i in 1:2){
-    y <- -log(p.val[,i],10)
-
-    # QQ plot
-    o.y <- sort(y[is.finite(y)],decreasing=T)
-    xx<- (1:length(o.y))/length(o.y)
-    x <- -log(xx,10)
-    ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
-    
-    plot(YY, YY, main=title[i-1],type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
-    N=length(o.y)
-    c95 <- rep(0,N)
-    c05 <- rep(0,N)
-    for(i in 1:N){
-      c95[i] <- qbeta(0.95,i,N-i+1)
-      c05[i] <- qbeta(0.05,i,N-i+1)
+setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+for(prev in c(0.1,0.2)){
+  for(h2 in c(0,0.2,0.4)){
+    for(totalfam in c(500)){
+      IN <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,".txt")
+      dat <- read.table(IN,head=T,stringsAsFactor=F)
+      dat[,'Pvalue'] <- pchisq(dat[,'Chisq'],df=1,lower.tail=F)/2
+      write.table(dat,IN,row.names=F,quote=F)
+      
+      IN <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_ver2.txt")
+      dat <- read.table(IN,head=T,stringsAsFactor=F)
+      dat[,'Pvalue'] <- pchisq(dat[,'Chisq'],df=1,lower.tail=F)/2
+      write.table(dat,IN,row.names=F,quote=F)
+      
     }
-    abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
-    polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
-    abline(a=0,b=1,col="black", lty=1)
-    points(x, o.y, cex = .5, col = "dark red")
-    
   }
-  dev.off()
-  return(res.I)
 }
 
 setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
 for(prev in c(0.1,0.2)){
-  for(h2 in c(0, 0.2, 0.4)){
+  for(h2 in c(0,0.2,0.4)){
     for(totalfam in c(500)){
       IN <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,".txt")
       OUT <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_prev_",prev,"_h2_",h2,"_",totalfam)
-      get.Summary(IN,OUT,prev,h2,totalfam,alpha=c(0.005,0.01,0.05,0.1))
-      system(paste0("scp ",OUT,"_* wjkim@ng:~"))
+      get.Summary(IN,OUT,prev,h2,totalfam,alpha=c(0.005,0.01,0.05,0.1),type=ifelse(h2==0,'size','power'),dist='mixture')
+      system(paste0("scp ",OUT,"_power.txt wjkim@ng:~"))
+      if(h2==0) system(paste0("scp ",OUT,"_QQ.png wjkim@ng:~"))
     }
   }
 }
+
+setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+for(prev in c(0.1,0.2)){
+  for(h2 in c(0,0.2,0.4)){
+    for(totalfam in c(500)){
+      IN <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_ver2.txt")
+      OUT <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_prev_",prev,"_h2_",h2,"_",totalfam,"_ver2")
+      get.Summary(IN,OUT,prev,h2,totalfam,alpha=c(0.005,0.01,0.05,0.1),type=ifelse(h2==0,'size','power'),dist='mixture')
+      system(paste0("scp ",OUT,"_power.txt wjkim@ng:~"))
+      if(h2==0) system(paste0("scp ",OUT,"_QQ.png wjkim@ng:~"))
+    }
+  }
+}
+
 
 
 
