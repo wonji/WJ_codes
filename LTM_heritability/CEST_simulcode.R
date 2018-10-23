@@ -91,6 +91,29 @@ for(h2 in c(0, 0.2, 0.4)){
   }
 }
 
+###### n2, CEST_h2_500_tau_all.txt : Remove Information matrix latter part & consider sign of score (S<0 -> 1/2, S>0 ~ chisq()/2 ) & tau
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+n.cores=20
+for(h2 in c(0, 0.2, 0.4)){
+  for(prev in c(0.1,0.2)){
+    for(totalfam in c(500)){
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+      library(kinship2)
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+      init_beta=matrix(c(0,0.2),2,1)
+      model <- Y~std_snp
+      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_tau_all.txt")
+      
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out)
+    }
+  }
+}
+
 
 
 ###### Test beta
@@ -273,7 +296,7 @@ getlogL <- function(model,V,famid,prev,dataset,n.cores=1){
 for(prev in c(0.1,0.2)){
   h2=0
   totalfam=1000
-  n.cores=32
+  n.cores=24
   
   library(kinship2)
   setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")

@@ -15,19 +15,19 @@ Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1){
   t <- qnorm(prev,0,1,lower.tail=F)
   
   getAB <- function(ij){
-	Yij <- Y[ij,1]
-	Xij <- X[ij,,drop=F]
-	a <- ifelse(Yij==0,-Inf,t)
-	b <- ifelse(Yij==0,t,Inf)
-
-	para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
-	Bij <- matrix(para$tmean,ncol=1)
-	Aij <- para$tvar+Bij%*%t(Bij)
-	
-	O1ij <- t(Xij)%*%Xij
-	O2ij <- t(Xij)%*%Bij
-	
-	return(list(ij=ij,Yij=Yij,Xij=Xij,Aij=Aij,Bij=Bij,O1ij=O1ij,O2ij=O2ij))
+  	Yij <- Y[ij,1]
+  	Xij <- X[ij,,drop=F]
+  	a <- ifelse(Yij==0,-Inf,t)
+  	b <- ifelse(Yij==0,t,Inf)
+  
+  	para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+  	Bij <- matrix(para$tmean,ncol=1)
+  	Aij <- para$tvar+Bij%*%t(Bij)
+  	
+  	O1ij <- t(Xij)%*%Xij
+  	O2ij <- t(Xij)%*%Bij
+  	
+  	return(list(ij=ij,Yij=Yij,Xij=Xij,Aij=Aij,Bij=Bij,O1ij=O1ij,O2ij=O2ij))
   }
 
   beta.old <- init_beta
@@ -82,7 +82,7 @@ Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1){
   varS.h2.1 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
   
   # version 1 variance
-    M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
+  M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
   varS.h2.2 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
  
   if(S.h2[1,1]<=0){
@@ -92,7 +92,8 @@ Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1){
     T.h2 <- S.h2%*%solve(varS.h2.1)%*%S.h2
     pval <- pchisq(T.h2,df=1,lower.tail=F)/2
   }
-  return(data.frame(Score=S.h2,var_Score_ver1=varS.h2.1,var_Score_ver2=varS.h2.2,Chisq=T.h2,Pvalue=pval))
+  fin.res <- data.frame(Score=S.h2,var_Score_ver1=varS.h2.1,var_Score_ver2=varS.h2.2,Chisq=T.h2,Pvalue=pval)
+  return(fin.res)
 }
 
 
