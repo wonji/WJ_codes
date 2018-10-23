@@ -125,7 +125,7 @@ for(prev in c(0.1,0.2)){
       print(paste0('prevalence:',prev,', heritability:',h2,ifelse(num_snp==0,", size",", power")))
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
       system(paste0("mkdir prev_",prev,"_h2_",h2,"_",ifelse(num_snp==0,"size","power")))
-      dataset = genNucFam(totalfam=10000,MAF=0.2,h2,ha2=0.05,prev,num_snp=num_snp)
+      dataset = genNucFam(totalfam=10000,MAF=0.2,h2,ha2=0.005,prev,num_snp=num_snp)
       write.table(dataset,paste0("prev_",prev,"_h2_",h2,"_",ifelse(num_snp==0,"size","power"),"/dataset.txt"),row.names=F,quote=F)
     }
   }
