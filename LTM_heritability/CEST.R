@@ -3,7 +3,7 @@
 #############################################################################################
 
 ########## H0 : h2=0
-Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1,version=1){
+Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1){
   library(parallel)
   library(tmvtnorm)
   
@@ -76,25 +76,27 @@ Testing.h2 <- function(famid,V,init_beta,prev,X,Y,n.cores=1,version=1){
   S <- Reduce('+',Scores)
   h2.idx <- nrow(S)
   S.h2 <- S[h2.idx,,drop=F]
+
+  # version 1 variance
+  M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
+  varS.h2.1 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
+  
+  # version 1 variance
+    M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
+  varS.h2.2 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
+ 
   if(S.h2[1,1]<=0){
     T.h2 <- 0
     pval <- 1/2
   } else{
-    if(version==1){
-      M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
-    } else {
-      M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
-    }
-    
-    varS.h2 <- M[h2.idx,h2.idx,drop=F]-M[h2.idx,-h2.idx,drop=F]%*%solve(M[-h2.idx,-h2.idx,drop=F])%*%M[-h2.idx,h2.idx,drop=F]
-    T.h2 <- S.h2%*%solve(varS.h2)%*%S.h2
+    T.h2 <- S.h2%*%solve(varS.h2.1)%*%S.h2
     pval <- pchisq(T.h2,df=1,lower.tail=F)/2
   }
-  return(data.frame(Chisq=T.h2,Pvalue=pval))
+  return(data.frame(Score=S.h2,var_Score_ver1=varS.h2.1,var_Score_ver2=varS.h2.2,Chisq=T.h2,Pvalue=pval))
 }
 
 
-DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta,prev,h2,n.cores=1,out,version=1){
+DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta,prev,h2,n.cores=1,out){
 	print(obs) 
 
 	# Sampling test data
@@ -106,14 +108,14 @@ DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta,prev,h2,n.cores=1,out
   V <- 2*as.matrix(kinship(total_ped))
 
 	# Testing
-	Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores,version=version)
+	Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
 	write.table(Testing.res,out,col.names=F,row.names=F,quote=F,append=TRUE)
 }
 
 
 
 ########## H0 : beta=0
-Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores=1,version=1){
+Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores=1){
 	## This function depends on a package; tmvtnorm
 	## model : Y~X 
 	## init_beta : initial value for beta (p+1 vector)
@@ -368,24 +370,25 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 	
 	Scores <- lapply(1:length(FAMID),get.Score)
 	S <- Reduce('+',Scores)
-	if(version==1){
-	  M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
-	} else {
-	  M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
-	}
 	
-	beta.idx <- test.beta.idx
-	S.beta <- S[beta.idx,,drop=F]
-	varS.beta <- M[beta.idx,beta.idx,drop=F]-M[beta.idx,-beta.idx,drop=F]%*%solve(M[-beta.idx,-beta.idx,drop=F])%*%M[-beta.idx,beta.idx,drop=F]
-	T.beta <- S.beta%*%solve(varS.beta)%*%S.beta
+	# version 1 variance
+	M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]]))) - S%*%t(S)/length(FAMID)
+	varS.beta.1 <- M[test.beta.idx,test.beta.idx,drop=F]-M[test.beta.idx,-test.beta.idx,drop=F]%*%solve(M[-test.beta.idx,-test.beta.idx,drop=F])%*%M[-test.beta.idx,test.beta.idx,drop=F]
+	
+	# version 2 variance
+	M <- Reduce('+',lapply(1:length(FAMID),function(i) Scores[[i]]%*%t(Scores[[i]])))
+	varS.beta.2 <- M[test.beta.idx,test.beta.idx,drop=F]-M[test.beta.idx,-test.beta.idx,drop=F]%*%solve(M[-test.beta.idx,-test.beta.idx,drop=F])%*%M[-test.beta.idx,test.beta.idx,drop=F]
+	
+	S.beta <- S[test.beta.idx,,drop=F]
+	T.beta <- S.beta%*%solve(varS.beta.1)%*%S.beta
 	pval <- pchisq(T.beta,df=length(test.beta.idx),lower.tail=F)
 
-	return(data.frame(Chisq=T.beta,Pvalue=pval))
+	return(data.frame(Score=S.beta,var_Score_ver1=varS.beta.1,var_Score_ver2=varS.beta.2,Chisq=T.beta,Pvalue=pval))
 }			
 
 
 
-DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,h2,n.cores=1,version=1){
+DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,init_h2,n.cores=1,out){
 	print(obs) 
 
 	# Sampling test data
@@ -400,8 +403,8 @@ DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,h2,n
   V <- 2*as.matrix(kinship(total_ped))
 
 	# Testing
-	Testing.res <- Testing.beta(famid,V,init_beta,prev,X,Y,n.cores,version=version)
-	write.table(Testing.res,paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,".txt"),col.names=F,row.names=F,quote=F,append=TRUE)
+	Testing.res <- Testing.beta(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores)
+	write.table(Testing.res,out,col.names=F,row.names=F,quote=F,append=TRUE)
 }
 
 

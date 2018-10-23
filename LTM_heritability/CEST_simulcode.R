@@ -68,33 +68,11 @@ for(prev in c(0.1,0.2)){
   }
 }
 
-###### Ver 3 : Remove Information matrix latter part (n14 & n9) & consider sign of score (S<0 -> 1/2, S>0 ~ chisq()/2 )
-source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
-n.cores=32
-for(prev in c(0.1)){
-  for(h2 in c(0, 0.2, 0.4)){
-    for(totalfam in c(500)){
-      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
-      library(kinship2)
-      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
-      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
-      init_beta=matrix(0,1,1)
-      model <- Y~std_snp-1
-      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_ver3.txt")
-      
-      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-      write.table(data.frame('Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
-      
-      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,version=2)
-    }
-  }
-}
-
+###### CEST_h2_500_all.txt : Remove Information matrix latter part (n9) & consider sign of score (S<0 -> 1/2, S>0 ~ chisq()/2 )
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
 n.cores=24
-for(prev in c(0.2)){
-  for(h2 in c(0, 0.2, 0.4)){
+for(h2 in c(0, 0.2, 0.4)){
+  for(prev in c(0.1,0.2)){
     for(totalfam in c(500)){
       print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
       library(kinship2)
@@ -103,12 +81,12 @@ for(prev in c(0.2)){
       fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
       init_beta=matrix(0,1,1)
       model <- Y~std_snp-1
-      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_ver3.txt")
+      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_all.txt")
       
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-      write.table(data.frame('Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
       
-      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,version=2)
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out)
     }
   }
 }
@@ -132,14 +110,14 @@ for(prev in c(0.1,0.2)){
 }
 
 
-##### version 2 ()
+##### version 2 (size : n14, power : n8)
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
-n.cores=24
-for(prev in c(0.1,0.2)){
+n.cores=32
+for(type in c('size')){
   for(h2 in c(0.2, 0.4)){
-    for(type in c('size','power')){
+    for(prev in c(0.1,0.2)){
       totalfam <- 500
-      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam,' Test type: ',type))
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam,', Test type: ',type))
       library(kinship2)
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
       fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"_",type,"/dataset.txt"),head=T,stringsAsFactor=F)
@@ -152,9 +130,35 @@ for(prev in c(0.1,0.2)){
       out <- paste0("prev_",prev,"_h2_",h2,"_",type,"/CEST_beta_",totalfam,"_tau.txt")
 
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
-      write.table(data.frame('Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
       
-      CEST_h2 <- sapply(1:2000,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out)
+      CEST_beta <- sapply(1:2000,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,test.beta='std_snp',prev=prev,init_h2=h2,n.cores=n.cores,out=out)
+    }
+  }
+}
+
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+n.cores=24
+for(type in c('power')){
+  for(h2 in c(0.2, 0.4)){
+    for(prev in c(0.1,0.2)){
+      totalfam <- 500
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam,', Test type: ',type))
+      library(kinship2)
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
+      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"_",type,"/dataset.txt"),head=T,stringsAsFactor=F)
+      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+      model <- Y~std_snp
+      
+      test.beta <- 'std_snp'
+      init_h2 <- h2
+      init_beta=matrix(1,1,1) # initial value for beta which is not for the H0.
+      out <- paste0("prev_",prev,"_h2_",h2,"_",type,"/CEST_beta_",totalfam,"_tau.txt")
+
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
+      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      
+      CEST_beta <- sapply(1:2000,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,test.beta='std_snp',prev=prev,init_h2=h2,n.cores=n.cores,out=out)
     }
   }
 }
