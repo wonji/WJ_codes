@@ -121,7 +121,7 @@ getlogL <- function(model,V,famid,prev,dataset,n.cores=1,Beta){
   
   
   Y <- dataset[,as.character(model)[2]]
-  X <- model.matrix(model,data=dataset)
+  if(!is.null(Beta)) X <- model.matrix(model,data=dataset)
   
   logL <- function(h2){
     getab <- function(i){
@@ -129,7 +129,7 @@ getlogL <- function(model,V,famid,prev,dataset,n.cores=1,Beta){
       fam <- which(famid==i)
       nn <- length(fam)			# number of family members for family i
       Yi <- matrix(Y[fam],nrow=nn)		# disease status for family i
-      Xi <- X[fam,,drop=F]
+      if(!is.null(Beta)) Xi <- X[fam,,drop=F]
       Vi <- V[fam,fam]			# GRM matric for family i
       Si <- h2*Vi+(1-h2)*diag(nn)		# Sigma for family i
       
@@ -140,14 +140,22 @@ getlogL <- function(model,V,famid,prev,dataset,n.cores=1,Beta){
       a <- rep(-Inf,nn); a[k] <- t
       b <- rep(Inf,nn); b[kk] <- t
       
-      return(list(fam=fam,nn=nn,Vi=Vi,Si=Si,a=a,b=b,Xi=Xi))
+      if(!is.null(Beta)) {
+		return(list(fam=fam,nn=nn,Vi=Vi,Si=Si,a=a,b=b,Xi=Xi))
+	  } else {
+	    return(list(fam=fam,nn=nn,Vi=Vi,Si=Si,a=a,b=b))
+	  }
     }
     resab <- lapply(unique(famid),getab)
     
-    O <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resab[[i]],log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%Beta),sig=Si)[[1]]))))
+    if(!is.null(Beta)) {
+		O <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resab[[i]],log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%Beta),sig=Si)[[1]]))))
+	} else {
+		O <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resab[[i]],log(pmvnorm(lower=a,upper=b,mean=rep(0,nn),sig=Si)[[1]]))))
+	}
     return(c(h2,O))
   }
-  n.point <- seq(-0.5,1.5,by=0.01)
+  n.point <- seq(-0.5,0.5,by=0.01)
   Y.point <- do.call(rbind,mclapply(n.point,logL,mc.cores=n.cores))
   colnames(Y.point) <- c("n.point","Y.point")
   return(Y.point)
@@ -193,6 +201,11 @@ while(1){
 
 }
 
+    logLik <- getlogL(model,V,famid,prev,dataset,n.cores,Beta=NULL)
+    setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2/1.NoBeta")
+    png(paste0("logL_prev_",prev,"_nobeta.png"))
+    plot(logLik[,1],logLik[,2])
+    dev.off()
 
 
 ####### Distribution of Score
