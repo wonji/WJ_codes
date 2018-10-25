@@ -62,7 +62,6 @@ LRT.getMLE.H0 <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1){
 }
 
 ## Function to estimate h2 & beta under the (H0 U H1) == Just use estimation function!
-
 LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.iter=50,n.cores=1){
   ## This function depends on a package; tmvtnorm
   ## model : Y~X 
@@ -110,7 +109,31 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
     
     return(list(fam=fam,a=a,b=b,Yi=Yi,Xi=Xi,Vi=Vi,nn=nn,Ai=Ai,Bi=Bi))
   }
-  
+
+  getAB_ij <- function(ij){
+    Yij <- Y[ij]
+    if(!is.null(X)) Xij <- X[ij,,drop=F]
+    t <- qnorm(prev,0,1,lower.tail=F)
+	a <- ifelse(Yij==0,-Inf,t)
+    b <- ifelse(Yij==0,t,Inf)
+    
+    if(is.null(X)){
+      para <- mtmvnorm(mean=rep(0,length(Yij)),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+    } else {
+      para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+    }
+    Bij <- matrix(para$tmean,ncol=1)
+    Aij <- para$tvar+Bij%*%t(Bij)
+    
+    if(is.null(X)){
+      return(list(ij=ij,Yij=Yij,Aij=Aij,Bij=Bij))
+    } else {
+      O1ij <- t(Xij)%*%Xij
+      O2ij <- t(Xij)%*%Bij
+      return(list(ij=ij,Yij=Yij,Xij=Xij,Aij=Aij,Bij=Bij,O1ij=O1ij,O2ij=O2ij))
+    }
+  }
+    
   getELE <- function(i,resAB,h2.old){
     # resAB : result of getAB
     res <- resAB[[i]]
@@ -163,7 +186,7 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
   
   Y <- data[,as.character(model)[2]]
   X <- model.matrix(model,data)
-  beta.old <- matrix(init_beta,nrow=length(init_beta))
+  beta.old <- init_beta
   h2.old <- init_h2
   
   n.iter = 0
@@ -197,15 +220,26 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
     if(f<=0) {
       h2.new <- 0
       epsilon <- sqrt(sum((beta.old-beta.hat)^2))
-      
+      print(data.frame(h2.new,epsilon,n.iter))
+	  
       if(epsilon<1e-5){
         beta.new <- beta.hat
-        logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
-        print(data.frame(h2.new,epsilon,n.iter,logL))
-        return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
+        return(list(beta=beta.new,h2=h2.new,n_iter=n.iter,resAB=resAB))
       } else {
         h2.old <- h2.new
         beta.old <- beta.hat
+		
+		while(1){
+		  resAB <- mclapply(1:length(Y),getAB_ij,mc.cores=n.cores)
+		  O1 <- Reduce('+',lapply(1:length(Y),function(ij) resAB[[ij]]$O1ij))
+		  O2 <- Reduce('+',lapply(1:length(Y),function(ij) resAB[[ij]]$O2ij))
+		  beta.new <- solve(O1)%*%O2
+		  epsilon <- sqrt(sum((beta.old-beta.new)^2))
+		  print(data.frame(h2.new,epsilon,n.iter))
+		  
+		  beta.old <- beta.new
+		  if(epsilon<1e-5) break
+		}
       }			
     } else {
       ## h2=1
@@ -229,12 +263,12 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
         
         if(epsilon<1e-5){
           beta.new <- beta.hat
-          logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
-          print(data.frame(h2.new,epsilon,n.iter,logL))
-          return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
+          print(data.frame(h2.new,epsilon,n.iter))
+          return(list(beta=beta.new,h2=h2.new,n_iter=n.iter,resAB=resAB))
         } else {
           h2.old <- h2.new
           beta.old <- beta.hat
+		  print(data.frame(h2.new,epsilon,n.iter))
         }			
       } else {
         
@@ -275,8 +309,7 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
             D <- solve(O1)
             O3 <- Reduce('+',lapply(1:length(unique(famid)),function(i) resELE[[i]]$O3))
             beta.new <- D%*%O3
-            logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
-            print(data.frame(h2.new,epsilon,n.iter,logL))
+            print(data.frame(h2.new,epsilon,n.iter))
             break
           } else {
             h2.old <- h2.new
@@ -285,7 +318,7 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
         
         epsilon <- sqrt(sum((beta.old-beta.new)^2))
         if(epsilon<1e-5){
-          return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
+          return(list(beta=beta.new,h2=h2.new,n_iter=n.iter,resAB=resAB))
         } else {
           beta.old <- beta.new
         }
@@ -310,21 +343,36 @@ LRT.DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,init_h2,prev
   total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
   V <- 2*as.matrix(kinship(total_ped))
   
-  ## Get MLE
+  ### Get MLE
   # Under H0
   MLE.H0 <- LRT.getMLE.H0(famid=famid,V=V,init_beta=init_beta,prev=prev,X=X,Y=Y,n.cores=n.cores)
   
   # Under (H0 U H1)
-  LTMH(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=prev,data=dataset,max.iter=100,max.sub.iter=50,n.cores=n.cores)
+  MLE.H01 <- LTMH(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=prev,data=dataset,max.iter=100,max.sub.iter=50,n.cores=n.cores)
   
-  ## Testing
+  ### Testing
+  thres <- qnorm(prev,0,1,lower.tail=F)
+  a <- ifelse(Y==0,-Inf,thres)
+  b <- ifelse(Y==0,thres,Inf)
+  
   # Under H0
-  pnorm()
+  Lij <- log(pnorm(b,mean=X%*%MLE.H0,sd=1,lower.tail=T) - pnorm(a,mean=X%*%MLE.H0,sd=1,lower.tail=T))
+  logL_H0 <- sum(Lij)
   
-  Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
+  # Under H0 U H1
+  MLE.H01.beta <- MLE.H01$beta
+  MLE.H01.h2 <- MLE.H01$h2
+  
+  get.faminfo <- function(ii){
+	resAB <- MLE.H01$resAB[[ii]]
+	Si <- MLE.H01.h2*resAB$Vi+(1- MLE.H01.h2)*diag(resAB$nn)
+	return(list(Xi=resAB$Xi,Si=Si,a=resAB$a,b=resAB$b))
+  }
+  resFAM <- lapply(1:length(unique(famid)),get.faminfo)
+  logL_H01 <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resFAM[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%MLE.H01.beta),sig=Si)[[1]]))))))
+  
+  Chisq <- -2*(logL_H0 - logL_H01)
+  Pvalue <- ifelse(MLE.H01$h2==0,1/2,pchisq(Chisq,df=1,lower.tail=F)/2)
+  Testing.res <- data.frame(MLE_beta=MLE.H01.beta,MLE_h2=MLE.H01.h2,Chisq,Pvalue)
   write.table(Testing.res,out,col.names=F,row.names=F,quote=F,append=TRUE)
 }
-
-
-pmvnorm(lower=a,upper=b,mean=rep(0,nn),sig=Si)[[1]]
-
