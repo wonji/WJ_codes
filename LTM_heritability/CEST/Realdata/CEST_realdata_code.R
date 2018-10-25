@@ -3,7 +3,7 @@
 ###################################################
 
 ##################
-#### LAM (n4)
+#### LAM : Do CEST for two significant SNPs (n4)
 ##################
 
 #### Load Matching index & grouping
@@ -31,7 +31,7 @@ setwd("/home2/wjkim/project/LAM/final_analysis/")
 system("wisard --bed 0.data/final_clean_withage --medcor --makecor --out /home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/0.data/GRM --thread 20")
 
 
-#### Load MAC data
+#### Calculate MAC data for two significant SNPs
 #setwd("/home2/wjkim/project/LAM/final_analysis/0.data/")
 #system("plink --bfile final_clean_withage --snps rs4544201,rs2006950 --recodeA --out /home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/0.data/sigSNPs")
 
@@ -135,4 +135,91 @@ for(jj in 1:2) DoCEST.beta(jj)
 
 
 
+##################
+#### LAM : Do CEST for whole chromosome
+##################
 
+#### 1. Make a CEST function for each chromosome
+## Please find the function in CEST.R ('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+
+
+#### 2. Link raw files to the working directory
+IN <- "/home2/wjkim/project/LAM/final_analysis/3.clogit/"
+OUT <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/"
+setwd(OUT)
+for(chr in 1:22){
+  setwd(OUT)
+  system(paste0('mkdir chr',chr))
+  setwd(paste0(OUT,"chr",chr))
+  system(paste0("ln -s ",IN,"chr",chr,"/lam_chr",chr,".raw chr",chr,".raw"))
+}    
+  
+
+#### 3. Do CEST
+## 3.1 GRM
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+
+model <- pheno01 ~ 1
+FID <- 'pair_age'
+IID <- 'IID'
+working_dir <- '/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/'
+# pheno file
+phe <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+rm.list <- read.table("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+valid.idx <- which(!is.na(phe$pair_age))
+
+# relationship matrix (GRM)
+setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/0.data")
+VV <- as.matrix(read.table("GRM.empi.med.cor",head=T,stringsAsFactor=F))
+V.name <- phe[valid.idx,'IID']
+prev <- 0.00001
+init_beta <- matrix(0,1,1)
+init_h2 <- 0.1
+
+# n12 50 cores, chr 1~3
+n.cores <- 50
+for(chr in 1:3){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n4 24 cores, chr 4~6
+n.cores <- 24
+for(chr in 4:6){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n5 24 cores, chr 7~9
+n.cores <- 24
+for(chr in 7:9){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n6 24 cores, chr 10~13
+n.cores <- 24
+for(chr in 10:13){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n10 20 cores, chr 14~17
+n.cores <- 20
+for(chr in 14:17){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n11 20 cores, chr 18~22
+n.cores <- 20
+for(chr in 18:22){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+
+screen -S CSET_LAM_whole
+screen -r CSET_LAM_whole
+R

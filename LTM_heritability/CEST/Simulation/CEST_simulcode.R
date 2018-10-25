@@ -195,7 +195,7 @@ for(type in c('size')){
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
       write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
       
-      CEST_beta <- sapply(1:2000,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,test.beta='std_snp',prev=prev,init_h2=h2,n.cores=n.cores,out=out)
+      CEST_beta <- sapply(1:500,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,test.beta='std_snp',prev=prev,init_h2=h2,n.cores=n.cores,out=out)
     }
   }
 }
@@ -221,7 +221,7 @@ for(type in c('power')){
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
       write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
       
-      CEST_beta <- sapply(1:2000,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,test.beta='std_snp',prev=prev,init_h2=h2,n.cores=n.cores,out=out)
+      CEST_beta <- sapply(1:500,DoTest.beta,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,test.beta='std_snp',prev=prev,init_h2=h2,n.cores=n.cores,out=out)
     }
   }
 }

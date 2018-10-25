@@ -264,15 +264,16 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 		f <- sum(sapply(1:length(unique(famid)),getf.01,h2=0),na.rm=T)
 		if(f<=0) {
 			h2.new <- 0
-			e <- abs(h2.new-h2.old)
+			epsilon <- sqrt(sum((beta.old-beta.hat)^2))
 
-			if(e<1e-5){
+			if(epsilon<1e-5){
 				beta.new <- beta.hat
 				logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
 				print(data.frame(h2.new,epsilon,n.iter,logL))
 				break
 			} else {
 				h2.old <- h2.new
+				beta.old <- beta.hat
 			}			
 		} else {
 			## h2=1
@@ -292,15 +293,16 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 			f <- sum(sapply(1:length(unique(famid)),getf.01,h2=1),na.rm=T)
 			if(f>=0){
 				h2.new <- 1
-				e <- abs(h2.new-h2.old)
+				epsilon <- sqrt(sum((beta.old-beta.hat)^2))
 
-				if(e<1e-5){
+				if(epsilon<1e-5){
 					beta.new <- beta.hat
 					logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
 					print(data.frame(h2.new,epsilon,n.iter,logL))
 					break
 				} else {
 					h2.old <- h2.new
+					beta.old <- beta.hat
 				}			
 			} else {
 
@@ -376,7 +378,7 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 	  invSi <- solve(Si)
 	  
 	  Ci <- -invSi%*%(Vi-diag(length(fam.idx)))%*%invSi
-	  Xi <- full.X[fam.idx,,drop=F]
+	  Xi <- matrix(full.X[fam.idx,,drop=F],nrow=length(fam.idx))
 	  B0i <- resAB[[ii]]$Bi
 	  A0i <- resAB[[ii]]$Ai
 
@@ -478,4 +480,57 @@ get.Summary <- function(IN,OUT,prev,h2,totalfam,alpha,type=c("size","power"),dis
     dev.off()
   }
   return(res.I)
+}
+
+
+#####################################
+### CEST for beta 
+#####################################
+
+DoCEST.beta.WGS <- function(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx=NULL,out){
+  # chr : chromosome
+  # model : formula except SNP
+  # FID : Variable name for family ID in phenotype file
+  # FID : Variable name for individual ID in phenotype file
+  # working_dir : working directory containing raw data splitted into chromosomes.
+  # phe : phenotype file. It should be same order of individuals with that for the raw file.
+  # VV : Relationship matrix (matrix)
+  # V.name : individual names correspond to the each row (vector)
+  # prev : prevalence (scalar)
+  # init_beta : initial value for beta except SNP. It should be p x 1 matrix.
+  # init_h2 : initial value for h2. (scalar)
+  # n.cores : the number of cores which are used for parallel analysis.
+  # valid.idx : row index to be included for the analysis
+  # out : output path
+  
+  setwd(working_dir)
+  raw <- read.table(paste0("chr",chr,"/chr",chr,".raw"),head=T,stringsAsFactor=F)
+  if(is.null(valid.idx)) valid.idx <- 1:nrow(phe)
+  new.model <- formula(paste0(c(as.character(model)[c(2,1,3)],' + stdSNP'),collapse=' '))
+  
+  DoCEST.beta.SNP <- function(ii,phe,valid.idx,new.model,FID,IID,VV,V.name,prev,init_beta,init_h2,n.cores,out){
+    print(ii)
+    dataset <- cbind(phe,SNP=raw[,ii+6])[valid.idx,]
+    dataset <- dataset[!is.na(dataset$SNP),]
+    dataset$stdSNP <- (dataset$SNP-mean(dataset$SNP))/sd(dataset$SNP)
+    test.beta <- 'stdSNP'
+    
+    Y <- dataset[,as.character(new.model)[2],drop=F]
+    full.X <- model.matrix(new.model,dataset)
+    test.beta.idx <- which(colnames(full.X)%in%test.beta)
+    X <- full.X[,-test.beta.idx,drop=F]
+    famid <- dataset[,FID]
+    ord.idx <- match(dataset[,IID],V.name)
+    V <- VV[ord.idx,ord.idx]
+    colnames(V) <- NULL
+    
+    # Testing
+    Testing.res <- Testing.beta(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores)
+    res <- cbind(CHR=chr,SNP=gsub('_[ACGT]','',colnames(raw)[ii+6]),Testing.res)
+    write.table(res,out,col.names=F,row.names=F,quote=F,append=TRUE)
+  }
+  
+  write.table(data.frame('CHR','SNP','Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+  res <- lapply(1:(ncol(raw)-6),DoCEST.beta.SNP,phe=phe,valid.idx=valid.idx,new.model=new.model,FID=FID,IID=IID,VV=VV,V.name=V.name,prev=prev,init_beta=init_beta,init_h2=init_h2,n.cores=n.cores,out=out)
+  return(NULL)
 }

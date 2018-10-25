@@ -133,15 +133,16 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
 		f <- sum(sapply(1:length(unique(famid)),getf.01,h2=0),na.rm=T)
 		if(f<=0) {
 			h2.new <- 0
-			e <- abs(h2.new-h2.old)
-
-			if(e<1e-5){
-				beta.new <- beta.hat
+			epsilon <- sqrt(sum((beta.old-beta.hat)^2))
+			
+			if(epsilon<1e-5){
+			  beta.new <- beta.hat
 				logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
 				print(data.frame(h2.new,epsilon,n.iter,logL))
 				return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
 			} else {
 				h2.old <- h2.new
+				beta.old <- beta.hat
 			}			
 		} else {
 			## h2=1
@@ -161,15 +162,16 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
 			f <- sum(sapply(1:length(unique(famid)),getf.01,h2=1),na.rm=T)
 			if(f>=0){
 				h2.new <- 1
-				e <- abs(h2.new-h2.old)
-
-				if(e<1e-5){
-					beta.new <- beta.hat
+				epsilon <- sqrt(sum((beta.old-beta.hat)^2))
+				
+				if(epsilon<1e-5){
+				  beta.new <- beta.hat
 					logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
 					print(data.frame(h2.new,epsilon,n.iter,logL))
 					return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
 				} else {
 					h2.old <- h2.new
+					beta.old <- beta.hat
 				}			
 			} else {
 
