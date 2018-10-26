@@ -181,6 +181,50 @@ for(h2 in c(0, 0.2, 0.4)){
 }
 
 
+##################### Smaller prevalence (Channing server) ############################
+###### Test h2 
+#### Generate simulation data
+# prev : 0.01, 0.05 | h2 : 0, 0.2,0.4
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
+for(prev in c(0.01,0.05)){
+  for(h2 in c(0, 0.2, 0.4)){
+    print(paste0('prevalence:',prev,', heritability:',h2))
+    setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+    system(paste0("mkdir prev_",prev,"_h2_",h2))
+    dataset = genNucFam(totalfam=10000,MAF=0.2,h2,ha2=0.05,prev,num_snp=1)
+    write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),row.names=F,quote=F)
+  }
+}
+
+
+###### n9, CEST_h2_500_all.txt : Remove Information matrix latter part & consider sign of score (S<0 -> 1/2, S>0 ~ chisq()/2 )
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+n.cores=32
+if(h2==0) c.prev <- 0.05
+if(h2!=0) c.prev <- c(0.01,0.05)
+
+for(h2 in c(0, 0.2, 0.4)){
+  for(prev in c.prev){
+    for(totalfam in c(500)){
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+      library(kinship2)
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+      init_beta=matrix(0.2,1,1)
+      model <- Y~std_snp-1
+      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_all.txt")
+      
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out)
+    }
+  }
+}
+
+
+
 
 ###### Test beta
 #### Generate simulation data
@@ -296,6 +340,24 @@ for(prev in c(0.1,0.2)){
       get.Summary(IN,OUT,prev,h2,totalfam,alpha=c(0.005,0.01,0.05,0.1),type=ifelse(h2==0,'size','power'),dist='mixture')
       system(paste0("scp ",OUT,"_power.txt wjkim@ng:~"))
       if(h2==0) system(paste0("scp ",OUT,"_QQ.png wjkim@ng:~"))
+    }
+  }
+}
+
+# Beta
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
+for(prev in c(0.1,0.2)){
+  for(h2 in c(0.2,0.4)){
+    for(type in c('size')){
+      for(totalfam in c(500)){
+        IN <- paste0("prev_",prev,"_h2_",h2,"_",type,"/CEST_beta_",totalfam,"_tau.txt")
+        OUT <- paste0("prev_",prev,"_h2_",h2,"_",type,"/CEST_beta_prev_",prev,"_h2_",h2,"_",totalfam,"_tau_",type)
+        get.Summary(IN,OUT,prev,h2,totalfam,alpha=c(0.005,0.01,0.05,0.1),type=type,dist='chisq')
+        system(paste0("scp ",OUT,"_power.txt wjkim@ng:~"))
+        if(type=='size') system(paste0("scp ",OUT,"_QQ.png wjkim@ng:~"))
+      }
+      
     }
   }
 }
