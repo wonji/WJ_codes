@@ -181,6 +181,30 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 		return(list(fam=fam,a=a,b=b,Yi=Yi,Xi=Xi,Vi=Vi,nn=nn,Ai=Ai,Bi=Bi))
 	}
 
+	getAB_ij <- function(ij){
+	  Yij <- Y[ij,1]
+	  if(!is.null(X)) Xij <- X[ij,,drop=F]
+	  t <- qnorm(prev,0,1,lower.tail=F)
+	  a <- ifelse(Yij==0,-Inf,t)
+	  b <- ifelse(Yij==0,t,Inf)
+	  
+	  if(is.null(X)){
+	    para <- mtmvnorm(mean=0,sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+	  } else {
+	    para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+	  }
+	  Bij <- matrix(para$tmean,ncol=1)
+	  Aij <- para$tvar+Bij%*%t(Bij)
+	  
+	  if(is.null(X)){
+	    return(list(ij=ij,Yij=Yij,Aij=Aij,Bij=Bij))
+	  } else {
+	    O1ij <- t(Xij)%*%Xij
+	    O2ij <- t(Xij)%*%Bij
+	    return(list(ij=ij,Yij=Yij,Xij=Xij,Aij=Aij,Bij=Bij,O1ij=O1ij,O2ij=O2ij))
+	  }
+	}	
+	
 	getELE <- function(i,resAB,h2.old){
 		# resAB : result of getAB
 		res <- resAB[[i]]
@@ -265,15 +289,27 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 		if(f<=0) {
 			h2.new <- 0
 			epsilon <- sqrt(sum((beta.old-beta.hat)^2))
-
+			
 			if(epsilon<1e-5){
 				beta.new <- beta.hat
-				logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
-				print(data.frame(h2.new,epsilon,n.iter,logL))
+				print(data.frame(h2.new,epsilon,n.iter))
 				break
 			} else {
 				h2.old <- h2.new
 				beta.old <- beta.hat
+				
+				while(1){
+				  n.iter=n.iter+1
+				  resAB <- mclapply(1:nrow(Y),getAB_ij,mc.cores=n.cores)
+				  O1 <- Reduce('+',lapply(1:nrow(Y),function(ij) resAB[[ij]]$O1ij))
+				  O2 <- Reduce('+',lapply(1:nrow(Y),function(ij) resAB[[ij]]$O2ij))
+				  beta.new <- solve(O1)%*%O2
+				  epsilon <- sqrt(sum((beta.old-beta.new)^2))
+				  print(data.frame(h2.new,epsilon,n.iter))
+				  
+				  beta.old <- beta.new
+				  if(epsilon<1e-5) break
+				}
 			}			
 		} else {
 			## h2=1
@@ -294,11 +330,10 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 			if(f>=0){
 				h2.new <- 1
 				epsilon <- sqrt(sum((beta.old-beta.hat)^2))
-
+				print(data.frame(h2.new,epsilon,n.iter))
+				
 				if(epsilon<1e-5){
 					beta.new <- beta.hat
-					logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
-					print(data.frame(h2.new,epsilon,n.iter,logL))
 					break
 				} else {
 					h2.old <- h2.new
@@ -343,8 +378,6 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 						D <- solve(O1)
 						O3 <- Reduce('+',lapply(1:length(unique(famid)),function(i) resELE[[i]]$O3))
 						beta.new <- D%*%O3
-						logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],with(resELE[[i]],sum(log(pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%beta.new),sig=Si)[[1]]))))))
-						print(data.frame(h2.new,epsilon,n.iter,logL))
 						break
 					} else {
 						h2.old <- h2.new
@@ -352,6 +385,7 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 				}
 
 				epsilon <- sqrt(sum((beta.old-beta.new)^2))
+				print(data.frame(h2.new,epsilon,n.iter))
 				if(epsilon<1e-5){
 					break
 				} else {
@@ -534,3 +568,54 @@ DoCEST.beta.WGS <- function(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,ini
   res <- lapply(1:(ncol(raw)-6),DoCEST.beta.SNP,phe=phe,valid.idx=valid.idx,new.model=new.model,FID=FID,IID=IID,VV=VV,V.name=V.name,prev=prev,init_beta=init_beta,init_h2=init_h2,n.cores=n.cores,out=out)
   return(NULL)
 }
+
+
+############# Temp function for already runned chr
+tmp.DoCEST.beta.WGS <- function(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx=NULL,out){
+  # chr : chromosome
+  # model : formula except SNP
+  # FID : Variable name for family ID in phenotype file
+  # FID : Variable name for individual ID in phenotype file
+  # working_dir : working directory containing raw data splitted into chromosomes.
+  # phe : phenotype file. It should be same order of individuals with that for the raw file.
+  # VV : Relationship matrix (matrix)
+  # V.name : individual names correspond to the each row (vector)
+  # prev : prevalence (scalar)
+  # init_beta : initial value for beta except SNP. It should be p x 1 matrix.
+  # init_h2 : initial value for h2. (scalar)
+  # n.cores : the number of cores which are used for parallel analysis.
+  # valid.idx : row index to be included for the analysis
+  # out : output path
+  
+  setwd(working_dir)
+  raw <- read.table(paste0("chr",chr,"/chr",chr,".raw"),head=T,stringsAsFactor=F)
+  if(is.null(valid.idx)) valid.idx <- 1:nrow(phe)
+  new.model <- formula(paste0(c(as.character(model)[c(2,1,3)],' + stdSNP'),collapse=' '))
+  
+  DoCEST.beta.SNP <- function(ii,phe,valid.idx,new.model,FID,IID,VV,V.name,prev,init_beta,init_h2,n.cores,out){
+    print(ii)
+    dataset <- cbind(phe,SNP=raw[,ii+6])[valid.idx,]
+    dataset <- dataset[!is.na(dataset$SNP),]
+    dataset$stdSNP <- (dataset$SNP-mean(dataset$SNP))/sd(dataset$SNP)
+    test.beta <- 'stdSNP'
+    
+    Y <- dataset[,as.character(new.model)[2],drop=F]
+    full.X <- model.matrix(new.model,dataset)
+    test.beta.idx <- which(colnames(full.X)%in%test.beta)
+    X <- full.X[,-test.beta.idx,drop=F]
+    famid <- dataset[,FID]
+    ord.idx <- match(dataset[,IID],V.name)
+    V <- VV[ord.idx,ord.idx]
+    colnames(V) <- NULL
+    
+    # Testing
+    Testing.res <- Testing.beta(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores)
+    res <- cbind(CHR=chr,SNP=gsub('_[ACGT]','',colnames(raw)[ii+6]),Testing.res)
+    write.table(res,out,col.names=F,row.names=F,quote=F,append=TRUE)
+  }
+  
+  existing.res <- read.table(out,head=T)
+  res <- lapply((nrow(existing.res)+1):(ncol(raw)-6),DoCEST.beta.SNP,phe=phe,valid.idx=valid.idx,new.model=new.model,FID=FID,IID=IID,VV=VV,V.name=V.name,prev=prev,init_beta=init_beta,init_h2=init_h2,n.cores=n.cores,out=out)
+  return(NULL)
+}
+

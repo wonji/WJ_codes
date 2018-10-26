@@ -114,6 +114,32 @@ for(h2 in c(0, 0.2, 0.4)){
   }
 }
 
+
+###### n9, CEST_h2_700_all.txt & CEST_h2_1000_all.txt
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+n.cores=24
+for(h2 in c(0, 0.2, 0.4)){
+  for(prev in c(0.2,0.1)){
+    for(totalfam in c(700,1000)){
+      print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+      library(kinship2)
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+      fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+      init_beta=matrix(0,1,1)
+      model <- Y~std_snp-1
+      out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_all.txt")
+      
+      setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      
+      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out)
+    }
+  }
+}
+
+
+
 ###### n9, CEST_h2_500_nobeta.txt : CEST with no beta parameters
 ## Data generation
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
@@ -138,13 +164,13 @@ for(h2 in c(0, 0.2, 0.4)){
       library(kinship2)
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2/1.NoBeta")
       fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
-	  if(h2==0) {
-		fin.dat$L <- rnorm(nrow(fin.dat))
-	    fin.dat$Y <- ifelse(fin.dat$L<qnorm(prev,lower.tail=F),0,1)
-	  }
+  	  if(h2==0) {
+  		  fin.dat$L <- rnorm(nrow(fin.dat))
+  	    fin.dat$Y <- ifelse(fin.dat$L<qnorm(prev,lower.tail=F),0,1)
+  	  }
 	  
       model <- Y~1
-	  init_beta <- NULL
+	    init_beta <- NULL
       out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_nobeta.txt")
       
       write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)

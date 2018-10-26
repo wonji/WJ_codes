@@ -114,11 +114,11 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
     Yij <- Y[ij]
     if(!is.null(X)) Xij <- X[ij,,drop=F]
     t <- qnorm(prev,0,1,lower.tail=F)
-	a <- ifelse(Yij==0,-Inf,t)
+	  a <- ifelse(Yij==0,-Inf,t)
     b <- ifelse(Yij==0,t,Inf)
     
     if(is.null(X)){
-      para <- mtmvnorm(mean=rep(0,length(Yij)),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+      para <- mtmvnorm(mean=0,sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
     } else {
       para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
     }
@@ -229,17 +229,18 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
         h2.old <- h2.new
         beta.old <- beta.hat
 		
-		while(1){
-		  resAB <- mclapply(1:length(Y),getAB_ij,mc.cores=n.cores)
-		  O1 <- Reduce('+',lapply(1:length(Y),function(ij) resAB[[ij]]$O1ij))
-		  O2 <- Reduce('+',lapply(1:length(Y),function(ij) resAB[[ij]]$O2ij))
-		  beta.new <- solve(O1)%*%O2
-		  epsilon <- sqrt(sum((beta.old-beta.new)^2))
-		  print(data.frame(h2.new,epsilon,n.iter))
-		  
-		  beta.old <- beta.new
-		  if(epsilon<1e-5) break
-		}
+    		while(1){
+    		  n.iter=n.iter+1
+    		  resAB <- mclapply(1:length(Y),getAB_ij,mc.cores=n.cores)
+    		  O1 <- Reduce('+',lapply(1:length(Y),function(ij) resAB[[ij]]$O1ij))
+    		  O2 <- Reduce('+',lapply(1:length(Y),function(ij) resAB[[ij]]$O2ij))
+    		  beta.new <- solve(O1)%*%O2
+    		  epsilon <- sqrt(sum((beta.old-beta.new)^2))
+    		  print(data.frame(h2.new,epsilon,n.iter))
+    		  
+    		  beta.old <- beta.new
+    		  if(epsilon<1e-5) break
+    		}
       }			
     } else {
       ## h2=1
@@ -260,15 +261,14 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
       if(f>=0){
         h2.new <- 1
         epsilon <- sqrt(sum((beta.old-beta.hat)^2))
+        print(data.frame(h2.new,epsilon,n.iter))
         
         if(epsilon<1e-5){
           beta.new <- beta.hat
-          print(data.frame(h2.new,epsilon,n.iter))
           return(list(beta=beta.new,h2=h2.new,n_iter=n.iter,resAB=resAB))
         } else {
           h2.old <- h2.new
           beta.old <- beta.hat
-		  print(data.frame(h2.new,epsilon,n.iter))
         }			
       } else {
         
@@ -309,7 +309,6 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
             D <- solve(O1)
             O3 <- Reduce('+',lapply(1:length(unique(famid)),function(i) resELE[[i]]$O3))
             beta.new <- D%*%O3
-            print(data.frame(h2.new,epsilon,n.iter))
             break
           } else {
             h2.old <- h2.new
@@ -317,6 +316,7 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
         }
         
         epsilon <- sqrt(sum((beta.old-beta.new)^2))
+        print(data.frame(h2.new,epsilon,n.iter))
         if(epsilon<1e-5){
           return(list(beta=beta.new,h2=h2.new,n_iter=n.iter,resAB=resAB))
         } else {

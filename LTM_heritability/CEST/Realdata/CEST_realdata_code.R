@@ -177,49 +177,47 @@ prev <- 0.00001
 init_beta <- matrix(0,1,1)
 init_h2 <- 0.1
 
-# n12 50 cores, chr 1~3
+# n5 24 cores, chr 1,7,18
+n.cores <- 24 
+for(chr in c(1,7,18)){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n6 24 cores, chr 4,10,14
+n.cores <- 24 
+for(chr in c(4,10,14)){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n10 20 cores, chr 2,3,9
+n.cores <- 20
+for(chr in c(2,3,9)){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n11 20 cores, chr 5,6,8
+n.cores <- 20
+for(chr in c(5,6,8)){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n12 50 cores, chr 11~13,15~17,19~22
 n.cores <- 50
-for(chr in 1:3){
+for(chr in c(11:13,15)){
   out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
   DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
 }
 
-# n4 24 cores, chr 4~6
-n.cores <- 24
-for(chr in 4:6){
-  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-}
-
-# n5 24 cores, chr 7~9
-n.cores <- 24
-for(chr in 7:9){
-  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-}
-
-# n6 24 cores, chr 10~13
-n.cores <- 24
-for(chr in 10:13){
-  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-}
-
-# n10 20 cores, chr 14~17
+# n2 20 cores, chr 17,19~22
 n.cores <- 20
-for(chr in 14:17){
-  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-}
-
-# n11 20 cores, chr 18~22
-n.cores <- 20
-for(chr in 18:22){
+for(chr in c(17,19:22)){
   out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
   DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
 }
 
 
-screen -S CSET_LAM_whole
-screen -r CSET_LAM_whole
-R
+
