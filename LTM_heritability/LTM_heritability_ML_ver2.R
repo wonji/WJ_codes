@@ -367,3 +367,41 @@ getEsth2_ver2 <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,mode
 	return(c(i,output))
 }
 
+
+getEsth2.out <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1,out){
+  print(i)
+  famlist <- unique(fin.dat$FID)
+  target <- sample(famlist,totalfam)
+  dataset = fin.dat[fin.dat$FID%in%target,]
+  total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
+  V <- 2*as.matrix(kinship(total_ped))
+  famid <- as.character(dataset$FID)
+  output <- LTMH(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
+  write.table(t(as.matrix(c(obs=i,unlist(output)))),out,col.names=F,row.names=F,quote=F,append=TRUE)
+  return(c(i,output))
+}
+
+getEsth2.GCTA <- function(i,fin.dat,totalfam,prev,res_var,exp_var,out,working_dir){
+  library(gap)
+  library(kinship2)
+  print(i)
+  setwd(working_dir)
+  famlist <- unique(fin.dat$FID)
+  target <- sample(famlist,totalfam)
+  dataset = fin.dat[fin.dat$FID%in%target,]
+  total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
+  V <- 2*as.matrix(kinship(total_ped))
+  grm <- V[upper.tri(V,diag=T)]
+  WriteGRMBin(paste0('tmp_',i,'_grm'),grm,nrow(dataset)*(nrow(dataset)+1)/2,cbind(dataset[,'FID'],dataset[,'IID']))
+  write.table(dataset[,c('FID','IID',res_var)],paste0('tmp_',i,'_phen.txt'),row.names=F,col.names=F,quote=F)
+  write.table(dataset[,c('FID','IID',exp_var)],paste0('tmp_',i,'_qcovar.txt'),row.names=F,col.names=F,quote=F)
+  
+  system(paste0('gcta64 --grm tmp_',i,'_grm --reml --pheno tmp_',i,'_phen.txt --qcovar tmp_',i,'_qcovar.txt --prevalence ',prev,' --out tmp_',i,'_output'))
+  res <- system(paste0('grep V\\(G\\)\\/Vp_L tmp_',i,'_output.hsq'),intern=T)
+  res.I <- cbind(i,matrix(strsplit(res,'\t')[[1]],nrow=1)[,-1,drop=F])
+  colnames(res.I) <- c('Obs','h2','SE_h2')
+  print(res.I)
+  write.table(res.I,out,col.names=F,row.names=F,quote=F,append=TRUE)
+  
+  system(paste0('rm tmp_',i,'_*'))
+}
