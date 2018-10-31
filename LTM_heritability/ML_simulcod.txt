@@ -1,8 +1,8 @@
 #### Generate simulation data
-# prev : 0.1,0.2 | h2 : 0.2,0.4
+# prev : 0.05,0.1,0.2 | h2 : 0.05,0.2,0.4
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
-for(prev in c(0.1,0.2)){
-	for(h2 in c(0.2, 0.4)){
+for(prev in c(0.05,0.1,0.2)){
+	for(h2 in c(0.05,0.2, 0.4)){
 		print(paste0('prevalence:',prev,', heritability:',h2))
 		setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/")
 		system(paste0("mkdir prev_",prev,"_h2_",h2))
@@ -213,9 +213,10 @@ for(prev in c(0.1,0.2)){
 
 
 ##########################################################
-######### New Estimating (Channing server)
+######### New Estimating 
 ##########################################################
 
+# Channing server
 source('~/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
 for(prev in c(0.1,0.2)){
 	for(h2 in c(0.2, 0.4)){
@@ -231,8 +232,8 @@ for(prev in c(0.1,0.2)){
 ## family size : 500
 source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
 num_snp=1;n.cores=32
-for(prev in c(0.1,0.2)){
-	for(h2 in c(0.2, 0.4)){
+for(prev in c(0.05,0.1,0.2)){
+	for(h2 in c(0.05,0.2,0.4)){
 		for(totalfam in c(500)){
 			print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
 			library(kinship2)
@@ -243,7 +244,7 @@ for(prev in c(0.1,0.2)){
 			model <- Y~std_snp-1
 			out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_181030.txt")
 			write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
-			Esth2 <- sapply(1:300,getEsth2.out,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out)
+			Esth2 <- sapply(1:300,getEsth2.out,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T)
 		}
 	}
 }

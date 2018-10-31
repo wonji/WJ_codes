@@ -339,9 +339,10 @@ getmaxlogL <- function(fin.dat,totalfam,assumed_prev,model,n.cores=1){
 
 
 
-getEsth2 <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1){
+getEsth2 <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1,seed=F){
 	print(i)
 	famlist <- unique(fin.dat$FID)
+	if(seed) set.seed(i)
 	target <- sample(famlist,totalfam)
 	dataset = fin.dat[fin.dat$FID%in%target,]
 	total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
@@ -368,9 +369,10 @@ getEsth2_ver2 <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,mode
 }
 
 
-getEsth2.out <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1,out){
+getEsth2.out <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1,out,seed=F){
   print(i)
   famlist <- unique(fin.dat$FID)
+  if(seed) set.seed(i)
   target <- sample(famlist,totalfam)
   dataset = fin.dat[fin.dat$FID%in%target,]
   total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
@@ -381,12 +383,13 @@ getEsth2.out <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model
   return(c(i,output))
 }
 
-getEsth2.GCTA <- function(i,fin.dat,totalfam,prev,res_var,exp_var,out,working_dir){
+getEsth2.GCTA <- function(i,fin.dat,totalfam,prev,res_var,exp_var,out,working_dir,seed=F){
   library(gap)
   library(kinship2)
   print(i)
   setwd(working_dir)
   famlist <- unique(fin.dat$FID)
+  if(seed) set.seed(i)
   target <- sample(famlist,totalfam)
   dataset = fin.dat[fin.dat$FID%in%target,]
   total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
