@@ -265,6 +265,205 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
 	}
 }			
 
+########################## Ascertainment adjust LTMH
+
+asc.LTMH <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1,proband){
+	## This function depends on a package; tmvtnorm, parallel, mvtnorm
+	## model : Y~X 
+	## init_beta : initial value for beta (p+1 vector)
+	## init_h2 :  initial value for heritability
+	## V : genetic relationship matrix (theoritically, kinship coefficient matrix)
+	## famid : family id
+	## prev : disease prevalence
+	## dataset : data.frame containing variables specified at formula
+	## proband : proband indicator (1 = proband, 0 = non-proband)
+
+	if(!require(tmvtnorm))	{
+		install.packages("tmvtnorm")
+		library(tmvtnorm)
+	}	
+
+	if(!require(parallel))	{
+		install.packages("parallel")
+		library(parallel)
+	}
+	
+	if(!require(mvtnorm))	{
+		install.packages("mvtnorm")
+		library(mvtnorm)
+	}
+	
+	tr <- function(m) sum(diag(m))
+
+	# calculate A and B
+	getAB <- function(i,h2.old,beta.old,famid,proband){
+		## i : family id
+		fam <- which(famid==i)
+		PB <- proband[fam]
+		nn <- length(fam)			# number of family members for family i
+		Yi <- matrix(Y[fam],nrow=nn)		# disease status for family i
+		Xi <- matrix(X[fam,],nrow=nn)		# design matric for family i
+		Vi <- V[fam,fam]			# GRM matric for family i
+		Si <- h2.old*Vi+(1-h2.old)*diag(nn)	# Sigma for family i
+
+		# calculating A and B
+		k <- which(Yi==1) # aff
+		kk <- which(Yi==0) # unaff
+		t <- qnorm(prev,0,1,lower.tail=F)
+		a <- rep(-Inf,nn); a[k] <- t
+		b <- rep(Inf,nn); b[kk] <- t
+		para <- mtmvnorm(mean=as.vector(Xi%*%beta.old),sigma=Si,lower=a,upper=b,doComputeVariance=TRUE)
+		Bi <- matrix(para$tmean,ncol=1)
+		Ai <- para$tvar+Bi%*%t(Bi)
+
+		return(list(fam=fam,a=a,b=b,Yi=Yi,Xi=Xi,Vi=Vi,nn=nn,Ai=Ai,Bi=Bi,PB=PB,thres=t))
+	}
+
+	getAB_ij <- function(ij){
+	  Yij <- Y[ij]
+	  if(!is.null(X)) Xij <- X[ij,,drop=F]
+	  t <- qnorm(prev,0,1,lower.tail=F)
+	  a <- ifelse(Yij==0,-Inf,t)
+	  b <- ifelse(Yij==0,t,Inf)
+	  
+	  if(is.null(X)){
+	    para <- mtmvnorm(mean=0,sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+	  } else {
+	    para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+	  }
+	  Bij <- matrix(para$tmean,ncol=1)
+	  Aij <- para$tvar+Bij%*%t(Bij)
+	  
+	  if(is.null(X)){
+	    return(list(ij=ij,Yij=Yij,Aij=Aij,Bij=Bij))
+	  } else {
+	    O1ij <- t(Xij)%*%Xij
+	    O2ij <- t(Xij)%*%Bij
+	    return(list(ij=ij,Yij=Yij,Xij=Xij,Aij=Aij,Bij=Bij,O1ij=O1ij,O2ij=O2ij))
+	  }
+	}
+	
+	getELE <- function(i,resAB,h2.old,beta.old){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+		Si <- with(res,h2.old*Vi+(1-h2.old)*diag(nn))	# Sigma for family i
+		invSi <- solve(Si)
+		Ci <- with(res,-invSi%*%(Vi-diag(nn))%*%invSi)
+		Hi <- with(res,-2*invSi%*%(Vi-diag(nn))%*%Ci)
+		O1 <- with(res,t(Xi)%*%invSi%*%Xi)
+		O2 <- with(res,t(Xi)%*%Ci%*%Xi)
+		O3 <- with(res,t(Xi)%*%invSi%*%Bi)
+		O4 <- with(res,t(Xi)%*%Ci%*%Bi)
+		
+		dBeta <- O3 - O1%*%beta.old
+		dh2 <- with(res,-tr(invSi%*%(Vi-diag(nn)))/2 - tr(Ci%*%Ai)/2 + t(Xi%*%beta.old)%*%Ci%*%(Bi-Xi%*%beta.old/2))
+		
+		d2Beta <- -O1
+		d2h2Beta <- O4 - O2%*%beta.old
+		d2h2 <- with(res,-tr(Ci%*%(Vi-diag(nn)))/2 - tr(Hi%*%Ai)/2 + t(Xi%*%beta.old)%*%Hi%*%(Bi-Xi%*%beta.old/2))
+		
+		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
+	}
+
+	getELE.0 <- function(i,resAB){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+		Si <- invSi <- with(res,diag(nn))	# Sigma & invSigma for family i
+		Ci <- with(res,-(Vi-diag(nn)))
+		Hi <- with(res,-2*(Vi-diag(nn))%*%Ci)
+		O1 <- with(res,t(Xi)%*%Xi)
+		O2 <- with(res,t(Xi)%*%Ci%*%Xi)
+		O3 <- with(res,t(Xi)%*%Bi)
+		O4 <- with(res,t(Xi)%*%Ci%*%Bi)
+		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4))
+	}
+	
+	getELE.0 <- function(i,resAB,beta.old){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+		Si <- invSi <- with(res,diag(nn))	# Sigma for family i
+		Ci <- with(res,-(Vi-diag(nn)))
+		Hi <- with(res,-2*(Vi-diag(nn))%*%Ci)
+		O1 <- with(res,t(Xi)%*%Xi)
+		O2 <- with(res,t(Xi)%*%Ci%*%Xi)
+		O3 <- with(res,t(Xi)%*%Bi)
+		O4 <- with(res,t(Xi)%*%Ci%*%Bi)
+		
+		dBeta <- O3 - O1%*%beta.old
+		dh2 <- with(res,-tr(Vi-diag(nn))/2 - tr(Ci%*%Ai)/2 + t(Xi%*%beta.old)%*%Ci%*%(Bi-Xi%*%beta.old/2))
+		
+		d2Beta <- -O1
+		d2h2Beta <- O4 - O2%*%beta.old
+		d2h2 <- with(res,-tr(Ci%*%(Vi-diag(nn)))/2 - tr(Hi%*%Ai)/2 + t(Xi%*%beta.old)%*%Hi%*%(Bi-Xi%*%beta.old/2))
+		
+		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
+	}
+	
+	getELE.PB <- function(i,resAB,beta.old){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+
+		Yip <- with(res,Yi[PB==1])
+		Xip <- with(res,Xi[PB==1,drop=F])
+		Mui <- with(res,1-pnorm(thres-Xip%*%beta.old,lower.tail=T))
+		Alphai <- log(Mui/(1-Mui))
+		dBeta <- with(res,(Yip-Mui)/(Mui*(1-Mui))*dnorm(thres-Xip%*%beta.old)*t(Xip))
+		d2Beta <- with(res,dnorm(thres-Xip%*%beta.old)/(Mui*(1-Mui))*(-dnorm(thres-Xip%*%beta.old)+((Yip-Mui)*(2*Mui-1)*dnorm(thres-Xip%*%beta.old))/(Mui*(1-Mui))+(Yip-Mui)*(thres-Xip%*%beta.old))*Xip%*%t(Xip))
+		
+		return(list(dBeta=dBeta,d2Beta=d2Beta))
+	}
+
+	Y <- dataset[,as.character(model)[2]]
+	X <- model.matrix(model,dataset)
+	beta.old <- matrix(init_beta,nrow=length(init_beta))
+	h2.old <- init_h2
+	theta.old <- rbind(beta.old,h2.old)
+	
+	n.iter = 0
+	epsilon = 1
+	while(1){
+		if(n.iter==max.iter) {
+			return(paste("not converge after ",max.iter," iterations",sep=""))
+		}
+		n.iter=n.iter+1
+
+		## Calculate A and B
+		resAB <- mclapply(unique(famid),getAB,beta.old=beta.old,h2.old=h2.old,famid=famid,mc.cores=n.cores,proband=proband)
+		
+		## Calculate first and second derivative
+		resELE <- lapply(1:length(unique(famid)),getELE,resAB=resAB,beta.old=beta.old,h2.old=h2.old)
+		resELE.PB <- lapply(1:length(unique(famid)),getELE.PB,resAB=resAB,beta.old=beta.old)
+		
+		## f & f_prime
+		f_Q <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE[[i]],c(dBeta,dh2))))
+		J_Q <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE[[i]],rbind(cbind(d2Beta,d2h2Beta),cbind(t(d2h2Beta),d2h2)))))
+		
+		# proband
+		f.PB <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],dBeta)))
+		J.PB <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],d2Beta)))
+		
+		f <- f_Q
+		J <- J_Q
+		f[-length(f)] <- f_Q[-length(f_Q)]-f.PB
+		J[-nrow(J),-nrow(J)] <- J_Q[-nrow(J_Q),-nrow(J_Q)] - J.PB
+
+		theta.new <- theta.old - solve(J)%*%f
+		
+		epsilon <- sqrt(sum((theta.old-theta.new)^2))
+		print(data.frame(h2=theta.new[nrow(theta.new),],epsilon=epsilon,n.iter=n.iter))
+		
+		if(epsilon<1e-5){
+			beta.new <- theta.new[-nrow(theta.new),,drop=F]
+			h2.new <- theta.new[nrow(theta.new),,drop=F]
+			break
+		} else {
+			theta.old <- theta.new
+			beta.old <- theta.old[-nrow(theta.old),,drop=F]
+			h2.old <- theta.old[nrow(theta.old),]
+		}
+	}
+	return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
+}			
 
 ##### get max logL
 getlogL <- function(model,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1){
@@ -407,4 +606,19 @@ getEsth2.GCTA <- function(i,fin.dat,totalfam,prev,res_var,exp_var,out,working_di
   write.table(res.I,out,col.names=F,row.names=F,quote=F,append=TRUE)
   
   system(paste0('rm tmp_',i,'_*'))
+}
+
+getEsth2.asc <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1,out,seed=F,PB){
+  print(i)
+  famlist <- unique(fin.dat$FID)
+  if(seed) set.seed(i)
+  target <- sample(famlist,totalfam)
+  dataset = fin.dat[fin.dat$FID%in%target,]
+  proband <- dataset[,PB]
+  total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
+  V <- 2*as.matrix(kinship(total_ped))
+  famid <- as.character(dataset$FID)
+  output <- LTMH.asc(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
+  write.table(t(as.matrix(c(obs=i,unlist(output)))),out,col.names=F,row.names=F,quote=F,append=TRUE)
+  return(c(i,output))
 }
