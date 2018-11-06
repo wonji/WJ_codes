@@ -216,10 +216,10 @@ for(prev in c(0.1,0.2)){
 ######### New Estimating 
 ##########################################################
 
-# Channing server
+###### Data generation
 source('~/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
 for(prev in c(0.1,0.2)){
-	for(h2 in c(0.2, 0.4)){
+	for(h2 in c(0.2,0.4)){
 		print(paste0('prevalence:',prev,', heritability:',h2))
 		setwd("~/paper/heritability/ML_ver2/variousFam/")
 		system(paste0("mkdir prev_",prev,"_h2_",h2))
@@ -227,6 +227,30 @@ for(prev in c(0.1,0.2)){
 		write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),row.names=F,quote=F)
 	}
 }
+
+source('~/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
+for(prev in c(0.05)){
+	for(h2 in c(0.05,0.2,0.4)){
+		print(paste0('prevalence:',prev,', heritability:',h2))
+		setwd("~/paper/heritability/ML_ver2/variousFam/")
+		system(paste0("mkdir prev_",prev,"_h2_",h2))
+		dataset = genNucFam(totalfam=50000,MAF=0.2,h2,ha2=0.05,prev,num_snp=1)
+		write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset_add.txt"),row.names=F,quote=F)
+	}
+}
+
+# combine added dataset to existing dataset
+for(prev in c(0.05)){
+  for(h2 in c(0.05,0.2,0.4)){
+    print(paste0('prevalence:',prev,', heritability:',h2))
+    setwd("~/paper/heritability/ML_ver2/variousFam/")
+    dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+    dat.add <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset_add.txt"),head=T,stringsAsFactor=F)
+    new.dat <- rbind(dat,dat.add)
+    write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),row.names=F,quote=F)
+  }
+}
+
 
 #### Convergence of heritability
 ## family size : 500
@@ -255,26 +279,43 @@ for(prev in c(0.05,0.1,0.2)){
 ##########################################################
 
 #### Convergence of heritability
-## family size : 500
-source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
-num_snp=1;n.cores=32
-for(prev in c(0.05,0.1,0.2)){
-	for(h2 in c(0.05,0.2,0.4)){
-		for(totalfam in c(500)){
-			print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
-			library(kinship2)
-			setwd("~/paper/heritability/ML_ver2/variousFam/")
-			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
-			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
-			fin.dat <- fin.dat[fin.dat$FID%in%fin.dat$FID[fin.dat$ind==1 & fin.dat$Y==1],,drop=F]
-			PB <- 'ind'
-
-			model <- Y~std_snp-1
-			out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc.txt")
-			write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
-			Esth2 <- sapply(1:300,getEsth2.out,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
-		}
-	}
+est.ft <- function(PREV,H2,N.fam,n.cores){
+  source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+  for(prev in PREV){
+  	for(h2 in H2){
+  		for(totalfam in N.fam){
+  			print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+  			library(kinship2)
+  			setwd("~/paper/heritability/ML_ver2/variousFam/")
+  			fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+  			fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+  			fin.dat <- fin.dat[fin.dat$FID%in%fin.dat$FID[fin.dat$ind==1 & fin.dat$Y==1],,drop=F]
+  			PB <- 'ind'
+  
+  			model <- Y~std_snp-1
+  			out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc.txt")
+  			write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+  			Esth2 <- sapply(1:300,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
+  		}
+  	}
+  }
 }
 
+## n2, 20 cores, p 0.1 h2 0.05
+est.ft(0.1,0.05,500,20)
+
+## n14, 32 cores, p 0.1 h2 0.2
+est.ft(0.1,0.2,500,32)
+
+## n7, 24 cores, p 0.1 h2 0.4
+est.ft(0.1,0.4,500,24)
+
+## n10, 24 cores, p 0.2 h2 0.05
+est.ft(0.2,0.05,500,24)
+
+## n11, 24 cores, p 0.2 h2 0.2
+est.ft(0.2,0.2,500,24)
+
+## n4, 20 cores, p 0.2 h2 0.4
+est.ft(0.2,0.4,500,20)
 

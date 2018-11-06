@@ -355,31 +355,6 @@ write.table(plotdat,'temp_plotdata.txt',row.names=F,quote=F)
 
 system('Rscript ~/Output_plot.r temp_plotdata.txt temp_GWAS')
 
-##################
-#### TWIN : Do CEST for testing H0: h2=0 & estimating
-##################
-
-#### Load Matching index & grouping
-phe <- read.delim("/data/twin/TWIN_1801_phe.txt",head=T,stringsAsFactor=F)
-
-rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
-phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
-valid.idx <- which(!is.na(phe$pair_age))
-new.phe <- phe[valid.idx,]
-
-#### Generate relationship matrix 
-## 1) Corr = 1
-mat <- matrix(0,nrow(new.phe),nrow(new.phe))
-for(i in unique(new.phe$pair_age)){
-	print(i)
-	tmp.idx <- which(new.phe$pair_age==i)
-	mat[tmp.idx,tmp.idx] <- 1
-}
-mat <- rbind(new.phe$IID,mat)
-setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/0.data")
-write.table(mat,"Corr_1.cor",row.names=F,col.names=F,quote=F)
-
-
 
 
 

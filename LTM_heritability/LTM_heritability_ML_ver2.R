@@ -267,7 +267,7 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
 
 ########################## Ascertainment adjust LTMH
 
-asc.LTMH <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1,proband){
+LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1,proband){
 	## This function depends on a package; tmvtnorm, parallel, mvtnorm
 	## model : Y~X 
 	## init_beta : initial value for beta (p+1 vector)
@@ -312,35 +312,25 @@ asc.LTMH <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 		t <- qnorm(prev,0,1,lower.tail=F)
 		a <- rep(-Inf,nn); a[k] <- t
 		b <- rep(Inf,nn); b[kk] <- t
-		para <- mtmvnorm(mean=as.vector(Xi%*%beta.old),sigma=Si,lower=a,upper=b,doComputeVariance=TRUE)
-		Bi <- matrix(para$tmean,ncol=1)
-		Ai <- para$tvar+Bi%*%t(Bi)
+		if(h2.old!=0){
+		  para <- mtmvnorm(mean=as.vector(Xi%*%beta.old),sigma=Si,lower=a,upper=b,doComputeVariance=TRUE)
+		  Bi <- matrix(para$tmean,ncol=1)
+		  Ai <- para$tvar+Bi%*%t(Bi)
+		} else {
+		  getAB_ij <- function(jj) {
+		    para <- mtmvnorm(mean=as.vector(Xi[jj,,drop=F]%*%beta.old),sigma=1,lower=a[jj],upper=b[jj],doComputeVariance = TRUE)
+		    Bi <- matrix(para$tmean,ncol=1)
+		    Ai <- para$tvar+Bi%*%t(Bi)
+		    return(c(Ai,Bi))
+		  }
+		  res <- lapply(1:nn,getAB_ij)
+		  res <- do.call(rbind,res)
+		  Bi <- res[,2,drop=F]
+		  Ai <- Bi%*%t(Bi)
+		  diag(Ai) <- res[,1]
+		}
 
 		return(list(fam=fam,a=a,b=b,Yi=Yi,Xi=Xi,Vi=Vi,nn=nn,Ai=Ai,Bi=Bi,PB=PB,thres=t))
-	}
-
-	getAB_ij <- function(ij){
-	  Yij <- Y[ij]
-	  if(!is.null(X)) Xij <- X[ij,,drop=F]
-	  t <- qnorm(prev,0,1,lower.tail=F)
-	  a <- ifelse(Yij==0,-Inf,t)
-	  b <- ifelse(Yij==0,t,Inf)
-	  
-	  if(is.null(X)){
-	    para <- mtmvnorm(mean=0,sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
-	  } else {
-	    para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
-	  }
-	  Bij <- matrix(para$tmean,ncol=1)
-	  Aij <- para$tvar+Bij%*%t(Bij)
-	  
-	  if(is.null(X)){
-	    return(list(ij=ij,Yij=Yij,Aij=Aij,Bij=Bij))
-	  } else {
-	    O1ij <- t(Xij)%*%Xij
-	    O2ij <- t(Xij)%*%Bij
-	    return(list(ij=ij,Yij=Yij,Xij=Xij,Aij=Aij,Bij=Bij,O1ij=O1ij,O2ij=O2ij))
-	  }
 	}
 	
 	getELE <- function(i,resAB,h2.old,beta.old){
@@ -365,19 +355,6 @@ asc.LTMH <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
 	}
 
-	getELE.0 <- function(i,resAB){
-		# resAB : result of getAB
-		res <- resAB[[i]]
-		Si <- invSi <- with(res,diag(nn))	# Sigma & invSigma for family i
-		Ci <- with(res,-(Vi-diag(nn)))
-		Hi <- with(res,-2*(Vi-diag(nn))%*%Ci)
-		O1 <- with(res,t(Xi)%*%Xi)
-		O2 <- with(res,t(Xi)%*%Ci%*%Xi)
-		O3 <- with(res,t(Xi)%*%Bi)
-		O4 <- with(res,t(Xi)%*%Ci%*%Bi)
-		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4))
-	}
-	
 	getELE.0 <- function(i,resAB,beta.old){
 		# resAB : result of getAB
 		res <- resAB[[i]]
@@ -415,55 +392,129 @@ asc.LTMH <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 
 	Y <- dataset[,as.character(model)[2]]
 	X <- model.matrix(model,dataset)
-	beta.old <- matrix(init_beta,nrow=length(init_beta))
-	h2.old <- init_h2
-	theta.old <- rbind(beta.old,h2.old)
-	
+	beta.old <- beta.OLD <- matrix(init_beta,nrow=length(init_beta))
+	h2.old <- h2.OLD <- init_h2
+	theta.old <- theta.OLD <- rbind(beta.old,h2.old)
+
+	## Estimate h2
 	n.iter = 0
 	epsilon = 1
+	beta.OLD <- beta.old
 	while(1){
-		if(n.iter==max.iter) {
-			return(paste("not converge after ",max.iter," iterations",sep=""))
-		}
-		n.iter=n.iter+1
+	  if(n.iter==max.iter) {
+	    return(paste("not converge after ",max.iter," iterations",sep=""))
+	  }
+	  print(data.frame(h2=theta.OLD[nrow(theta.OLD),],epsilon=epsilon,n.iter=n.iter))
+	  n.iter=n.iter+1
+	  
+	  ## Calculate A and B
+	  resAB <- mclapply(unique(famid),getAB,beta.old=beta.old,h2.old=h2.old,famid=famid,proband=proband,mc.cores=n.cores)
+	  
+	  ## Calculate first and second derivative
+	  while(1){
+	    
+	    resELE <- mclapply(1:length(unique(famid)),getELE,resAB=resAB,beta.old=beta.old,h2.old=h2.old,mc.cores=n.cores)
+	    resELE.PB <- mclapply(1:length(unique(famid)),getELE.PB,resAB=resAB,beta.old=beta.old,mc.cores=n.cores)
+	    
+	    ## f & f_prime
+	    f_Q <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE[[i]],c(dBeta,dh2)),mc.cores=n.cores))
+	    J_Q <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE[[i]],rbind(cbind(d2Beta,d2h2Beta),cbind(t(d2h2Beta),d2h2))),mc.cores=n.cores))
+	    
+	    # proband
+	    f.PB <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],dBeta),mc.cores=n.cores))
+	    J.PB <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],d2Beta),mc.cores=n.cores))
+	    
+	    f <- f_Q
+	    J <- J_Q
+	    f[-length(f)] <- f_Q[-length(f_Q)]-f.PB
+	    J[-nrow(J),-nrow(J)] <- J_Q[-nrow(J_Q),-nrow(J_Q)] - J.PB
+	    
+	    theta.new <- theta.old - solve(J)%*%f
+	    
+	    e <- sqrt(sum((theta.old-theta.new)^2))
+	    theta.old <- theta.new
+	    beta.old <- theta.old[-nrow(theta.old),,drop=F]
+	    h2.old <- theta.old[nrow(theta.old),]
+	    
+	    if(e<1e-5) break
+	  }
+	  
+	  if(h2.old<=0){
+	    h2.old <- 0
+	    while(1){
+	      resAB <- mclapply(unique(famid),getAB,beta.old=beta.old,h2.old=0,famid=famid,proband=proband,mc.cores=n.cores)
+	      
+	      while(1){
+	        resELE <- mclapply(1:length(unique(famid)),getELE.0,resAB=resAB,beta.old=beta.OLD,mc.cores=n.cores)
+	        resELE.PB <- mclapply(1:length(unique(famid)),getELE.PB,resAB=resAB,beta.old=beta.OLD,mc.cores=n.cores)
+	        
+	        ## f & f_prime
+	        f_Q <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE[[i]],dBeta),mc.cores=n.cores))
+	        J_Q <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE[[i]],d2Beta),mc.cores=n.cores))
+	        
+	        # proband
+	        f.PB <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],dBeta),mc.cores=n.cores))
+	        J.PB <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],d2Beta),mc.cores=n.cores))
+	        
+	        f <- f_Q - f.PB
+	        J <- J_Q - J.PB
+	        
+	        beta.NEW <- beta.OLD - solve(J)%*%f
+	        epsilon <- sqrt(sum((beta.NEW-beta.OLD)^2))
+	        beta.OLD <- beta.NEW
+	        if(epsilon < 1e-5) break
+	      }
+	      
+	      epsilon <- sqrt(sum((beta.OLD - beta.old)^2))
+	      beta.old <- beta.OLD
+	      if(epsilon < 1e-5) break
+	    }
+	    theta.new <- rbind(beta.old,h2.old)
+	  }
 
-		## Calculate A and B
-		resAB <- mclapply(unique(famid),getAB,beta.old=beta.old,h2.old=h2.old,famid=famid,mc.cores=n.cores,proband=proband)
-		
-		## Calculate first and second derivative
-		resELE <- lapply(1:length(unique(famid)),getELE,resAB=resAB,beta.old=beta.old,h2.old=h2.old)
-		resELE.PB <- lapply(1:length(unique(famid)),getELE.PB,resAB=resAB,beta.old=beta.old)
-		
-		## f & f_prime
-		f_Q <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE[[i]],c(dBeta,dh2))))
-		J_Q <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE[[i]],rbind(cbind(d2Beta,d2h2Beta),cbind(t(d2h2Beta),d2h2)))))
-		
-		# proband
-		f.PB <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],dBeta)))
-		J.PB <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],d2Beta)))
-		
-		f <- f_Q
-		J <- J_Q
-		f[-length(f)] <- f_Q[-length(f_Q)]-f.PB
-		J[-nrow(J),-nrow(J)] <- J_Q[-nrow(J_Q),-nrow(J_Q)] - J.PB
-
-		theta.new <- theta.old - solve(J)%*%f
-		
-		epsilon <- sqrt(sum((theta.old-theta.new)^2))
-		print(data.frame(h2=theta.new[nrow(theta.new),],epsilon=epsilon,n.iter=n.iter))
-		
-		if(epsilon<1e-5){
-			beta.new <- theta.new[-nrow(theta.new),,drop=F]
-			h2.new <- theta.new[nrow(theta.new),,drop=F]
-			break
-		} else {
-			theta.old <- theta.new
-			beta.old <- theta.old[-nrow(theta.old),,drop=F]
-			h2.old <- theta.old[nrow(theta.old),]
-		}
+	  if(h2.old>=1){
+	    h2.old <- 1
+	    while(1){
+	      resAB <- mclapply(unique(famid),getAB,beta.old=beta.old,h2.old=1,famid=famid,proband=proband,mc.cores=n.cores)
+	      
+	      while(1){
+	        resELE <- mclapply(1:length(unique(famid)),getELE,resAB=resAB,beta.old=beta.OLD,h2.old=1,mc.cores=n.cores)
+	        resELE.PB <- mclapply(1:length(unique(famid)),getELE.PB,resAB=resAB,beta.old=beta.OLD,mc.cores=n.cores)
+	        
+	        ## f & f_prime
+	        f_Q <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE[[i]],dBeta),mc.cores=n.cores))
+	        J_Q <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE[[i]],d2Beta),mc.cores=n.cores))
+	        
+	        # proband
+	        f.PB <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],dBeta),mc.cores=n.cores))
+	        J.PB <- Reduce('+',mclapply(1:length(unique(famid)),function(i) with(resELE.PB[[i]],d2Beta),mc.cores=n.cores))
+	        
+	        f <- f_Q - f.PB
+	        J <- J_Q - J.PB
+	        
+	        beta.NEW <- beta.OLD - solve(J)%*%f
+	        epsilon <- sqrt(sum((beta.NEW-beta.OLD)^2))
+	        beta.OLD <- beta.NEW
+	        if(epsilon < 1e-5) break
+	      }
+	      
+	      epsilon <- sqrt(sum((beta.OLD - beta.old)^2))
+	      beta.old <- beta.OLD
+	      if(epsilon < 1e-5) break
+	    }
+	    theta.new <- rbind(beta.old,h2.old)
+	  }
+	  epsilon <- sqrt(sum((theta.OLD-theta.new)^2))
+	  theta.OLD <- theta.new
+	  if(epsilon<1e-5) {
+	    return(list(beta=beta.old,h2=h2.old,n_iter=n.iter))
+	    break
+	  }
 	}
-	return(list(beta=beta.new,h2=h2.new,n_iter=n.iter))
-}			
+}
+
+
+
 
 ##### get max logL
 getlogL <- function(model,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1){
@@ -618,7 +669,7 @@ getEsth2.asc <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model
   total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
   V <- 2*as.matrix(kinship(total_ped))
   famid <- as.character(dataset$FID)
-  output <- LTMH.asc(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
+  output <- LTMH.asc(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,dataset=dataset,n.cores=n.cores,proband=proband)
   write.table(t(as.matrix(c(obs=i,unlist(output)))),out,col.names=F,row.names=F,quote=F,append=TRUE)
   return(c(i,output))
 }
