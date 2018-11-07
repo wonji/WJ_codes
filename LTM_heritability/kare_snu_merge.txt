@@ -1,0 +1,738 @@
+################# KARE + SNU Merge #################
+
+## rsNumber undate ##
+
+working_dir <- "/home2/wjkim/project/kare+snu"
+output <- "KARE"
+
+map <- read.table("/data/kare/hg19/KARE_8842_hg19.bim",head=F,stringsAsFactor=F)
+annot.1 <- read.table("/data/annotation/Mapping250K_Nsp.na32.annot.csv",head=T,sep=",",stringsAsFactor=F)[,c(1:6,9,10)]
+annot.2 <- read.table("/data/annotation/Mapping250K_Sty.na32.annot.csv",head=T,sep=",",stringsAsFactor=F)[,c(1:6,9,10)]
+annot <- rbind(annot.1,annot.2)
+annot[annot[,"Chromosome"]=="X","Chromosome"] <- 23
+annot[annot$ChrX.pseudo.autosomal.region.1==1,"Chromosome"] <- 25
+
+map$minor[map[,"V5"]==0] <- 0
+map$minor[map[,"V5"]=="A"] <- 1
+map$minor[map[,"V5"]=="C"] <- 10
+map$minor[map[,"V5"]=="G"] <- 100
+map$minor[map[,"V5"]=="T"] <- 1000
+map$major[map[,"V6"]=="A"] <- 1
+map$major[map[,"V6"]=="C"] <- 10
+map$major[map[,"V6"]=="G"] <- 100
+map$major[map[,"V6"]=="T"] <- 1000
+map$sum <- rowSums(map[,c("minor","major")])
+
+mer_map <- merge(map,annot,by.x="V2",by.y="Probe.Set.ID",sort=F,all.x=T)
+
+mer_map$minor.ref[mer_map[,"Allele.A"]=="A"] <- 1
+mer_map$minor.ref[mer_map[,"Allele.A"]=="C"] <- 10
+mer_map$minor.ref[mer_map[,"Allele.A"]=="G"] <- 100
+mer_map$minor.ref[mer_map[,"Allele.A"]=="T"] <- 1000
+mer_map$major.ref[mer_map[,"Allele.B"]=="A"] <- 1
+mer_map$major.ref[mer_map[,"Allele.B"]=="C"] <- 10
+mer_map$major.ref[mer_map[,"Allele.B"]=="G"] <- 100
+mer_map$major.ref[mer_map[,"Allele.B"]=="T"] <- 1000
+mer_map$sum.ref <- rowSums(mer_map[,c("minor.ref","major.ref")])
+
+missing_snp_I <- which(mer_map[,"dbSNP.RS.ID"]=="---")
+missing_snp_II <- which(is.na(mer_map[,"dbSNP.RS.ID"]))
+db.id <- mer_map[,"dbSNP.RS.ID"]
+db.id[missing_snp_I] <- mer_map[missing_snp_I,1]
+db.id[missing_snp_II] <- mer_map[missing_snp_II,1]
+mer_map <- cbind(mer_map,db.id)
+
+dup <- which(duplicated(db.id))
+dup_list <- mer_map[dup,c(2,1)]
+write.table(dup_list,paste(working_dir,'/dup.list',sep=''),col.names=F,quote=F,row.names=F,sep="\t")
+
+mer_map[which(mer_map[,"Chromosome"]=="---"|is.na(mer_map[,"Chromosome"])),"Chromosome"] <- mer_map[which(mer_map[,"Chromosome"]=="---"|is.na(mer_map[,"Chromosome"])),"V1"]
+mer_map[which(mer_map[,"Physical.Position"]=="---"|is.na(mer_map[,"Physical.Position"])),"Physical.Position"] <- mer_map[which(mer_map[,"Physical.Position"]=="---"|is.na(mer_map[,"Physical.Position"])),"V4"]
+mer_mer_map <- merge(map,mer_map,by="V2",sort=F,all.x=T)
+
+new_map <- mer_mer_map[,c("Chromosome","db.id","V3.x","Physical.Position","V5.x","V6.x")]
+write.table(new_map,paste(working_dir,'/kare/rs_',output,'.bim',sep=''),col.names=F,quote=F,row.names=F,sep="\t")
+
+system(paste('cp /data/kare/hg19/KARE_8842_hg19.bed ',working_dir,'/kare/rs_',output,'.bed',sep=''))
+system(paste('cp /data/kare/hg19/KARE_8842_hg19.fam ',working_dir,'/kare/rs_',output,'.fam',sep=''))
+system(paste('plink --bfile ',working_dir,'/kare/rs_',output,' --exclude ',working_dir,'/dup.list --make-bed --noweb --out ',working_dir,'/kare/rs_',output,'_hg19',sep=''))
+
+## makePositive ##
+
+nega <- mer_map[mer_map$Strand=='-',c("Chromosome","db.id")]
+miss <- mer_map[mer_map$Strand=='---',]
+discard <- miss[miss$sum==110 | miss$sum==1001,c("Chromosome","db.id")]
+
+write.table(nega,paste(working_dir,'/kare/negative.list',sep=''),col.names=F,quote=F,row.names=F)
+write.table(discard,paste(working_dir,'/kare/discard.list',sep=''),col.names=F,quote=F,row.names=F)
+
+system(paste('plink --bfile ',working_dir,'/kare/rs_',output,'_hg19 --flip ',working_dir,'/kare/negative.list --exclude ',working_dir,'/kare/discard.list --make-bed --noweb --out ',working_dir,'/kare/rs_',output,'_positive',sep=''))
+
+
+
+##qc##
+
+plink --bfile /data/kare/IDcPedigree/IDcPedigree --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out snu/snp_qc_snu --noweb
+plink --bfile kare/rs_KARE_positive --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out kare/snp_qc_kare --noweb
+
+plink --bfile snu/snp_qc_snu --mind 0.05 --out snu/indiv_snp_qc_snu --make-bed --noweb
+plink --bfile kare/snp_qc_kare --mind 0.05 --out kare/indiv_snp_qc_kare --make-bed --noweb
+
+
+
+##common snp list ##
+setwd("/home2/wjkim/project/kare+snu")
+snu <- read.table("snu/indiv_snp_qc_snu.bim",head=F,stringsAsFactor=F)
+kare <- read.table("kare/indiv_snp_qc_kare.bim",head=F,stringsAsFactor=F)
+
+mer <- merge(snu,kare,by="V2",all=F)	# 272989 SNPs
+mer1 <- mer[which(mer$V1.x==mer$V1.y),]	# 272984 SNPs : 5 SNPs have different chromosome -> discarded
+common <- mer1[,c(2,1)]
+write.table(common,"common_snp.txt",col.names=F,quote=F,row.names=F)
+
+##extract##
+
+plink --bfile snu/indiv_snp_qc_snu --extract common_snp.txt --out snu/common_snu --make-bed --noweb
+plink --bfile kare/indiv_snp_qc_kare --extract common_snp.txt --out kare/common_kare --make-bed --noweb
+
+
+##merge##
+
+plink --bfile kare/common_kare --bmerge snu/common_snu.bed snu/common_snu.bim snu/common_snu.fam --make-bed --out allmerge --noweb
+
+<R>
+flip <- read.table("allmerge.missnp",head=F,stringsAsFactor=F)
+bim <- read.table("kare/common_kare.bim",head=F,stringsAsFactor=F)
+mer <- merge(bim,flip,by.x="V2",by.y="V1",sort=F,all=F)
+write.table(mer[,c(2,1)],"allmerge_flip.list",col.names=F,row.names=F,quote=F)
+
+plink --bfile snu/common_snu --flip allmerge_flip.list --make-bed --out snu/common_snu_positive --noweb
+plink --bfile kare/common_kare --bmerge snu/common_snu_positive.bed snu/common_snu_positive.bim snu/common_snu_positive.fam --make-bed --out allmerge --noweb 
+plink --bfile allmerge --flip-scan --flip-scan-verbose --out ambi --noweb
+plink --bfile allmerge --flip ambi_flip.list --flip-subset snu/common_snu_positive.fam --make-bed --out final_allmerge --noweb
+
+##final qc##
+
+plink --bfile final_allmerge --hwe 0.00001 --geno 0.05 --maf 0.05 --make-bed --out final_allmerge_snp --noweb
+plink --bfile final_allmerge_snp --mind 0.05 --out final_allmerge_qc --make-bed --noweb
+
+##pc score##
+
+wisard --bed final_dataset/final_allmerge_qc.bed --chr 1-22 --pca --npc 10 --out final_dataset/allmerge_pc
+
+
+##################### Generate family file#########################
+kare <- read.csv("~/project/t2d/RPM/AS1_Famd.csv",head=T,stringsAsFactor=F)[,c(10,12,14,16)]
+snu <- read.csv("~/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
+fam <- all <- read.table("~/project/kare+snu/final_dataset/final_allmerge.fam",head=F,stringsAsFactor=F)
+kare_fam <- read.table("~/project/kare+snu/kare/common_kare.fam",head=F,stringsAsFactor=F)
+snu_fam <- read.table("~/project/kare+snu/snu/common_snu_positive.fam",head=F,stringsAsFactor=F)
+source("~/project/kare+snu/genFam.r")
+
+###KARE###
+ind <- which(!is.na(kare[,1])|!is.na(kare[,2])|!is.na(kare[,3])|!is.na(kare[,4])) 
+kare_outI <- lapply(ind,kare_f)
+kare_outII <- do.call(rbind,kare_outI)
+for(i in ind) kare_fam[i,3:4] <- paste(kare_fam[i,1],1:2,sep="_")
+
+
+###SNU###
+res <- list()
+id <- snu[which(!snu[,"GWAS.ID"]==""),]
+id <- id[id[,8]%in%snu_fam[,2],]
+famid <- id[!duplicated(id[,1]),]
+n <- nrow(famid)
+snu <- snu[snu[,1]%in%famid[,1],]
+snu[snu$SEX==0,"SEX"] <- 2	#by fam file#
+snu$T2DM <- 1
+snu$T2DM[snu$DISEASE=="T2DM"] <- 2
+snu$T2DM_IGT <- 1
+snu$T2DM_IGT[snu$DISEASE=="T2DM"] <- 2
+snu$T2DM_IGT[snu$DISEASE=="IGT"] <- 2
+
+mer <- merge(snu_fam,snu,by.x="V2",by.y="GWAS.ID",sort=F,all.x=T)
+new_snufam <- mer[,c(7,1,3:4,10,15,11)]
+
+snu_outI <- lapply(1:n,snu_f)
+snu_outII <- do.call(rbind,snu_outI)
+
+for(i in 1:nrow(new_snufam)) {
+	fam_pheno <- snu[snu[,1]==new_snufam[i,1],]
+	rela_fam <- snu_outII[snu_outII[,1]==new_snufam[i,1],]
+	if(new_snufam[i,"RELATIONSHIP"]==5){
+		new_snufam[i,3] <- rela_fam[rela_fam[,5]==1 & rela_fam[,7]==2,2]
+		new_snufam[i,4] <- rela_fam[rela_fam[,5]==2 & rela_fam[,7]==2,2]
+	} else if(new_snufam[i,"RELATIONSHIP"]==2){
+		if(new_snufam[i,5]==1){
+			new_snufam[i,3:4] <- rela_fam[3,3:4]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,2] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,7]==4,3] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,8] <- 1
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==5,3] <- new_snufam[i,2]
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==4,3] <- new_snufam[i,2]
+		} else {
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,2] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,7]==4,4] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,8] <- 1
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==5,4] <- new_snufam[i,2]
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==4,4] <- new_snufam[i,2]
+		}
+	} else if(new_snufam[i,"RELATIONSHIP"]==4){
+		new_snufam[i,3] <- rela_fam[rela_fam[,5]==1 & rela_fam[,7]==2,2]
+		new_snufam[i,4] <- rela_fam[rela_fam[,5]==2 & rela_fam[,7]==2,2]
+	} else if(new_snufam[i,"RELATIONSHIP"]==7){
+		new_snufam[i,3] <- ifelse(rela_fam[5,5]==1,rela_fam[5,2],fam_pheno[fam_pheno[,"RELATIONSHIP"]==5,"GWAS.ID"])
+		new_snufam[i,4] <- ifelse(rela_fam[5,5]==1,fam_pheno[fam_pheno[,"RELATIONSHIP"]==5,"GWAS.ID"],rela_fam[5,2])
+	}
+}
+snu_outII <- snu_outII[snu_outII[,8]==0,1:6]
+
+rela_fam <- rbind(kare_outII,snu_outII)
+attr(new_snufam,"names") <- paste("V",1:7,sep="")
+
+
+######pheno file######
+setwd("/home2/wjkim/project/kare+snu")
+
+ID_match <- read.table("kare/ID_match_table.list",head=F,stringsAsFactor=F)
+kare <- read.table("kare/KARE_1.csv",head=T)
+pc <- read.table("final_dataset/allmerge_phe.txt",head=T,stringsAsFactor=F)[,1:12]
+phe <- read.table("/home2/wjkim/paper/famhis/moment/kare/new_new_KARE9523_pheno.txt",head=T,stringsAsFactor=F)
+kare <- merge(ID_match,kare,by.y="ID",by.x="V2",sort=F)[,2:40]
+
+case <- with(kare,which(AS1_Glu0 >= 126 | AS1_Glu120 >= 200 | AS1_Hba1c >=6.5))
+kare$t2d <- 1
+kare$t2d[case] <- 2
+new_kare <- kare[,c("V1","t2d")]
+new_snu <- new_snufam[,c(2,6)]
+attr(new_snu,"names") <- names(new_kare)
+t2d <- rbind(new_snu,new_kare)
+
+mer1 <- merge(fam,pc,by.x="V2",by.y="IID",sort=F)[,c(2,1,8:17,5)]
+mer2 <- merge(mer1,t2d,by.x="V2",by.y="V1",sort=F)[,c(2,1,3:14)]
+mer3 <- merge(mer2,phe,by.x="V2",by.y="id",sort=F)[,c(2,1,3:14,19,20)]
+colnames(mer3)[c(1:2,13)] <- c("FID","IID","sex")
+mer3$sex <- mer3$sex-1
+
+mer_fam <- rbind(kare_fam,new_snufam[,1:6])
+mer_fam_1 <- merge(mer_fam,t2d,by.x="V2",by.y="V1",sort=F)[,c(2,1,3:5,7)]
+fin.fam <- merge(all,mer_fam_1,by="V2",sort=F)[,c(7,1,8:11)]
+colnames(rela_fam) <- names(fin.fam)
+fin.fam_withrela <- rbind(fin.fam,rela_fam)
+write.table(fin.fam_withrela,"~/project/kare+snu/final_dataset/allmerge_withrela.fam",col.names=F,row.names=F,quote=F)
+
+#########Calculate absolute risk#######
+source("/home2/wjkim/paper/famhis/prob/realdata/final_cal_rp.r")
+fam_path <- "/home2/wjkim/project/kare+snu/final_dataset/allmerge_withrela.fam"
+target <- 1:9521
+h <- 0.26
+prev <- 0.099
+fin.res <- cal_rp(fam_path,target,h,prev)
+colnames(fin.res) <- c("IID","RP")
+
+mer4 <- merge(mer3,fin.res,by="IID",sort=F)[,c(2,1,3:17)]
+mer5 <- merge(mer4,fin.fam,by.y="V2",by.x="IID",sort=F)[,c(18,1,3:17)]
+colnames(mer5)[1] <- "FID"
+
+write.table(fin.fam,"~/project/kare+snu/final_dataset/final_allmerge.fam",col.names=F,row.names=F,quote=F)
+write.table(mer5,"~/project/kare+snu/final_dataset/allmerge_phe.txt",quote=F,row.names=F,sep="\t")
+
+setwd("~/project/kare+snu/final_dataset/")
+system("mv final_allmerge_qc.bed final_allmerge.bed")
+system("mv final_allmerge_qc.bim final_allmerge.bim")
+
+
+##association study : /home2/wjkim/paper/famhis/prob/realdata/ ##
+library(multicore)
+setwd("/home2/wjkim/paper/famhis/prob/realdata/")
+aa <- function(i) {
+	system(paste('mkdir chr',i,sep=''))
+	system(paste('plink --bfile /data/kare/allmerge/final_allmerge --recodeA --chr ',i,' --out chr',i,'/chr',i,' --noweb',sep=''))
+	system(paste('plink --bfile /data/kare/allmerge/final_allmerge --make-bed --chr ',i,' --out chr',i,'/chr',i,' --noweb',sep=''))
+}
+mclapply(1:22,aa,mc.cores=22)
+
+##All individual##
+
+setwd("/home2/wjkim/paper/famhis/prob/realdata/")
+fam <- read.table("/home2/wjkim/project/kare+snu/final_dataset/final_allmerge.fam",head=F,stringsAsFactor=F)
+non_indep <- fam[duplicated(fam[,1]),1:2]
+write.table(non_indep,"dependent.list",col.names=F,row.names=F,quote=F)
+
+mclapply(1:22,function(i) system(paste("plink --bfile chr",i,"/chr",i," --remove dependent.list --logistic --covar /home2/wjkim/project/kare+snu/final_dataset/allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --pheno /home2/wjkim/project/kare+snu/final_dataset/allmerge_phe.txt --pheno-name t2d --parameters 1 --noweb --out chr",i,"/all_indiv",sep="")),mc.cores=11)
+
+bb <- function(i){
+	res <- read.table(paste("chr",i,"/all_indiv.assoc.logistic",sep=""),head=T,stringsAsFactor=F)
+	return(res[,c("CHR","SNP","P")])
+}
+
+bb.res <- lapply(1:22,bb)
+bb.res.I <- do.call(rbind,bb.res)
+colnames(bb.res.I) <- c("CHR","GENE","p.val")
+write.table(bb.res.I,"plotdata_all_indiv_0925.txt",row.names=F,quote=F,sep="\t")
+system("Rscript ~/Output_plot.r plotdata_all_indiv_0925.txt all_indiv_0925")
+
+
+
+##GWAS - ascertained samples##
+do.real <- function(n.case,n.cont,phe){
+	library(glm2)
+	library(multicore)
+
+	case <- phe[phe$t2d==2,]; cont <- phe[phe$t2d==1,]
+	dup.case <- case[duplicated(case$FID),"FID"]
+	dup.cont <- cont[duplicated(cont$FID),"FID"]
+	
+	rm.case <- lapply(dup.case,function(dup) return(case[case[,"FID"]%in%dup,][!order(case[case[,"FID"]%in%dup,"RP"],decreasing=T)==1,"IID"]))
+	rm.case <- unique(do.call(c,rm.case))
+	case <- case[!case[,"IID"]%in%rm.case,]
+	rm.cont <- lapply(dup.cont,function(dup) return(cont[cont[,"FID"]%in%dup,][!order(cont[cont[,"FID"]%in%dup,"RP"],decreasing=F)==1,"IID"]))
+	rm.cont <- unique(do.call(c,rm.cont))
+	cont <- cont[!cont[,"IID"]%in%rm.cont,]
+
+	#Based on posterior mean#
+	sel.case <- case[order(case$RP,decreasing=T),][1:n.case,]
+	sel.cont <- cont[order(cont$RP,decreasing=F),][1:n.cont,]
+	rp.cc <- rbind(sel.case,sel.cont)
+	rp <- sort(as.numeric(rownames(rp.cc)))
+
+	#Random sample#
+	sel.case <- case[sample(1:nrow(case),n.case),]
+	sel.cont <- cont[sample(1:nrow(cont),n.cont),]
+	rs.cc <- rbind(sel.case,sel.cont)
+	rs <- sort(as.numeric(rownames(rs.cc)))
+
+	for(i in 1:22){
+		print(paste("Chromosome",i))
+		geno <- read.table(paste('/home2/wjkim/paper/famhis/prob/realdata/chr',i,'/chr',i,'.raw',sep=''),head=T,stringsAsFactor=F)
+	
+		gls_Binary <- function(ii,geno,rs,rp){
+			if(ii%%100==0) print(ii)
+
+			rs.snp <- geno[rs,6+ii]
+			rp.snp <- geno[rp,6+ii]
+			rs.dat <- cbind(phe[rs,],rs.snp)
+			rp.dat <- cbind(phe[rp,],rp.snp)
+			
+			rs.na <- which(!is.na(rs.snp))
+			rp.na <- which(!is.na(rp.snp))
+
+			rs.dat <- rs.dat[rs.na,]
+			rp.dat <- rp.dat[rp.na,]
+
+			snp.name <- sub("_[ACGT]","",colnames(geno)[6+ii])
+
+			ft.rs <- try(glm2(t2d-1 ~ PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+sex+age+age2+rs.snp,data=rs.dat, family=binomial(link="logit")))
+			ft.rp <- try(glm2(t2d-1 ~ PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+sex+age+age2+rp.snp,data=rp.dat, family=binomial(link="logit")))
+
+			ft <- list(ft.rs,ft.rp)
+
+			coef.ft <- function(jj){
+				l <- length(unlist(summary(ft[[jj]])$coef))
+				if(class(ft[[jj]])[1]!='try-error'){res<-unlist(summary(ft[[jj]])$coef)[c(l-3*l/4,l-2*l/4,l-l/4,l)]}else{res<-c(NA,NA,NA,NA)}
+				return(res)
+			}
+			
+			coef.res <- lapply(1:2,coef.ft)
+			coef.res <- do.call(c,coef.res)
+			
+			RESULT <- c(ii,i,snp.name,coef.res)
+			return(RESULT)
+		}
+
+		RES <- mclapply(1:(ncol(geno)-6),gls_Binary,geno=geno,rs=rs,rp=rp,mc.cores=10)
+		resultI <- do.call(rbind,RES)
+		resultII <- resultI[order(resultI[,1]),-1]
+			
+		colnames(resultII) <- c('chr','snp','rs.beta','rs.SE','rs.z','rs.p','rp.beta','rp.SE','rp.z','rp.p')
+
+		write.table(resultII,paste('chr',i,'/case_',n.case,'_cont_',n.cont,'.assoc.logistic',sep=''),row.names=F,quote=F)
+	}
+}
+
+bb <- function(i,n.case,n.cont){
+	res <- read.table(paste("chr",i,"/case_",n.case,"_cont_",n.cont,".assoc.logistic",sep=""),head=T,stringsAsFactor=F)
+	return(res[,c("chr","snp","rs.p","rp.p")])
+}
+
+
+### case : 1500, control : 3500 ###
+setwd("~/paper/famhis/prob/realdata")
+phe <- read.table("~/project/kare+snu/final_dataset/allmerge_phe.txt",head=T,stringsAsFactor=F)
+n.case=1500
+n.cont=3500
+do.real(n.case,n.cont,phe)
+bb.res <- lapply(1:22,bb,n.case=n.case,n.cont=n.cont)
+bb.res.I <- do.call(rbind,bb.res)
+rs <- bb.res.I[,c(1,2,3)]
+rp <- bb.res.I[,c(1,2,4)]
+colnames(rs) <- colnames(rp) <- c("CHR","GENE","p.val")
+write.table(rs,paste("plotdata_case_",n.case,"_cont_",n.cont,"_rs.txt",sep=""),row.names=F,quote=F,sep="\t")
+write.table(rp,paste("plotdata_case_",n.case,"_cont_",n.cont,"_rp.txt",sep=""),row.names=F,quote=F,sep="\t")
+system(paste("Rscript ~/Output_plot.r plotdata_case_",n.case,"_cont_",n.cont,"_rs.txt case_",n.case,"_cont_",n.cont,"_rs",sep=""))
+system(paste("Rscript ~/Output_plot.r plotdata_case_",n.case,"_cont_",n.cont,"_rp.txt case_",n.case,"_cont_",n.cont,"_rp",sep=""))
+
+
+### case : 1000, control : 4000 ###
+setwd("~/paper/famhis/prob/realdata")
+phe <- read.table("~/project/kare+snu/final_dataset/allmerge_phe.txt",head=T,stringsAsFactor=F)
+n.case=1000
+n.cont=4000
+do.real(n.case,n.cont,phe)
+bb.res <- lapply(1:22,bb,n.case=n.case,n.cont=n.cont)
+bb.res.I <- do.call(rbind,bb.res)
+rs <- bb.res.I[,c(1,2,3)]
+rp <- bb.res.I[,c(1,2,4)]
+colnames(rs) <- colnames(rp) <- c("CHR","GENE","p.val")
+write.table(rs,paste("plotdata_case_",n.case,"_cont_",n.cont,"_rs.txt",sep=""),row.names=F,quote=F,sep="\t")
+write.table(rp,paste("plotdata_case_",n.case,"_cont_",n.cont,"_rp.txt",sep=""),row.names=F,quote=F,sep="\t")
+system(paste("Rscript ~/Output_plot.r plotdata_case_",n.case,"_cont_",n.cont,"_rs.txt case_",n.case,"_cont_",n.cont,"_rs",sep=""))
+system(paste("Rscript ~/Output_plot.r plotdata_case_",n.case,"_cont_",n.cont,"_rp.txt case_",n.case,"_cont_",n.cont,"_rp",sep=""))
+
+
+
+####### 결과 정리 #######
+
+rp <- read.table("plotdata_case_1000_cont_4000_rp.txt",head=T)
+rs <- read.table("plotdata_case_1000_cont_4000_rs.txt",head=T)
+all <- read.table("plotdata_all_indiv_0925.txt",head=T)
+
+od_rp <- rp[order(rp$p.val),]
+od_rs <- rs[order(rs$p.val),]
+od_all <- all[order(all$p.val),]
+
+sig <- od_all[od_all$p.val<0.05/nrow(od_all),]
+mer1 <- merge(sig,bim,by.x="GENE",by.y="V2",sort=F)[,c(1,2,6,7,8,3)]
+mer2 <- merge(sig,od_rs,by="GENE",sort=F)[,5]
+mer3 <- merge(sig,od_rp,by="GENE",sort=F)[,5]
+Summary <- data.frame(mer1,rs=mer2,rp=mer3)
+colnames(Summary)[3:6] <- c("Position","A1","A2","all")
+write.csv(Summary,"/home2/wjkim/paper/famhis/prob/realdata/result_summary.csv",row.names=F,quote=F)
+
+#individaul selection#
+
+phe <- merge(fam_1,phe_1,by.x="V2",by.y="IID",sort=F,all=F)
+
+RP <- phe$rp
+
+case <- which(phe$or_gr==1); case.rp <- RP[case]
+cont <- which(phe$or_gr==0); cont.rp <- RP[cont]
+
+rs <- sort(c(sample(case,1000),sample(cont,1000)))
+ph.rs <- phe[rs,c(19,8:17,21:23)]
+
+as.case <- case[order(case.rp,decreasing=T)[1:1000]]
+as.cont <- sample(cont[which(cont.rp==0.101)],1000)
+
+as <- sort(c(as.cont,as.case))
+ph.as <- phe[as,c(19,8:17,21:23)]
+
+
+for(i in 1:22){
+	geno <- read.table(paste('~/famhis/kare/kare9523/raw/chr',i,'.raw',sep=''),head=T)
+	gls_Binary <- function(ii){
+		if(ii%%100==0) print(ii)
+
+		rs.snp <- geno[rs,6+ii]
+		as.snp <- geno[as,6+ii]
+		
+		rs.na <- which(!is.na(rs.snp))
+		as.na <- which(!is.na(as.snp))
+
+		rs.dat <- cbind(ph.rs[rs.na,],rs.snp[rs.na])
+		as.dat <- cbind(ph.as[as.na,],as.snp[as.na])
+
+		snp.name <- colnames(geno)[6+ii]
+
+		ft.rs <- try(glm2(or_gr ~ PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+sex+age+age2+rs.snp[rs.na],data=rs.dat, family=binomial(link="logit")))
+		ft.as <- try(glm2(or_gr ~ PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+sex+age+age2+as.snp[as.na],data=as.dat, family=binomial(link="logit")))
+
+		ft <- list(ft.rs,ft.as)
+
+		coef.ft <- function(jj){
+			l <- length(unlist(summary(ft[[jj]])$coef))
+			if(class(ft[[jj]])[1]!='try-error'){res<-unlist(summary(ft[[jj]])$coef)[c(l-3*l/4,l-2*l/4,l-l/4,l)]}else{res<-c(NA,NA,NA,NA)}
+			return(res)
+		}
+		
+		coef.res <- lapply(1:2,coef.ft)
+		coef.res <- do.call(c,coef.res)
+		
+		RESULT <- c(ii,i,snp.name,coef.res)
+		return(RESULT)
+	}
+
+	RES <- mclapply(1:(ncol(geno)-6),gls_Binary,mc.cores=20)
+	resultI <- do.call(rbind,RES)
+	resultII <- resultI[order(resultI[,1]),-1]
+		
+	colnames(resultII) <- c('chr','snp','rs.beta','rs.SE','rs.z','rs.p','as.beta','as.SE','as.z','as.p')
+
+	write.table(resultII,paste('final_result/as_chr',i,'_1000.txt',sep=''),row.names=F,quote=F)
+}
+
+
+
+
+#plotdata#
+
+pd <- function(i){	
+	print(i)
+	dat <- read.table(paste('as_chr',i,'_1000.txt',sep=''),stringsAsFactor=F,head=T)
+	aa <- dat[,c(1,2,6,10)]
+	return(aa)
+}
+
+pd2 <- lapply(1:22,pd)
+pd3 <- do.call(rbind,pd2)
+
+rs <- pd3[,c(1,2,3)]
+as <- pd3[,c(1,2,4)]
+
+colnames(rs) <- colnames(as) <- c("CHR","GENE","p.val")
+write.table(rs,"plotdata_rs_1000.txt",row.names=F,quote=F,sep="\t")
+write.table(as,"plotdata_as_1000.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_as_1000.txt as_1000
+Rscript ~/Output_plot.r plotdata_rs_1000.txt rs_1000
+
+pd <- function(i){	
+	print(i)
+	dat <- read.table(paste('chr',i,'.assoc.logistic',sep=''),stringsAsFactor=F,head=T)
+	aa <- dat[,c(1,2,9)]
+	return(aa)
+}
+
+pd2 <- lapply(1:22,pd)
+pd3 <- do.call(rbind,pd2)
+
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_all.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_all.txt all
+
+pd <- function(i){	
+	print(i)
+	dat <- read.table(paste('chr',i,'_norp.assoc.logistic',sep=''),stringsAsFactor=F,head=T)
+	aa <- dat[,c(1,2,9)]
+	return(aa)
+}
+
+pd2 <- lapply(1:22,pd)
+pd3 <- do.call(rbind,pd2)
+
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_all_norp.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_all_norp.txt all_norp
+
+
+##GWAS - ascertained samples - 다시 ##
+
+source("kare_data_setting.r")
+phe <- read.table("~/famhis/kare/kare9523/allmerge_phe.txt",head=T,sep="\t")
+fam <- read.table("~/famhis/kare/kare9523/allmerge.fam",head=F)
+
+RP <- phe$rp
+
+case <- which(phe$or_gr==1); case.rp <- RP[case]
+cont <- which(phe$or_gr==0); cont.rp <- RP[cont]
+
+rs <- sort(c(sample(case,1000),sample(cont,1000)))
+rs.ls <- phe[rs,c(1:2)]
+
+as.case <- case[order(case.rp,decreasing=T)[1:1000]]
+as.cont <- sample(cont[which(cont.rp==0.101)],1000)
+
+as <- sort(c(as.cont,as.case))
+as.ls <- phe[as,c(1:2)]
+
+write.table(rs.ls,"rs_1000.list",row.names=F,quote=F)
+write.table(as.ls,"as_1000.list",row.names=F,quote=F)
+
+
+plink --bfile ~/famhis/kare/kare9523/allmerge --keep rs_1000.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_rs_1000
+plink --bfile ~/famhis/kare/kare9523/allmerge --keep as_1000.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_as_1000
+
+
+pd1 <- read.table("plink_rs_1000.assoc.logistic",head=T)
+pd3 <- pd1[,c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_rs1000.txt",row.names=F,quote=F,sep="\t")
+
+pd1 <- read.table("plink_as_1000.assoc.logistic",head=T)
+pd3 <- pd1[,c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_as1000.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_plink_rs1000.txt plink_rs1000
+Rscript ~/Output_plot.r plotdata_plink_as1000.txt plink_as1000
+
+
+##case= >prev, control=0.101##
+
+source("kare_data_setting.r")
+phe <- read.table("~/famhis/kare/kare9523/allmerge_phe.txt",head=T,sep="\t")
+fam <- read.table("~/famhis/kare/kare9523/allmerge.fam",head=F)
+
+phe <- merge(phe,fam,by.x="IID",by.y="V2",sort=F,all=F)
+
+RP <- phe$rp
+
+case <- which(phe$V6==2); case.rp <- RP[case]
+cont <- which(phe$V6==1); cont.rp <- RP[cont]
+
+as.case <- case[which(case.rp>0.101)]
+as.cont <- cont[which(cont.rp==0.101)]
+as <- sort(c(as.cont,as.case))
+as.ls <- phe[as,c(1:2)]
+
+n.case <- length(as.case); n.cont <- length(as.cont)
+
+rs <- sort(c(sample(case,n.case),sample(cont,n.cont)))
+rs.ls <- phe[rs,c(1:2)]
+
+write.table(rs.ls,"rs_prev.list",row.names=F,quote=F)
+write.table(as.ls,"as_prev.list",row.names=F,quote=F)
+
+plink --bfile ~/famhis/kare/kare9523/allmerge --keep rs_prev.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_rs_prev
+plink --bfile ~/famhis/kare/kare9523/allmerge --keep as_prev.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_as_prev
+
+
+pd1 <- read.table("plink_rs_prev.assoc.logistic",head=T)
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_rs_prev.txt",row.names=F,quote=F,sep="\t")
+
+pd1 <- read.table("plink_as_prev.assoc.logistic",head=T)
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_as_prev.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_plink_rs_prev.txt plink_rs_prev
+Rscript ~/Output_plot.r plotdata_plink_as_prev.txt plink_as_prev
+
+scp plink_rs_prev_* wjkim@ng:~
+scp plink_as_prev_* wjkim@ng:~
+
+
+#genomic control#
+
+plink --adjust --bfile ~/famhis/kare/kare9523/allmerge --keep as_prev.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_as_prev_gc
+
+pd1 <- read.table("plink_as_prev_gc.assoc.logistic.adjusted",head=T)
+pd2 <- read.table("plink_as_prev_gc.assoc.logistic",head=T)
+
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,4)]
+
+pd4 <- merge(pd2,pd3,by="SNP",sort=F,all=F)
+pd3 <- pd4[,c(2,1,11)]
+
+
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_as_prev_gc.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_plink_as_prev_gc.txt plink_as_prev_gc
+scp plink_as_prev_gc_* wjkim@ng:~
+
+
+
+
+
+
+##case : 1500, control :3500 -> 5000_1 ##
+
+source("kare_data_setting.r")
+phe <- read.table("~/famhis/kare/kare9523/allmerge_phe.txt",head=T,sep="\t")
+fam <- read.table("~/famhis/kare/kare9523/allmerge.fam",head=F)
+
+phe <- merge(phe,fam,by.x="IID",by.y="V2",sort=F,all=F)
+
+RP <- phe$rp
+
+case <- which(phe$V6==2); case.rp <- RP[case]
+cont <- which(phe$V6==1); cont.rp <- RP[cont]
+
+rs <- sort(c(sample(case,1500),sample(cont,3500)))
+rs.ls <- phe[rs,c(2,1)]
+
+
+as.case <- case[order(case.rp,decreasing=T)[1:1500]]
+as.cont <- sample(cont[which(cont.rp==0.101)],3500)
+
+as <- sort(c(as.cont,as.case))
+as.ls <- phe[as,c(2,1)]
+
+write.table(rs.ls,"rs_5000_1.list",row.names=F,quote=F)
+write.table(as.ls,"as_5000_1.list",row.names=F,quote=F)
+
+
+plink --adjust --bfile ~/famhis/kare/kare9523/allmerge --keep rs_5000_1.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_rs_5000_1
+plink --adjust --bfile ~/famhis/kare/kare9523/allmerge --keep as_5000_1.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_as_5000_1
+
+
+pd1 <- read.table("plink_rs_5000_1.assoc.logistic",head=T)
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_rs_5000_1.txt",row.names=F,quote=F,sep="\t")
+
+pd1 <- read.table("plink_as_5000_1.assoc.logistic",head=T)
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_as_5000_1.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_plink_rs_5000_1.txt plink_rs_5000_1
+Rscript ~/Output_plot.r plotdata_plink_as_5000_1.txt plink_as_5000_1
+
+scp plink_rs_5000_1_* wjkim@ng:~
+scp plink_as_5000_1_* wjkim@ng:~
+
+
+##case : 1000, control :4000 -> 5000_1 ##
+
+source("kare_data_setting.r")
+phe <- read.table("~/famhis/kare/kare9523/allmerge_phe.txt",head=T,sep="\t")
+fam <- read.table("~/famhis/kare/kare9523/allmerge.fam",head=F)
+
+phe <- merge(phe,fam,by.x="IID",by.y="V2",sort=F,all=F)
+
+RP <- phe$rp
+
+case <- which(phe$V6==2); case.rp <- RP[case]
+cont <- which(phe$V6==1); cont.rp <- RP[cont]
+
+rs <- sort(c(sample(case,1000),sample(cont,4000)))
+rs.ls <- phe[rs,c(2,1)]
+
+
+as.case <- case[order(case.rp,decreasing=T)[1:1000]]
+as.cont <- sample(cont[which(cont.rp==0.101)],4000)
+
+as <- sort(c(as.cont,as.case))
+as.ls <- phe[as,c(2,1)]
+
+write.table(rs.ls,"rs_5000_2.list",row.names=F,quote=F)
+write.table(as.ls,"as_5000_2.list",row.names=F,quote=F)
+
+
+plink --adjust --bfile ~/famhis/kare/kare9523/allmerge --keep rs_5000_2.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_rs_5000_2
+plink --adjust --bfile ~/famhis/kare/kare9523/allmerge --keep as_5000_2.list --logistic --covar allmerge_phe.txt --covar-name PC1-PC10,sex,age,age2 --parameters 1 --noweb --out final_result/plink_as_5000_2
+
+
+pd1 <- read.table("plink_rs_5000_2.assoc.logistic",head=T)
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_rs_5000_2.txt",row.names=F,quote=F,sep="\t")
+
+pd1 <- read.table("plink_as_5000_2.assoc.logistic",head=T)
+pd3 <- pd1[which(!pd1[,1]==23),c(1,2,9)]
+colnames(pd3) <- c("CHR","GENE","p.val")
+write.table(pd3,"plotdata_plink_as_5000_2.txt",row.names=F,quote=F,sep="\t")
+
+Rscript ~/Output_plot.r plotdata_plink_rs_5000_2.txt plink_rs_5000_2
+Rscript ~/Output_plot.r plotdata_plink_as_5000_2.txt plink_as_5000_2
+
+scp plink_rs_5000_2_* wjkim@ng:~
+scp plink_as_5000_2_* wjkim@ng:~
+
+
