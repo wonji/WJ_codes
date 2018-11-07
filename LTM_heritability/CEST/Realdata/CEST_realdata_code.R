@@ -277,14 +277,6 @@ prev <- 0.00001
 init_beta <- matrix(0,1,1)
 init_h2 <- 0
 
-# n8 24 cores, chr 3,9
-n.cores <- 24
-for(chr in c(3,9)){
-  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  if(chr==3) tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-  if(chr==9) DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-}
-
 # n9 24 cores, chr 8,15
 n.cores <- 24
 for(chr in c(8,15)){
@@ -313,16 +305,14 @@ for(chr in c(10:12)){
 n.cores <- 24 
 for(chr in c(13,14)){
   out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  if(chr==14) tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-  if(chr==13) DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+  tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
 }
 
 # n11 24 cores, chr 16,18
 n.cores <- 24 
 for(chr in c(16,18)){
   out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
-  if(chr==18) tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
-  if(chr==16) DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+  tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
 }
 
 # n2 20 cores, chr 1
@@ -335,6 +325,13 @@ for(chr in c(1)){
 # n4 20 cores, chr 2
 n.cores <- 20
 for(chr in c(2)){
+  out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
+  tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
+}
+
+# n8 24 cores, chr 9
+n.cores <- 24
+for(chr in c(9)){
   out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/chr",chr,"/GRM_181024.txt")
   tmp.DoCEST.beta.WGS(chr,model,FID,IID,working_dir,phe,VV,V.name,prev,init_beta,init_h2,n.cores,valid.idx,out)
 }
@@ -357,6 +354,50 @@ system('Rscript ~/Output_plot.r temp_plotdata.txt temp_GWAS')
 
 
 
+
+################# SNUH ######################
+# prevalence : https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5911525/ 10.9% 2013
+library(kinship2)
+fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[-grep("^KNIH",fam$V1),]
+total_ped <- with(fam,pedigree(id=V2,dadid=V3,momid=V4,sex=V5,famid=V1,missid='0'))
+VV <- 2*as.matrix(kinship(total_ped))
+
+# Only intercept
+ind <- which(new.fam$V6!=-9)
+dataset <- new.fam[ind,,drop=F]
+dataset$V6 <- dataset$V6-1
+V <- VV[ind,ind]
+model <- V6 ~ 1
+famid <- dataset$V1
+PB.candi <- grep('PKS',dataset$V2)
+PB.fam <- dataset$V1[PB.candi]
+PB <- PB.candi[!duplicated(PB.fam)]
+proband <- rep(0,nrow(dataset))
+proband[PB] <- 1
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/OnlyIC_181106.txt"
+
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+write.table(data.frame('intercept','h2','n_iteration'),out,row.names=F,col.names=F)
+
+res <- LTMH.asc(model=model,
+				init_beta=0.755458,
+				init_h2=0.206592,
+				V=V,
+				famid=famid,
+				prev=0.109,
+				dataset=dataset,
+				n.cores=24,
+				proband=proband,
+				SAVE=T,
+				out=out)
+
+
+# With age
+pheno <- read.csv("/home2/wjkim/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
+pheno$IID <- paste(pheno$FID,pheno$PERSONAL.NUMBER,sep='_')
+pheno$IID[pheno$GWAS.ID!=""] <- pheno$GWAS.ID[pheno$GWAS.ID!=""]
+new.pheno <- pheno[!is.na(pheno$AGE),]
 
 
 

@@ -267,7 +267,7 @@ LTMH <- function(model,init_beta,init_h2,V,famid,prev,data,max.iter=100,max.sub.
 
 ########################## Ascertainment adjust LTMH
 
-LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1,proband){
+LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,max.sub.iter=50,n.cores=1,proband,SAVE=F,out=NULL){
 	## This function depends on a package; tmvtnorm, parallel, mvtnorm
 	## model : Y~X 
 	## init_beta : initial value for beta (p+1 vector)
@@ -506,6 +506,10 @@ LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 	  }
 	  epsilon <- sqrt(sum((theta.OLD-theta.new)^2))
 	  theta.OLD <- theta.new
+	  if(SAVE){
+		output <- list(beta=beta.old,h2=h2.old,n_iter=n.iter)
+		write.table(t(as.matrix(c(unlist(output),n_iter=n.iter))),out,row.names=F,col.names=F,append=T)
+	  }
 	  if(epsilon<1e-5) {
 	    return(list(beta=beta.old,h2=h2.old,n_iter=n.iter))
 	    break
