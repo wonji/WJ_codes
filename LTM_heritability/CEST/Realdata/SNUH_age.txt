@@ -1,0 +1,58 @@
+snu <- read.csv("~/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
+snu_fam <- read.table("~/project/kare+snu/snu/indiv_snp_qc_snu.fam",head=F,stringsAsFactor=F)
+
+res <- list()
+id <- snu[which(!snu[,"GWAS.ID"]==""),]
+id <- id[id[,8]%in%snu_fam[,2],]
+famid <- id[!duplicated(id[,1]),]
+n <- nrow(famid)
+snu <- snu[snu[,1]%in%famid[,1],]
+snu[snu$SEX==0,"SEX"] <- 2	#by fam file#
+snu$T2DM <- 1
+snu$T2DM[snu$DISEASE=="T2DM"] <- 2
+snu$T2DM_IGT <- 1
+snu$T2DM_IGT[snu$DISEASE=="T2DM"] <- 2
+snu$T2DM_IGT[snu$DISEASE=="IGT"] <- 2
+
+mer <- merge(snu_fam,snu,by.x="V2",by.y="GWAS.ID",sort=F,all.x=T)
+new_snufam <- mer[,c(7,1,3:4,10,15,11)]
+
+source("~/project/kare+snu/genFam.r")
+snu_outI <- lapply(1:n,snu_f)
+snu_outII <- do.call(rbind,snu_outI)
+
+for(i in 1:nrow(new_snufam)) {
+	fam_pheno <- snu[snu[,1]==new_snufam[i,1],]
+	rela_fam <- snu_outII[snu_outII[,1]==new_snufam[i,1],]
+	if(new_snufam[i,"RELATIONSHIP"]==5){
+		new_snufam[i,3] <- rela_fam[rela_fam[,5]==1 & rela_fam[,7]==2,2]
+		new_snufam[i,4] <- rela_fam[rela_fam[,5]==2 & rela_fam[,7]==2,2]
+	} else if(new_snufam[i,"RELATIONSHIP"]==2){
+		if(new_snufam[i,5]==1){
+			new_snufam[i,3:4] <- rela_fam[3,3:4]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,2] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,7]==4,3] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,8] <- 1
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==5,3] <- new_snufam[i,2]
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==4,3] <- new_snufam[i,2]
+		} else {
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,2] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,7]==4,4] <- new_snufam[i,2]
+			snu_outII[snu_outII[,1]==new_snufam[i,1]&snu_outII[,5]==new_snufam[i,5]&snu_outII[,7]==2,8] <- 1
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==5,4] <- new_snufam[i,2]
+			new_snufam[new_snufam[,1]==new_snufam[i,1] & new_snufam[,7]==4,4] <- new_snufam[i,2]
+		}
+	} else if(new_snufam[i,"RELATIONSHIP"]==4){
+		new_snufam[i,3] <- rela_fam[rela_fam[,5]==1 & rela_fam[,7]==2,2]
+		new_snufam[i,4] <- rela_fam[rela_fam[,5]==2 & rela_fam[,7]==2,2]
+	} else if(new_snufam[i,"RELATIONSHIP"]==7){
+		new_snufam[i,3] <- ifelse(rela_fam[5,5]==1,rela_fam[5,2],fam_pheno[fam_pheno[,"RELATIONSHIP"]==5,"GWAS.ID"])
+		new_snufam[i,4] <- ifelse(rela_fam[5,5]==1,fam_pheno[fam_pheno[,"RELATIONSHIP"]==5,"GWAS.ID"],rela_fam[5,2])
+	}
+}
+snu_outIII <- snu_outII[snu_outII[,8]==0,c(1:7,9)]
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/SNUH_rela_age.txt"
+colnames(snu_outIII) <- c('FID','IID','FATHER','MOTHER','SEX','T2D','RELATIONSHIP','AGE')
+write.table(snu_outIII,out,row.names=F,quote=F)
+
+

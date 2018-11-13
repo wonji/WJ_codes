@@ -364,7 +364,7 @@ system('Rscript ~/Output_plot.r temp_plotdata.txt temp_GWAS')
 library(kinship2)
 fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
 new.fam <- fam[-grep("^KNIH",fam$V1),]
-total_ped <- with(fam,pedigree(id=V2,dadid=V3,momid=V4,sex=V5,famid=V1,missid='0'))
+total_ped <- with(new.fam,pedigree(id=V2,dadid=V3,momid=V4,sex=V5,famid=V1,missid='0'))
 VV <- 2*as.matrix(kinship(total_ped))
 
 # Only intercept
@@ -379,14 +379,14 @@ PB.fam <- dataset$V1[PB.candi]
 PB <- PB.candi[!duplicated(PB.fam)]
 proband <- rep(0,nrow(dataset))
 proband[PB] <- 1
-out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/OnlyIC_181106.txt"
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/OnlyIC_181113.txt"
 
 source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
 write.table(data.frame('intercept','h2','n_iteration'),out,row.names=F,col.names=F)
 
 res <- LTMH.asc(model=model,
-				init_beta=0.755458,
-				init_h2=0.206592,
+				init_beta=1,
+				init_h2=0.26,
 				V=V,
 				famid=famid,
 				prev=0.109,
@@ -396,13 +396,111 @@ res <- LTMH.asc(model=model,
 				SAVE=T,
 				out=out)
 
+### CEST
+# prevalence : https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5911525/ 10.9% 2013
+library(kinship2)
+fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[-grep("^KNIH",fam$V1),]
+total_ped <- with(new.fam,pedigree(id=V2,dadid=V3,momid=V4,sex=V5,famid=V1,missid='0'))
+VV <- 2*as.matrix(kinship(total_ped))
 
-# With age
+# Only intercept
+ind <- which(new.fam$V6!=-9)
+dataset <- new.fam[ind,,drop=F]
+dataset$V6 <- dataset$V6-1
+V <- VV[ind,ind]
+model <- V6 ~ 1
+famid <- dataset$V1
+PB.candi <- grep('PKS',dataset$V2)
+PB.fam <- dataset$V1[PB.candi]
+PB <- PB.candi[!duplicated(PB.fam)]
+proband <- rep(0,nrow(dataset))
+proband[PB] <- 1
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/CEST.txt"
+
+init_beta=0.755458
+prev <- 0.109
+Y <- dataset[,'V6']
+X <- model.matrix(model,dataset)				
+n.cores=24
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+res <- Testing.h2.new(famid,V,init_beta,prev,X,Y,n.cores,proband)
+write.table(res,out,row.names=F,quote=F)
+				
+				
+
+##### With age
+library(kinship2)
+fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[-grep("^KNIH",fam$V1),]
 pheno <- read.csv("/home2/wjkim/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
-pheno$IID <- paste(pheno$FID,pheno$PERSONAL.NUMBER,sep='_')
-pheno$IID[pheno$GWAS.ID!=""] <- pheno$GWAS.ID[pheno$GWAS.ID!=""]
-new.pheno <- pheno[!is.na(pheno$AGE),]
+rela <- read.table("/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/SNUH_rela_age.txt",head=T,stringsAsFactor=F)
 
+case <- pheno[pheno$GWAS.ID!="",c('GWAS.ID','AGE')]
+rela <- rela[,c('IID','AGE')]
+colnames(case) <- c('IID','AGE')
+age.info <- rbind(case,rela)
+
+mer <- merge(new.fam,age.info,by.x='V2',by.y='IID',sort=F,all=F)
+total_ped <- with(mer,pedigree(id=V2,dadid=V3,momid=V4,sex=V5,famid=V1,missid='0'))
+VV <- 2*as.matrix(kinship(total_ped))
+
+ind <- which(mer$V6!=-9 & !is.na(mer$AGE))
+dataset <- mer[ind,,drop=F]
+dataset$V6 <- dataset$V6-1
+dataset$std_AGE <- (dataset$AGE-mean(dataset$AGE))/sd(dataset$AGE)
+V <- VV[ind,ind]
+model <- V6 ~ std_AGE-1
+famid <- dataset$V1
+PB.candi <- grep('PKS',dataset$V2)
+PB.fam <- dataset$V1[PB.candi]
+PB <- PB.candi[!duplicated(PB.fam)]
+proband <- rep(0,nrow(dataset))
+proband[PB] <- 1
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/CEST_age.txt"
+
+init_beta=1
+prev <- 0.109
+Y <- dataset[,'V6']
+X <- model.matrix(model,dataset)				
+n.cores=24
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+res <- Testing.h2.new(famid,V,init_beta,prev,X,Y,n.cores,proband)
+write.table(res,out,row.names=F,quote=F)
+				
+### LTMH
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/LTMH_age.txt"
+res <- LTMH.asc(model=model,
+				init_beta=1,
+				init_h2=0.26,
+				V=V,
+				famid=famid,
+				prev=0.109,
+				dataset=dataset,
+				n.cores=24,
+				proband=proband,
+				SAVE=T,
+				out=out)
+
+## beta hat for unstandardized age				
+setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/")				
+res <- read.table("LTMH_age.txt",head=F,stringsAsFactor=F)
+
+fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[-grep("^KNIH",fam$V1),]
+pheno <- read.csv("/home2/wjkim/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
+rela <- read.table("/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/SNUH_rela_age.txt",head=T,stringsAsFactor=F)
+
+case <- pheno[pheno$GWAS.ID!="",c('GWAS.ID','AGE')]
+rela <- rela[,c('IID','AGE')]
+colnames(case) <- c('IID','AGE')
+age.info <- rbind(case,rela)
+
+mer <- merge(new.fam,age.info,by.x='V2',by.y='IID',sort=F,all=F)
+ind <- which(mer$V6!=-9 & !is.na(mer$AGE))
+dataset <- mer[ind,,drop=F]
+beta.age <- res[nrow(res),1]/sd(dataset$AGE)
 
 
 

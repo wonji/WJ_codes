@@ -627,7 +627,7 @@ tmp.DoCEST.beta.WGS <- function(chr,model,FID,IID,working_dir,phe,VV,V.name,prev
 #######################################################
 
 ########## H0 : h2=0
-Testing.h2.asc <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proband=NULL){
+Testing.h2.new <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proband=NULL){
   library(parallel)
   library(tmvtnorm)
   
@@ -637,15 +637,15 @@ Testing.h2.asc <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
 
   ## Theshold
   thres <- qnorm(prev,0,1,lower.tail=F)
-  
-  getAB <- function(ij){
-  	Yij <- Y[ij,1]
-  	if(!is.null(X)) Xij <- X[ij,,drop=F]
-  	a <- ifelse(Yij==0,-Inf,t)
-  	b <- ifelse(Yij==0,t,Inf)
+
+  getAB <- function(ij,Y,XX,thres,beta.old){
+  	Yij <- Y[ij]
+  	if(!is.null(X)) Xij <- XX[ij,,drop=F]
+  	a <- ifelse(Yij==0,-Inf,thres)
+  	b <- ifelse(Yij==0,thres,Inf)
   
   	if(is.null(X)){
-		para <- mtmvnorm(mean=rep(0,length(Yij)),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
+		para <- mtmvnorm(mean=0,sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
 	} else {
 		para <- mtmvnorm(mean=as.vector(Xij%*%beta.old),sigma=1,lower=a,upper=b,doComputeVariance=TRUE)
 	}
@@ -661,36 +661,35 @@ Testing.h2.asc <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
 	}
   }
 
-  getELE <- function(ij,Y,X,beta.old,thres){
-    # resAB : result of getAB
-    
+  getELE <- function(ij,Y,XX,beta.old,thres){
     Yij <- Y[ij]
-    Xji <- X[ij,,drop=F]
+    Xij <- XX[ij,,drop=F]
     Muij <- 1-pnorm(thres-Xij%*%beta.old,lower.tail=T)
-    Alphai <- log(Mui/(1-Mui))
-    dBeta <- with(res,(Yij-Mui)/(Mui*(1-Mui))*dnorm(thres-Xij%*%beta.old)*t(Xij))
-    d2Beta <- with(res,dnorm(thres-Xij%*%beta.old)/(Mui*(1-Mui))*(-dnorm(thres-Xij%*%beta.old)+((Yij-Mui)*(2*Mui-1)*dnorm(thres-Xij%*%beta.old))/(Mui*(1-Mui))+(Yij-Mui)*(thres-Xij%*%beta.old))*Xij%*%t(Xij))
+    dBeta <- (Yij-Muij)/(Muij*(1-Muij))*dnorm(thres-Xij%*%beta.old)*t(Xij)
+    d2Beta <- dnorm(thres-Xij%*%beta.old)/(Muij*(1-Muij))*(-dnorm(thres-Xij%*%beta.old)+((Yij-Muij)*(2*Muij-1)*dnorm(thres-Xij%*%beta.old))/(Muij*(1-Muij))+(Yij-Muij)*(thres-Xij%*%beta.old))*Xij%*%t(Xij)
 
     return(list(dBeta=dBeta,d2Beta=d2Beta))
   }
 
   if(!is.null(X)){
 	  if(is.null(proband)){
-		Y.NP <- Y
-		X.NP <- X
+		Y.actual <- Y
+		X.actual <- X
 	  } else {
-	    Y.NP <- Y[proband==0]
-	    X.NP <- X[proband==0,,drop=F]
+	    Y.actual <- Y[proband==0]
+	    X.actual <- X[proband==0,,drop=F]
 	  }
-	  beta.old <- init_beta
+	  beta.old <- matrix(init_beta,ncol=1)
 	  n.iter = 0
+	  epsilon <- 1
 	  while(1){
-		print(data.frame(beta.new,epsilon,n.iter))
-		resELE <- mclapply(1:nrow(Y.NP)),getELE,beta.old=beta.old,Y=Y.NP,X=X.NP,thres=thres,mc.cores=n.cores)
+		print(data.frame(beta.old,epsilon,n.iter))
+		n.iter <- n.iter+1
+		resELE <- mclapply(1:length(Y.actual),getELE,beta.old=beta.old,Y=Y.actual,XX=X.actual,thres=thres,mc.cores=n.cores)
 				
 		# proband
-		f <- Reduce('+',mclapply(1:nrow(Y.NP),function(ij) with(resELE[[ij]],dBeta),mc.cores=n.cores))
-		J <- Reduce('+',mclapply(1:nrow(Y.NP),function(ij) with(resELE[[ij]],d2Beta),mc.cores=n.cores))
+		f <- Reduce('+',mclapply(1:length(Y.actual),function(ij) with(resELE[[ij]],dBeta),mc.cores=n.cores))
+		J <- Reduce('+',mclapply(1:length(Y.actual),function(ij) with(resELE[[ij]],d2Beta),mc.cores=n.cores))
 				
 		beta.new <- beta.old - solve(J)%*%f
 		epsilon <- sqrt(sum((beta.new-beta.old)^2))
@@ -698,12 +697,12 @@ Testing.h2.asc <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
 		if(epsilon < 1e-5) break
 	  }
   }
-  
-  #### Now, we have MLE for beta under the H0: h2=0.
-  resAB <- mclapply(1:nrow(Y),getAB,mc.cores=n.cores)
-  finalAB <- do.call(rbind,lapply(1:nrow(Y),function(ij) as.matrix(data.frame(obs=resAB[[ij]]$ij,Aij=resAB[[ij]]$Aij,Bij=resAB[[ij]]$Bij))))
-  finalAB <- finalAB[order(finalAB[,'obs']),]
 
+  #### Now, we have MLE for beta under the H0: h2=0.
+  resAB <- mclapply(1:length(Y),getAB,Y=Y,XX=X,thres=thres,beta.old=beta.new,mc.cores=n.cores)
+  finalAB <- do.call(rbind,mclapply(1:length(Y),function(ij) as.matrix(data.frame(obs=resAB[[ij]]$ij,Aij=resAB[[ij]]$Aij,Bij=resAB[[ij]]$Bij)),mc.cores=n.cores))
+  finalAB <- finalAB[order(finalAB[,'obs']),]
+  
   ## Score under the H0: h2=0
   FAMID <- unique(famid)
   tr <- function(m) sum(diag(m))
@@ -729,6 +728,13 @@ Testing.h2.asc <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
   Scores <- lapply(FAMID,get.Score)
   S <- Reduce('+',Scores)
   h2.idx <- nrow(S)
+  if(!is.null(proband)){
+	Y.PB <- Y[proband==1]
+	X.PB <- X[proband==1,,drop=F]
+    resELE <- mclapply(1:length(Y.PB),getELE,beta.old=beta.new,Y=Y.PB,XX=X.PB,thres=thres,mc.cores=n.cores)
+	S.PB <- Reduce('+',mclapply(1:length(Y.PB),function(ij) with(resELE[[ij]],dBeta),mc.cores=n.cores))
+	S[-h2.idx,] <- S[-h2.idx,,drop=F] - S.PB
+  }
   S.h2 <- S[h2.idx,,drop=F]
 
   # version 1 variance
@@ -747,6 +753,7 @@ Testing.h2.asc <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
     pval <- pchisq(T.h2,df=1,lower.tail=F)/2
   }
   fin.res <- data.frame(Score=S.h2,var_Score_ver1=varS.h2.1,var_Score_ver2=varS.h2.2,Chisq=T.h2,Pvalue=pval)
+  colnames(fin.res) <- c('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue')
   return(fin.res)
 }
 

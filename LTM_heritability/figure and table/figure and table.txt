@@ -57,9 +57,34 @@ CEST.h2 <- function(prev,h2){
 fin.res <- lapply(c(0.05,0.1,0.2),CEST.h2,h2=0)
 fin.res.I <- do.call(cbind,fin.res)
 colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
-rownames(fin.res.I) <- c(0.01,0.05,0.1)
+fin.res.I <- cbind(sig_level=c(0.01,0.05,0.1),fin.res.I)
 setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
-write.table(fin.res.I,"table3_CEST_h2_size.csv",quote=F)
+write.csv(fin.res.I,"table3_CEST_h2_size.csv",quote=F,row.names=F)
+
+
+#### Table 4 (Empirical size table for h2)
+setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+
+CEST.h2 <- function(prev,h2){
+	setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+	dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_all.txt"),head=T,stringsAsFactor=F)
+	new.prop <- sum(dat$Chisq==0)/nrow(dat)
+	dat$newPvalue <- pchisq(dat$Chisq,df=1,lower.tail=F)*(1-new.prop)
+	res <- matrix(sapply(c(0.01,0.05,0.1),function(i) sum(dat$newPvalue<i)/nrow(dat)),ncol=1)
+	res <- rbind(new.prop,res)
+	return(res)
+}
+
+fin.res <- lapply(c(0.05,0.1,0.2),CEST.h2,h2=0)
+fin.res.I <- do.call(cbind,fin.res)
+colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
+fin.res.I <- cbind(sig_level=c("",0.01,0.05,0.1),fin.res.I)
+setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
+write.csv(fin.res.I,"table4_CEST_h2_newsize.csv",quote=F,row.names=F)
+
+
+
+
 
 
 #### Table 4 (Empirical power table for h2)
@@ -75,9 +100,9 @@ CEST.h2 <- function(prev,h2){
 fin.res <- lapply(c(0.2,0.4),function(hh) do.call(cbind,lapply(c(0.05,0.1,0.2),CEST.h2,h2=hh)))
 fin.res.I <- do.call(rbind,fin.res)
 colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
-rownames(fin.res.I) <- paste0(rep(c(0.2,0.4),each=3),"_",rep(c(0.01,0.05,0.1),2))
+fin.res.I <- cbind(h2=rep(c(0.2,0.4),each=3),sig_level=rep(c(0.01,0.05,0.1),2),fin.res.I)
 setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
-write.table(fin.res.I,"table4_CEST_h2_power.csv",quote=F)
+write.csv(fin.res.I,"table4_CEST_h2_power.csv",quote=F)
 
 
 #### Table 5 (Empirical size table for beta)
@@ -90,15 +115,80 @@ CEST.beta.size <- function(prev,h2){
 	return(res)
 }
 
-fin.res <- lapply(c(0.1,0.2),function(hh) do.call(cbind,lapply(c(0.2,0.4),CEST.beta.size,prev=hh)))
+fin.res <- lapply(c(0.2,0.4),function(hh) do.call(cbind,lapply(c(0.1,0.2),CEST.beta.size,h2=hh)))
 fin.res.I <- do.call(rbind,fin.res)
-fin.res.I$Prev <- rep(c(0.1,0.2),each=3)
-fin.res.I$h2 <- rep(c(0.2,0.4),)
 
-colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
-rownames(fin.res.I) <- c(0.01,0.05,0.1)
+colnames(fin.res.I) <- paste0("Prev_",c(0.1,0.2))
+fin.res.I <- cbind(h2=rep(c(0.2,0.4),each=3),sig_level=rep(c(0.01,0.05,0.1),2),fin.res.I)
 setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
-write.table(fin.res.I,"table3_CEST_h2_size.csv",quote=F)
+write.csv(fin.res.I,"table5_CEST_beta_size.csv",quote=F)
+
+
+#### Table 6 (Empirical power table for beta)
+setwd("~/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
+
+CEST.beta.power <- function(prev,h2){
+	setwd("~/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
+	dat <- read.table(paste0("prev_",prev,"_h2_",h2,"_power/CEST_beta_500_tau.txt"),head=T,stringsAsFactor=F)
+	res <- matrix(sapply(c(0.01,0.05,0.1),function(i) sum(dat$Pvalue<i)/nrow(dat)),ncol=1)
+	return(res)
+}
+
+fin.res <- lapply(c(0.2,0.4),function(hh) do.call(cbind,lapply(c(0.1,0.2),CEST.beta.power,h2=hh)))
+fin.res.I <- do.call(rbind,fin.res)
+
+colnames(fin.res.I) <- paste0("Prev_",c(0.1,0.2))
+fin.res.I <- cbind(h2=rep(c(0.2,0.4),each=3),sig_level=rep(c(0.01,0.05,0.1),2),fin.res.I)
+setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
+write.csv(fin.res.I,"table6_CEST_beta_power.csv",quote=F)
+
+
+#### Table 7 (Demographic information for T2D)
+fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[-grep("^KNIH",fam$V1),]
+pheno <- read.csv("/home2/wjkim/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
+rela <- read.table("/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/1.SNUH/SNUH_rela_age.txt",head=T,stringsAsFactor=F)
+
+case <- cbind(pheno[pheno$GWAS.ID!="",c('GWAS.ID','AGE')],5)
+rela <- rela[,c('IID','AGE','RELATIONSHIP')]
+colnames(case) <- c('IID','AGE','RELATIONSHIP')
+age.info <- rbind(case,rela)
+
+mer <- merge(new.fam,age.info,by.x='V2',by.y='IID',sort=F,all=F)
+ind <- which(mer$V6!=-9 & !is.na(mer$AGE))
+dataset <- mer[ind,,drop=F]
+PB.candi <- grep('PKS',dataset$V2)
+PB.fam <- dataset$V1[PB.candi]
+PB <- PB.candi[!duplicated(PB.fam)]
+proband <- rep(0,nrow(dataset))
+proband[PB] <- 1
+
+Prob <- table(proband)
+Prob.perc <- Prob/sum(Prob)*100
+res.Prob <- paste0(paste0(Prob," (",round(Prob.perc,2),"%)"),collapse=" ")
+
+T2D <- table(dataset$V6)
+T2D.perc <- T2D/sum(T2D)*100
+res.T2D <- paste0(paste0(T2D," (",round(T2D.perc,2),"%)"),collapse=" ")
+
+sex <- table(dataset$V5)
+sex.perc <- sex/sum(sex)*100
+res.sex <- paste0(paste0(sex," (",round(sex.perc,2),"%)"),collapse=" ")
+
+age <- mean(dataset$AGE)
+sd.age <- sd(dataset$AGE)
+res.age <- paste0(round(age,2)," (",round(sd.age,2),")")
+
+get.demo <- cbind(c('T2D','Proband','Sex','Age'),c(res.T2D,res.Prob,res.sex,res.age))
+
+rela.dat <- dataset[proband==0,]
+rela.dat[rela.dat$RELATIONSHIP==5,'RELATIONSHIP'] <- c(7,6,4,7,4,4,4,7,7,4,7,7,6,4,4,4,7,4,7,4,6,7,6,7,6,7,4,4,4)
+RT <- as.matrix(table(rela.dat$RELATIONSHIP))
+RT <- cbind(c('Sibling','Parents','Offspring'),RT)
+
+setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
+write.table(get.demo,"table7_1.csv",quote=F,row.names=F)
+write.table(RT,"table7_2.csv",quote=F,row.names=F,col.names=F)
 
 
 ######## Figures ########
@@ -106,6 +196,7 @@ write.table(fin.res.I,"table3_CEST_h2_size.csv",quote=F)
 #### Figure 2
 library(ggplot2)
 library(gridExtra)
+setwd("~/paper/heritability/ML_ver2/variousFam/")
 png("figure_and_table/fig2_boxplot.png",width=1200,height=1200,res=200)
 get.plot <- function(h2){
 	setwd("~/paper/heritability/ML_ver2/variousFam/")
@@ -129,5 +220,72 @@ get.plot <- function(h2){
 }
 myPlot <- lapply(c(0.05,0.2,0.4),get.plot)
 grid.arrange(grobs=myPlot,mrow=3)
+dev.off()
+
+
+#### Figure 3
+V <- matrix(1/2,4,4)
+diag(V) <- 1
+V[1,2] <- V[2,1] <- 0
+
+h2=0.2944
+beta.hat=matrix(0.051,1,1)
+thres <- qnorm(0.109,lower.tail=F)
+
+get.risk <- function(Y,age,V,h2,beta.hat,thres,ind){
+	library(mvtnorm)
+	X <- matrix((c(age+29,age+26,age,age-3)-48.62664)/15.7037,ncol=1)
+
+	# Nominator
+	a <- ifelse(Y==0,-Inf,thres)
+	b <- ifelse(Y==0,thres,Inf)
+	a[ind] <- thres; b[ind] <- Inf
+	S <- h2*V+(1-h2)*diag(length(Y))
+	nom <- pmvnorm(lower=a,upper=b,mean=as.vector(X%*%beta.hat),sigma=S)[1]
+	
+	# Denominator
+	a <- a[-ind]; b <- b[-ind]
+	S <- S[-ind,-ind]
+	X <- X[-ind,]
+	denom <- pmvnorm(lower=a,upper=b,mean=as.vector(X%*%beta.hat),sigma=S)[1]
+	
+	res <- data.frame(age=age,prob=nom/denom)
+	return(res)
+}
+	
+library(parallel)
+# 1. Y=c(0,0,0,0)
+Y=c(0,0,0,0)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.I <- do.call(rbind,Res)
+Res.I <- Res.I[order(Res.I$age),]
+	
+# 2. Y=c(1,0,0,0)
+Y=c(1,0,0,0)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.II <- do.call(rbind,Res)
+Res.II <- Res.II[order(Res.II$age),]
+
+# 3. Y=c(1,1,0,0)
+Y=c(1,1,0,0)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.III <- do.call(rbind,Res)
+Res.III <- Res.III[order(Res.III$age),]
+
+# 4. Y=c(1,1,0,1)
+Y=c(1,1,0,1)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.IV <- do.call(rbind,Res)
+Res.IV <- Res.IV[order(Res.IV$age),]
+
+setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table/")
+png("fig3_Riskscore.png",width=600,height=580,res=100)
+par(oma=c(0, 0, 0, 5))
+plot(1,1,type='n',xlim=c(20,80),ylim=c(Res.I[1,'prob'],Res.IV[61,'prob']),xlab="Age of proband",ylab="Probability of being affected")
+lines(Res.I$age,Res.I$prob,lty=1)
+lines(Res.II$age,Res.II$prob,lty=2)
+lines(Res.III$age,Res.III$prob,lty=3)
+lines(Res.IV$age,Res.IV$prob,lty=4)
+legend("topright", inset=c(-0.3,0.07), legend=paste0(0:3), lty=1:4, title="Number of\naffected\nrelatives",xpd=NA,bty="n")
 dev.off()
 

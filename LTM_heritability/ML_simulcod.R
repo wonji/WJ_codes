@@ -239,6 +239,19 @@ for(prev in c(0.05)){
 	}
 }
 
+
+source('~/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
+for(prev in c(0.1,0.2)){
+	for(h2 in c(0.05)){
+		print(paste0('prevalence:',prev,', heritability:',h2))
+		setwd("~/paper/heritability/ML_ver2/variousFam/")
+		system(paste0("mkdir prev_",prev,"_h2_",h2))
+		dataset = genNucFam(totalfam=50000,MAF=0.2,h2,ha2=0.05,prev,num_snp=1)
+		write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset_add.txt"),row.names=F,quote=F)
+	}
+}
+
+
 # combine added dataset to existing dataset
 for(prev in c(0.05)){
   for(h2 in c(0.05,0.2,0.4)){
