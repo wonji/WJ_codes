@@ -366,3 +366,102 @@ est.ft(0.1,0.05,500,24)
 
 ## n11, 24 cores, p 0.2 h2 0.05
 est.ft(0.2,0.05,500,24)
+
+
+
+
+
+#########################################################
+###### Increase the number of replicates to 2000 ########
+#########################################################
+
+###### Scenario 1
+getLTMH.S1 <- function(PREV, H2, N.fam, n.cores){
+  source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+  for(prev in PREV){
+    for(h2 in H2){
+      for(totalfam in N.fam){
+        print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+        library(kinship2)
+        setwd("~/paper/heritability/ML_ver2/variousFam/")
+        fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+        fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+        
+        model <- Y~std_snp-1
+        out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_181114.txt")
+        write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+        Esth2 <- sapply(301:2000,getEsth2.out,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T)
+      }
+    }
+  }
+}
+
+## n2, 20 cores, p 0.05
+a <- getLTMH.S1(PREV=0.05,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=20)
+
+## n4, 20 cores, p 0.1
+a <- getLTMH.S1(PREV=0.1,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=20)
+
+## n8, 24 cores, p 0.2
+a <- getLTMH.S1(PREV=0.2,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=24)
+
+
+
+##### Scenario 2
+getLTMH.S2 <- function(PREV,H2,N.fam,n.cores){
+  source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+  for(prev in PREV){
+    for(h2 in H2){
+      for(totalfam in N.fam){
+        print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+        library(kinship2)
+        setwd("~/paper/heritability/ML_ver2/variousFam/")
+        fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+        fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+        fin.dat <- fin.dat[fin.dat$FID%in%fin.dat$FID[fin.dat$ind==1 & fin.dat$Y==1],,drop=F]
+        PB <- 'ind'
+        
+        model <- Y~std_snp-1
+        out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc_181114.txt")
+        write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+        Esth2 <- sapply(301:2000,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
+      }
+    }
+  }
+}
+
+## n9, 24 cores, p 0.05
+a <- getLTMH.S2(PREV=0.05,H2=c(0.2,0.4),N.fam=500,n.cores=24)
+
+## n10, 24 cores, p 0.1
+a <- getLTMH.S2(PREV=0.1,H2=c(0.2,0.4),N.fam=500,n.cores=24)
+
+## n11, 24 cores, p 0.2
+a <- getLTMH.S2(PREV=0.2,H2=c(0.2,0.4),N.fam=500,n.cores=24)
+
+
+## n14, 32 cores, h 0.05
+getLTMH.S2 <- function(PREV,H2,N.fam,n.cores){
+  source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+  for(prev in PREV){
+    for(h2 in H2){
+      for(totalfam in N.fam){
+        print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+        library(kinship2)
+        setwd("~/paper/heritability/ML_ver2/variousFam/")
+        fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+        fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+        fin.dat <- fin.dat[fin.dat$FID%in%fin.dat$FID[fin.dat$ind==1 & fin.dat$Y==1],,drop=F]
+        PB <- 'ind'
+        
+        model <- Y~std_snp-1
+        out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc_181114.txt")
+        write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+        Esth2 <- sapply(ifelse(prev==0.05,301,601):2000,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
+      }
+    }
+  }
+}
+a <- getLTMH.S2(PREV=c(0.05,0.1,0.2),H2=0.05,N.fam=500,n.cores=32)
+
+

@@ -352,9 +352,9 @@ for(i in aa){
 }
 plotdat <- dat[,c('CHR','SNP','Pvalue')]
 colnames(plotdat) <- c('CHR','GENE','p.val')
-write.table(plotdat,'temp_plotdata.txt',row.names=F,quote=F)
+write.table(plotdat,'LAM_plotdata.txt',row.names=F,quote=F)
 
-system('Rscript ~/Output_plot.r temp_plotdata.txt temp_GWAS')
+system('Rscript ~/Output_plot.r LAM_plotdata.txt LAM_GWAS')
 
 
 
