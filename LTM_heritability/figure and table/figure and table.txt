@@ -175,7 +175,7 @@ age <- sapply(c(0,1),function(jj) mean(dataset$AGE[proband==jj]))
 sd.age <- sapply(c(0,1),function(jj) sd(dataset$AGE[proband==jj]))
 res.age <- paste(paste0(round(age,2)," (",round(sd.age,2),")"),collapse=" ")
 
-get.demo <- cbind(c('T2D','Sex','Age'),c(res.T2D,res.sex,res.age))
+get.demo <- cbind(NPB=c('T2D','Sex','Age'),PB=c(res.T2D,res.sex,res.age))
 
 rela.dat <- dataset[proband==0,]
 rela.dat[rela.dat$RELATIONSHIP==5,'RELATIONSHIP'] <- c(7,6,4,7,4,4,4,7,7,4,7,7,6,4,4,4,7,4,7,4,6,7,6,7,6,7,4,4,4)
