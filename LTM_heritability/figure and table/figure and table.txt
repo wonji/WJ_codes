@@ -163,23 +163,19 @@ PB <- PB.candi[!duplicated(PB.fam)]
 proband <- rep(0,nrow(dataset))
 proband[PB] <- 1
 
-Prob <- table(proband)
-Prob.perc <- Prob/sum(Prob)*100
-res.Prob <- paste0(paste0(Prob," (",round(Prob.perc,2),"%)"),collapse=" ")
-
-T2D <- table(dataset$V6)
-T2D.perc <- T2D/sum(T2D)*100
+T2D <- table(dataset$V6,proband)
+T2D.perc <- apply(T2D,2,function(jj) jj/sum(jj)*100) 
 res.T2D <- paste0(paste0(T2D," (",round(T2D.perc,2),"%)"),collapse=" ")
 
-sex <- table(dataset$V5)
-sex.perc <- sex/sum(sex)*100
+sex <- table(dataset$V5,proband)
+sex.perc <- apply(sex,2,function(jj) jj/sum(jj)*100) 
 res.sex <- paste0(paste0(sex," (",round(sex.perc,2),"%)"),collapse=" ")
 
-age <- mean(dataset$AGE)
-sd.age <- sd(dataset$AGE)
-res.age <- paste0(round(age,2)," (",round(sd.age,2),")")
+age <- sapply(c(0,1),function(jj) mean(dataset$AGE[proband==jj]))
+sd.age <- sapply(c(0,1),function(jj) sd(dataset$AGE[proband==jj]))
+res.age <- paste(paste0(round(age,2)," (",round(sd.age,2),")"),collapse=" ")
 
-get.demo <- cbind(c('T2D','Proband','Sex','Age'),c(res.T2D,res.Prob,res.sex,res.age))
+get.demo <- cbind(c('T2D','Sex','Age'),c(res.T2D,res.sex,res.age))
 
 rela.dat <- dataset[proband==0,]
 rela.dat[rela.dat$RELATIONSHIP==5,'RELATIONSHIP'] <- c(7,6,4,7,4,4,4,7,7,4,7,7,6,4,4,4,7,4,7,4,6,7,6,7,6,7,4,4,4)
@@ -229,7 +225,7 @@ diag(V) <- 1
 V[1,2] <- V[2,1] <- 0
 
 h2=0.2944
-beta.hat=matrix(0.051,1,1)
+beta.hat=matrix(0.8,1,1)
 thres <- qnorm(0.109,lower.tail=F)
 
 get.risk <- function(Y,age,V,h2,beta.hat,thres,ind){
@@ -288,4 +284,3 @@ lines(Res.III$age,Res.III$prob,lty=3)
 lines(Res.IV$age,Res.IV$prob,lty=4)
 legend("topright", inset=c(-0.3,0.07), legend=paste0(0:3), lty=1:4, title="Number of\naffected\nrelatives",xpd=NA,bty="n")
 dev.off()
-
