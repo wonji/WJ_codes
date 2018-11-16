@@ -389,8 +389,13 @@ getLTMH.S1 <- function(PREV, H2, N.fam, n.cores){
         
         model <- Y~std_snp-1
         out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_181114.txt")
-        write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
-        Esth2 <- sapply(301:2000,getEsth2.out,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T)
+        if(paste0("Esth2_",totalfam,"_181114.txt") %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+          start <- as.numeric(strsplit(system(paste0("tail -1 ",out),intern=T)," ")[[1]][1])+1
+        } else {
+          start <- 301
+          write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+        }
+        Esth2 <- sapply(start:2000,getEsth2.out,fin.dat=fin.dat,init_beta=1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T)
       }
     }
   }
@@ -400,10 +405,10 @@ getLTMH.S1 <- function(PREV, H2, N.fam, n.cores){
 a <- getLTMH.S1(PREV=0.05,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=20)
 
 ## n4, 20 cores, p 0.1
-a <- getLTMH.S1(PREV=0.1,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=20)
+a <- getLTMH.S1(PREV=0.1,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=24)
 
 ## n8, 24 cores, p 0.2
-a <- getLTMH.S1(PREV=0.2,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=24)
+a <- getLTMH.S1(PREV=0.2,H2=c(0.2,0.4),N.fam=500,n.cores=24)
 
 
 
@@ -423,8 +428,13 @@ getLTMH.S2 <- function(PREV,H2,N.fam,n.cores){
         
         model <- Y~std_snp-1
         out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc_181114.txt")
-        write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
-        Esth2 <- sapply(301:2000,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
+        if(paste0("Esth2_",totalfam,"_asc_181114.txt") %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+          start <- as.numeric(strsplit(system(paste0("tail -1 ",out),intern=T)," ")[[1]][1])+1
+        } else {
+          start <- 301
+          write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+        }
+        Esth2 <- sapply(start:2000,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
       }
     }
   }
@@ -437,7 +447,7 @@ a <- getLTMH.S2(PREV=0.05,H2=c(0.2,0.4),N.fam=500,n.cores=24)
 a <- getLTMH.S2(PREV=0.1,H2=c(0.2,0.4),N.fam=500,n.cores=24)
 
 ## n11, 24 cores, p 0.2
-a <- getLTMH.S2(PREV=0.2,H2=c(0.2,0.4),N.fam=500,n.cores=24)
+a <- getLTMH.S2(PREV=0.2,H2=c(0.4),N.fam=500,n.cores=24)
 
 
 ## n14, 32 cores, h 0.05
@@ -456,8 +466,13 @@ getLTMH.S2 <- function(PREV,H2,N.fam,n.cores){
         
         model <- Y~std_snp-1
         out <- paste0("~/paper/heritability/ML_ver2/variousFam/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc_181114.txt")
-        write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
-        Esth2 <- sapply(ifelse(prev==0.05,301,601):2000,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
+        if(paste0("Esth2_",totalfam,"_asc_181114.txt") %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+          start <- as.numeric(strsplit(system(paste0("tail -1 ",out),intern=T)," ")[[1]][1])+1
+        } else {
+          start <- ifelse(prev==0.05,301,601)
+          write.table(data.frame('obs','beta_std_snp','h2','n_iteration'),out,col.names=F,row.names=F,quote=F)
+        }
+        Esth2 <- sapply(start:2000,getEsth2.asc,fin.dat=fin.dat,init_beta=0.1,init_h2=h2,totalfam=totalfam,assumed_prev=prev,model=model,n.cores=n.cores,out=out,seed=T,PB=PB)
       }
     }
   }

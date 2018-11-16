@@ -451,11 +451,12 @@ Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx
 
 
 
-DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,init_h2,n.cores=1,out){
+DoTest.beta <- function(obs,fin.dat,totalfam,model,init_beta,test.beta,prev,init_h2,n.cores=1,out,seed=F){
 	print(obs) 
 
 	# Sampling test data
-	dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
+  if(seed) set.seed(i)
+  dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
 	Y <- dataset[,as.character(model)[2],drop=F]
 	full.X <- model.matrix(model,dataset)
 	test.beta.idx <- which(colnames(full.X)%in%test.beta)
@@ -758,11 +759,12 @@ Testing.h2.new <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
 }
 
 
-DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=1,out){
+DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=1,out,seed=F){
 	print(obs) 
 
 	# Sampling test data
-	dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
+  if(seed) set.seed(obs)
+  dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
 	Y <- dataset[,as.character(model)[2],drop=F]
 	if(!is.null(init_beta)) {
 		X <- model.matrix(model,dataset)

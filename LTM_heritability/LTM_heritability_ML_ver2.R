@@ -663,6 +663,34 @@ getEsth2.GCTA <- function(i,fin.dat,totalfam,prev,res_var,exp_var,out,working_di
   system(paste0('rm tmp_',i,'_*'))
 }
 
+getLRT.GCTA <- function(i,fin.dat,totalfam,prev,res_var,exp_var,out,working_dir,seed=F){
+  library(gap)
+  library(kinship2)
+  print(i)
+  setwd(working_dir)
+  famlist <- unique(fin.dat$FID)
+  if(seed) set.seed(i)
+  target <- sample(famlist,totalfam)
+  dataset = fin.dat[fin.dat$FID%in%target,]
+  total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
+  V <- 2*as.matrix(kinship(total_ped))
+  grm <- V[upper.tri(V,diag=T)]
+  WriteGRMBin(paste0('LRT_',i,'_grm'),grm,nrow(dataset)*(nrow(dataset)+1)/2,cbind(dataset[,'FID'],dataset[,'IID']))
+  write.table(dataset[,c('FID','IID',res_var)],paste0('LRT_',i,'_phen.txt'),row.names=F,col.names=F,quote=F)
+  write.table(dataset[,c('FID','IID',exp_var)],paste0('LRT_',i,'_qcovar.txt'),row.names=F,col.names=F,quote=F)
+  
+  system(paste0('gcta64 --grm LRT_',i,'_grm --reml --pheno LRT_',i,'_phen.txt --qcovar LRT_',i,'_qcovar.txt --prevalence ',prev,' --out LRT_',i,'_output'))
+  res <- system(paste0('grep -E "LRT|df|Pval" LRT_',i,'_output.hsq'),intern=T)
+  res <- matrix(gsub('.+\t','',res),nrow=1)
+  res.I <- cbind(i,res)
+  colnames(res.I) <- c('Obs','LRT','DF','Pvalue')
+  print(res.I)
+  write.table(res.I,out,col.names=F,row.names=F,quote=F,append=TRUE)
+  
+  system(paste0('rm LRT_',i,'_*'))
+}
+
+
 getEsth2.asc <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.cores=1,out,seed=F,PB){
   print(i)
   famlist <- unique(fin.dat$FID)

@@ -44,7 +44,7 @@ fin.res.I <- do.call(rbind,fin.res)
 write.csv(fin.res.I,"figure_and_table/table2.csv",quote=F)
 
 
-#### Table 3 (Empirical size table for h2)
+#### Table 3 - 1 (Empirical size table for h2)
 setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
 
 CEST.h2 <- function(prev,h2){
@@ -62,32 +62,8 @@ setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
 write.csv(fin.res.I,"table3_CEST_h2_size.csv",quote=F,row.names=F)
 
 
-#### Table 4 (Empirical size table for h2)
-setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
 
-CEST.h2 <- function(prev,h2){
-	setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-	dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_all.txt"),head=T,stringsAsFactor=F)
-	new.prop <- sum(dat$Chisq==0)/nrow(dat)
-	dat$newPvalue <- pchisq(dat$Chisq,df=1,lower.tail=F)*(1-new.prop)
-	res <- matrix(sapply(c(0.01,0.05,0.1),function(i) sum(dat$newPvalue<i)/nrow(dat)),ncol=1)
-	res <- rbind(new.prop,res)
-	return(res)
-}
-
-fin.res <- lapply(c(0.05,0.1,0.2),CEST.h2,h2=0)
-fin.res.I <- do.call(cbind,fin.res)
-colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
-fin.res.I <- cbind(sig_level=c("",0.01,0.05,0.1),fin.res.I)
-setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
-write.csv(fin.res.I,"table4_CEST_h2_newsize.csv",quote=F,row.names=F)
-
-
-
-
-
-
-#### Table 4 (Empirical power table for h2)
+#### Table 3-2 (Empirical power table for h2)
 setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
 
 CEST.h2 <- function(prev,h2){
@@ -105,7 +81,7 @@ setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
 write.csv(fin.res.I,"table4_CEST_h2_power.csv",quote=F)
 
 
-#### Table 5 (Empirical size table for beta)
+#### Table 4-1 (Empirical size table for beta)
 setwd("~/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
 
 CEST.beta.size <- function(prev,h2){
@@ -124,7 +100,7 @@ setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
 write.csv(fin.res.I,"table5_CEST_beta_size.csv",quote=F)
 
 
-#### Table 6 (Empirical power table for beta)
+#### Table 4-2 (Empirical power table for beta)
 setwd("~/paper/heritability/ML_ver2/variousFam/CEST/2.beta")
 
 CEST.beta.power <- function(prev,h2){
@@ -143,7 +119,7 @@ setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
 write.csv(fin.res.I,"table6_CEST_beta_power.csv",quote=F)
 
 
-#### Table 7 (Demographic information for T2D)
+#### Table 5 (Demographic information for T2D)
 fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
 new.fam <- fam[-grep("^KNIH",fam$V1),]
 pheno <- read.csv("/home2/wjkim/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
@@ -215,6 +191,8 @@ a[!a[,3]%in%a[,2],3] <- 0
 a[!a[,4]%in%a[,2],4] <- 0
 write.table(a,"temp_SNUH.fam",row.names=F,col.names=F,quote=F)
 system("onetool --fam temp_SNUH.fam --vcf temp_SNUH.vcf --out SNUH_pedinfo")
+
+
 
 ######## Figures ########
 
@@ -317,15 +295,14 @@ Res.V <- do.call(rbind,Res)
 
 # Fig 3A
 setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table/")
-png("fig3_Riskscore.png",width=600,height=1160,res=100)
-par(mfrow=c(2,1))
+png("fig3_Riskscore.png",width=1200,height=580,res=100)
+par(mfrow=c(1,2))
 par(oma=c(0, 0, 0, 5))
 plot(1,1,type='n',xlim=c(20,80),ylim=c(Res.I[1,'prob'],Res.IV[61,'prob']),xlab="Age of proband",ylab="Probability of being affected")
 lines(seq(20,80,by=1),Res.I$prob,lty=1)
 lines(seq(20,80,by=1),Res.II$prob,lty=2)
 lines(seq(20,80,by=1),Res.III$prob,lty=3)
 lines(seq(20,80,by=1),Res.IV$prob,lty=4)
-legend("topright", inset=c(-0.3,0.07), legend=paste0(0:3), lty=1:4, title="Number of\naffected\nrelatives",xpd=NA,bty="n")
 mtext(text="(A)", side=3, at=10, cex=1.2, line=1)
 
 # Fig 3B
