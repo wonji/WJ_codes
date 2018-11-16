@@ -1,0 +1,11 @@
+1. LTMH estimates replicates 수 2000번으로 늘리기 (진행중)
+
+2. SAIGE 적용?
+
+3. ascertainment CEST
+
+4. CEST vs GCTA
+
+5. pedinfo -> 우리 데이터에 적용하기 어려움...
+
+6. Source code 정리
