@@ -453,7 +453,7 @@ for(prev in c(0.1,0.2)){
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
 n.cores=32
 
-for(h2 in c(0, 0.2, 0.4)){
+for(h2 in c(0.2, 0.4)){
   for(prev in c(0.05,0.1,0.2)){
     for(totalfam in c(500)){
       print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
@@ -466,12 +466,16 @@ for(h2 in c(0, 0.2, 0.4)){
       out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_all_181116.txt")
       
       setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-      write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
-      
-      CEST_h2 <- sapply(1:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,seed=T)
+      if(paste0("CEST_h2_",totalfam,"_all_181116.txt") %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+        start <- as.numeric(strsplit(system(paste0("wc -l ",out),intern=T)," ")[[1]][1])
+      } else {
+        start <- 1
+        setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+        write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+      }
+      CEST_h2 <- sapply(start:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,seed=T)
     }
   }
 }
 
-
-
+  

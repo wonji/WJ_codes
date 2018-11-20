@@ -402,13 +402,14 @@ getLTMH.S1 <- function(PREV, H2, N.fam, n.cores){
 }
 
 ## n2, 20 cores, p 0.05
-a <- getLTMH.S1(PREV=0.05,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=20)
+a <- getLTMH.S1(PREV=0.05,H2=c(0.05,0.2),N.fam=500,n.cores=20)
 
-## n4, 20 cores, p 0.1
-a <- getLTMH.S1(PREV=0.1,H2=c(0.05,0.2,0.4),N.fam=500,n.cores=24)
+## n4, 24 cores, p 0.1
+a <- getLTMH.S1(PREV=0.1,H2=c(0.2,0.4),N.fam=500,n.cores=24)
 
 ## n8, 24 cores, p 0.2
-a <- getLTMH.S1(PREV=0.2,H2=c(0.2,0.4),N.fam=500,n.cores=24)
+a <- getLTMH.S1(PREV=0.2,H2=c(0.4),N.fam=500,n.cores=24)
+a <- getLTMH.S1(PREV=0.05,H2=c(0.4),N.fam=500,n.cores=24)
 
 
 
@@ -444,7 +445,7 @@ getLTMH.S2 <- function(PREV,H2,N.fam,n.cores){
 a <- getLTMH.S2(PREV=0.05,H2=c(0.2,0.4),N.fam=500,n.cores=24)
 
 ## n10, 24 cores, p 0.1
-a <- getLTMH.S2(PREV=0.1,H2=c(0.2,0.4),N.fam=500,n.cores=24)
+a <- getLTMH.S2(PREV=0.1,H2=c(0.4),N.fam=500,n.cores=24)
 
 ## n11, 24 cores, p 0.2
 a <- getLTMH.S2(PREV=0.2,H2=c(0.4),N.fam=500,n.cores=24)

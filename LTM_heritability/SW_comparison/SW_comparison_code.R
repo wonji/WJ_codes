@@ -117,16 +117,21 @@ doLRT.GCTA <- function(PREV,H2,n.fam){
         fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
         fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
         out <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2/prev_",prev,"_h2_",h2,"/GCTA_LRT_",totalfam,"_181116.txt")
-        write.table(data.frame('Obs','LRT','DF','Pvalue'),out,col.names=F,row.names=F,quote=F)
+        if(paste0("GCTA_LRT_",totalfam,"_181116.txt") %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+          start <- as.numeric(strsplit(system(paste0("tail -1 ",out),intern=T)," ")[[1]][1])+1
+        } else {
+          start <- 1
+		  write.table(data.frame('Obs','LRT','DF','Pvalue'),out,col.names=F,row.names=F,quote=F)
+        }
         working_dir <- paste0("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2/prev_",prev,"_h2_",h2)
-        Esth2 <- sapply(1:2000,getLRT.GCTA,fin.dat=fin.dat,totalfam=totalfam,prev=prev,res_var='Y',exp_var='std_snp',out=out,working_dir=working_dir,seed=T)
+        Esth2 <- sapply(start:2000,getLRT.GCTA,fin.dat=fin.dat,totalfam=totalfam,prev=prev,res_var='Y',exp_var='std_snp',out=out,working_dir=working_dir,seed=T)
       }
     }
   }
 }
 
 # n2
-doLRT.GCTA(0.05,c(0,0.2,0.4),500)
-doLRT.GCTA(0.1,c(0,0.2,0.4),500)
-doLRT.GCTA(0.2,c(0,0.2,0.4),500)
+doLRT.GCTA(0.05,c(0.2,0.4),500)
+doLRT.GCTA(0.1,c(0.2,0.4),500)
+doLRT.GCTA(0.2,c(0.2,0.4),500)	# Duplicated 0.2, 0.2
 
