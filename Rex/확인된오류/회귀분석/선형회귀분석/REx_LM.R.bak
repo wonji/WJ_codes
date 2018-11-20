@@ -1,0 +1,237 @@
+REx_LM <- function(dataset,dep_var,indep_numeric_var=NULL,indep_cat_var=NULL,vars=NULL,noint=FALSE,CI=TRUE,confint.level=0.95,VIF=FALSE,select=FALSE,keep_var=NULL,direct="forward",ANOVA=TRUE,Predict=FALSE,Resid=FALSE,stdResid=FALSE,Plot=TRUE){
+	#### 변수 설명 ####
+	## dep_var : 종속변수(dependent variables),필수변수(무조건 한개변수만 선택할수있음)
+	## indep_numeric_var : 질적설명변수(independent variables) (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님,단,상수항옵션이(noint=TRUE)인경우 돌아갈수없음)
+	## indep_cat_var : 양적설명변수(independent variables) (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님,단,상수항옵션이(noint=TRUE)인경우 돌아갈수없음)
+	## vars : 선택된 변수들 (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님)
+	## noint : 모델설정 탭의 '상수항 포함하지 않음' 옵션 (FALSE:default)
+	## CI : 출력옵션 탭의 신뢰구간 (TRUE/FALSE, TRUE:default)
+	## confint.level : 출력옵션 탭의 '신뢰수준' 옵션 (신뢰수준범위 변경가능,0.95 default)
+	## VIF : 출력옵션 탭의 '다중공선성' 옵션 (TRUE/FALSE,FALSE:default)
+	## ANOVA : 출력옵션 탭의 'ANOVA Table' 옵션 (TRUE/FALSE, TRUE:default)
+	## Predict : 출력옵션 탭의 '예측값' 옵션 (TRUE/FALSE,FALSE:default)
+	## Resid : 출력옵션 탭의 '잔차' 옵션 TRUE/FALSE,FALSE:default)
+	## stdResid: 출력옵션 탭의 '표준화잔차' 옵션 TRUE/FALSE,FALSE:default)
+	## select : 변수선택 탭의 '변수선택' 옵션(TRUE/FALSE,FALSE:default))
+	## keep_var : 질적변수 or 양적변수 상관없이 모든 설명변수가 대상임, 만약에 설명변수에 변수가 설정이 안되있으면 활성화되어도 설명변수창에 아무것도 뜨지 않게해야됨
+	## 변수선택 탭의 '고정변수선택' 옵션 (설정없으면(select=FALSE,default) NULL or 설정(select=TRUE),2개 이상의 변수가 있는 경우 c(,,)로 구분)
+	## direct : 통계설정 탭의 '변수선택의 세부항목' 옵션("forward","backward","both",가능)
+	## Plot : 회귀분석 그림출력 옵션 (TRUE/FALSE, TRUE:default)
+	###################
+	#### Required packages : R2HTML , rms, MASS, markdown ####
+	###################
+	load.pkg(c("R2HTML", "rms", "MASS"))
+	
+	html.output <- capture.output({
+
+		# Title
+		#R2HTML::HTML(R2HTML::as.title("Linear Regression"),HR=1,file="./test.html",append=FALSE)
+		R2HTML::HTML(R2HTML::as.title("Linear Regression"),HR=1,file=stdout(),append=FALSE)
+
+		## Warnings
+		# Response variable type
+		if(!is.numeric(dataset[,dep_var])) warn.msg1 <- '\a Error : Response variable should be numeric. Analysis has been stopped.'
+		# explanatory variable type
+		if(!is.null(indep_numeric_var)) {
+			is.nom <- sapply(indep_numeric_var,function(i) !is.numeric(dataset[,i]))
+			if(any(is.nom)){
+				warn.msg2 <- paste0("\a Warning : The type of variable '",paste(indep_numeric_var[is.nom],collapse=', '),"' is not numeric but selected as the quantitative variable. It was excluded from the analysis.")
+				ec <- indep_numeric_var[is.nom]
+				vars <- vars[-grep(paste0('[',paste(ec,collapse=','),']'),vars)]
+				if(length(vars)==0) vars <- NULL
+
+			}
+		}
+		if(!is.null(indep_cat_var)) {
+			is.num <- sapply(indep_cat_var,function(i) is.numeric(dataset[,i]))
+			if(any(is.num)) warn.msg3 <- paste0("\a Warning : The type of variable '",paste(indep_cat_var[is.num],collapse=', '),"' is numeric but selected as the qualitative variable. It was coreced into character.")
+			for(i in indep_cat_var[is.num]) dataset[,i] <- as.factor(dataset[,i])
+		}
+
+		# no intercept & no explanatory variable : error
+		if(noint&is.null(vars)) warn.msg4 <- '\a Error : With no intercept, at least 1 independent variable should be selected. Analysis has been stopped.'
+
+		# warnings
+		if(exists('warn.msg1')|exists('warn.msg4')){
+			R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+			if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
+			if(exists('warn.msg4')){
+				if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
+				R2HTML::HTML(warn.msg4,file=stdout())
+			}
+		} else {
+			## model formula
+			var_info <- c(dep_var,indep_numeric_var, indep_cat_var)
+			is.na <- sapply(var_info,function(i) is.na(dataset[,i]))
+			oo <- which(rowSums(is.na)>0)
+			raw.dat <- dataset
+			if(length(oo)>0) dataset <- dataset[-oo,]
+
+			form.0 <- ifelse(is.null(vars),paste0(dep_var,' ~ 1'),paste0(dep_var,' ~ ',paste(vars,collapse=' + ')))
+			if(noint) form.0 <- paste(form.0,-1)
+			form.1 <- as.formula(form.0)
+
+			## Fitting WLS
+			
+			res_LM_1 <- lm(formula(form.1),data=dataset)
+
+			## Variable selection
+			if(select){
+				## 고정변수 선택여부에따른 분석방법(선택안한경우)
+				f = file()
+				sink(file=f)
+				if(is.null(keep_var)){
+					res_LM2 <- stepAIC(res_LM_1,direction=direct)
+					form2 <- formula(res_LM2)
+					res_LM <- lm(form2,data=dataset)
+				## 고정변수 선택여부에따른 분석방법(선택한경우)	
+				}else{
+					form1 <- formula(paste('~',paste(keep_var,collapse='+'),sep=''))
+					res_LM2 <- stepAIC(res_LM_1,direction=direct,scope=list(lower=form1))
+					form2 <- formula(res_LM2)
+					res_LM <- lm(form2,data=dataset)
+				}
+				sink()
+				close(f)
+			}
+			
+			### final model
+			if(select) res_LM_1 <- res_LM
+
+			### Options
+			# 다음의 값들은 엑셀 시트에 저장
+			if(Predict) {
+				temp.0 <- data.frame(Fitted_LM=fitted(res_LM_1))
+				temp <- data.frame(Fitted_LM=rep(NA,nrow(raw.dat)))
+				row.dataset <- rownames(raw.dat)
+				row.output <- rownames(temp.0)
+				for(i in seq_along(row.output)) if(i%in%seq_along(row.output)) temp[row.dataset==row.output[i],1] <- temp.0[row.output[i],1]
+				O <- temp
+			}
+
+			if(Resid) {
+				temp.0 <- data.frame(Resid_LM=resid(res_LM_1))
+				temp <- data.frame(Resid_LM=rep(NA,nrow(raw.dat)))
+				row.dataset <- rownames(raw.dat)
+				row.output <- rownames(temp.0)
+				for(i in seq_along(row.output)) if(i%in%seq_along(row.output)) temp[row.dataset==row.output[i],1] <- temp.0[row.output[i],1]
+				if(exists('O')){
+					O <- cbind(O,temp)
+				} else {
+					O <- temp
+				}
+			}
+
+			if(stdResid) {
+				temp.0 <- data.frame(stdResid_LM=studres(res_LM_1))
+				is.singular <- class(try(temp.0[,1],silent=T))=="try-error"
+				if(is.singular){
+					warn.msg6 <- "\a Error : Cannnot calculate standardized residuals because of the (near) linear dependences in explatory variables. Please check multicollinearity problem."
+					R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+					R2HTML::HTML(warn.msg6,file=stdout())
+				} else {
+
+					temp <- data.frame(stdResid_LM=rep(NA,nrow(raw.dat)))
+					row.dataset <- rownames(raw.dat)
+					row.output <- rownames(temp.0)
+					for(i in seq_along(row.output)) if(i%in%seq_along(row.output)) temp[row.dataset==row.output[i],1] <- temp.0[row.output[i],1]
+				
+					if(exists('O')){
+						O <- cbind(O,temp)
+					} else {
+						O <- temp
+					}
+				}
+			}
+
+			# Data Structure
+			R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file=stdout())
+			total.var <- ncol(dataset)
+			used.var <- ifelse(is.null(vars),0,length(unique(unlist(strsplit(vars,":")))))
+			DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',nrow(dataset),total.var,used.var+1),ncol=2)
+			R2HTML::HTML(DS,file=stdout(), innerBorder = 1,align="left")
+
+			# Varibale list
+			R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file=stdout())
+			if(is.null(vars)) {
+				Vars <- c()
+			} else {
+				Vars <-  unique(unlist(strsplit(vars,":")))
+			}
+
+			qual <- indep_cat_var[indep_cat_var%in%Vars]
+			quan <- c(indep_numeric_var[indep_numeric_var%in%Vars],dep_var)
+			varlist <- matrix(c('Quantitative variable',paste(quan,collapse=', ')),ncol=2,byrow=T)
+			if(length(qual)!=0) varlist <- rbind(varlist,c('Qualitative variable',paste(qual,collapse=', ')))
+			R2HTML::HTML(varlist,file=stdout(), innerBorder = 1,align="left")
+			if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
+			if(exists('warn.msg3')) R2HTML::HTML(warn.msg3,file=stdout())
+
+
+			# Analysis Description
+			R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file=stdout())
+			#R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file="./test.html")
+			AD <- matrix(c('Response variable',dep_var),ncol=2,byrow=T)
+			if(!is.null(vars)) AD <- rbind(AD,c('Explanatory variable',paste(vars,collapse=', ')))
+			AD <- rbind(AD,matrix(c('Intercept included',!noint),ncol=2,byrow=T))
+
+			if(CI) AD <- rbind(AD,c('Significance level of CI',confint.level))
+			AD <- rbind(AD,matrix(c('Print VIF',VIF,'Print ANOVA table',ANOVA,'Variable selection',select),ncol=2,byrow=T))
+			#variable selection
+			if(select) {
+				direction <- switch(direct,forward="Forward selection",backward="Backward elimination",both="Stepwise regression")
+				AD <- rbind(AD,matrix(c('Variable selection method',direction),ncol=2,byrow=T))
+			}
+			if(!is.null(keep_var)) AD <- rbind(AD,c('Keep variable in variable selection',paste(keep_var,collapse=', ')))
+			R2HTML::HTML(AD,file=stdout(), innerBorder = 1,align="left")
+
+
+
+			# Coefficient Estimate
+			R2HTML::HTML(R2HTML::as.title("Linear Regression Results"),HR=2,file=stdout())
+			R2HTML::HTML(R2HTML::as.title("Coefficients"),HR=3,file=stdout())
+			CE <- summary(res_LM_1)$coef
+			if(CI){
+				CE <- cbind(CE,confint(res_LM_1, level=confint.level))
+				colnames(CE)[(ncol(CE)-1):ncol(CE)] <- paste0(c('Lower','Upper'),' bound of ',confint.level*100,'% CI')
+			}
+			if(VIF)	{
+				VIF.1 <- vif(res_LM_1)
+				if(!noint) VIF.1 <- c(NA,VIF.1)
+				CE <- cbind(CE,VIF=VIF.1)
+			}
+			R2HTML::HTML(round(CE,4),file=stdout(), innerBorder = 1,align="left")
+
+			# Anova table and R-squared
+			if(ANOVA){
+				R2HTML::HTML(R2HTML::as.title("ANOVA Table"),HR=3,file=stdout())
+				Anova <- as.matrix(anova(lm(formula(paste(dep_var,'~1',sep='')),x=TRUE,data=dataset),res_LM_1))
+				A1 <- round(rbind(Anova[2,4:3], Anova[2:1,c(2,1)]),5)
+				MS <- c(round(A1[1:2,1]/A1[1:2,2],5)," ")
+				A2 <- data.frame(round(A1,5),MS=MS,F=c(round(Anova[2,5],5)," "," "),Pvalue=c(signif(Anova[2,6],5)," "," "),R2=c(round(summary(res_LM_1)$r.squared,5),"","") ,adj.R2=c(round(summary(res_LM_1)$adj.r.squared,5),"",""))
+				colnames(A2)[1] <- 'SS'
+				rownames(A2) <- c('SSR','SSE','SST')
+				R2HTML::HTML(as.matrix(A2),file=stdout(), innerBorder = 1,align="left",digits=4)
+			}
+			### plot
+			if(Plot) {
+				R2HTML::HTML(R2HTML::as.title("Regression plot"),HR=3,file=stdout(),append=TRUE)
+				REx_ANA_PLOT(800,800)
+				par(mfrow=c(2,2))
+				plot(res_LM_1)
+				REx_ANA_PLOT_OFF("")
+			}
+
+		}
+		# Analysis end time
+		R2HTML::HTMLhr(file=stdout())
+		R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". REx : Linear Regression.",sep=""),file=stdout())
+		R2HTML::HTMLhr(file=stdout())
+	})
+
+	if(any(Predict,Resid,stdResid)){
+		return(list(html=html.output,Output=O))
+	} else {
+		return(html.output)
+	}
+}

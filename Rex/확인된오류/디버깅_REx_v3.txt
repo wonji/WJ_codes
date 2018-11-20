@@ -1,0 +1,59 @@
+
+### 이항자료회귀분석
+options(encoding="utf-8")
+source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\prior_ft.txt")
+source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\회귀분석\\이항자료회귀분석\\REx_LGM.R")
+birth <- read.csv("C:\\Users\\김원지\\Downloads\\확인된오류\\birth_clean.csv",head=T,stringsAsFactor=F)
+
+## 시나리오 #1 문제화면 2 -> 문제 없음
+a <- REx_LGM(dataset=birth,dep_var= 'hyp',dep_ref='0',indep_cat_var='sex',indep_numeric_var=c('bweight','gestwks'),vars=c('bweight','sex','gestwks'),noint=FALSE,link='logit',
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",GOF=FALSE,ROCcurve=FALSE,classtab=FALSE,
+			Resid=FALSE,stdResid=FALSE,studResid=FALSE,linear_pred=FALSE,hat_value=FALSE,cook_distance=FALSE,
+			select=FALSE,direct="forward",
+			Valid.method='Cross',Cross.method='KFOLD',k=5,
+			Predict_prob_train=FALSE, Predict_CI_train=FALSE,
+			Predict_prob_test=FALSE,Predict_CI_test=FALSE,
+			Predict_CI_pred=FALSE,Part_index=FALSE,
+			Predict_g_train=FALSE,Predict_g_test=FALSE)
+
+## 시나리오 #1 문제화면 3	-> 파악 중
+a <- REx_LGM(dataset=birth,dep_var= 'hyp',dep_ref='0',indep_cat_var='sex',indep_numeric_var=c('bweight','gestwks'),vars=c('bweight','sex','gestwks'),noint=FALSE,link='logit',
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",GOF=FALSE,ROCcurve=FALSE,classtab=FALSE,
+			Resid=FALSE,stdResid=FALSE,studResid=FALSE,linear_pred=FALSE,hat_value=FALSE,cook_distance=FALSE,
+			select=FALSE,direct="forward",
+			Valid.method='Cross',Cross.method='LOOCV',
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,
+			Predict_prob_test=FALSE,Predict_CI_test=FALSE,
+			Predict_CI_pred=FALSE,Part_index=FALSE,
+			Predict_g_train=FALSE,Predict_g_test=FALSE)
+
+			
+## 시나리오 #1 문제화면 4
+a <- REx_LGM(dataset=birth, dep_var='hyp', dep_ref='0', indep_cat_var='sex', indep_numeric_var=c('bweight','gestwks'), vars=c('sex','gestwks','bweight'), noint=FALSE, link='logit',
+			CI=TRUE, confint.level=0.95, odds=FALSE, VIF=FALSE, ANOVA=TRUE, ss='III', GOF=FALSE, ROCcurve=FALSE, classtab=FALSE, 
+			Resid=FALSE, stdResid=FALSE, studResid=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, 
+			select=FALSE, direct='forward', 
+			Valid.method='Partition', Part.method='all', 
+			Predict_prob_train=FALSE, Predict_CI_train=FALSE, 
+			Predict_prob_test=FALSE, Predict_CI_test=FALSE, 
+			Predict_CI_pred=FALSE, 
+			Part_index=TRUE, Predict_g_train=FALSE, Predict_g_test=FALSE);
+			
+
+### 선형회귀분석
+options(encoding="utf-8")
+source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\prior_ft.txt")
+source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\회귀분석\\선형회귀분석\\REx_LM.R")
+birth <- read.csv("C:\\Users\\김원지\\Downloads\\확인된오류\\birth_clean.csv",head=T,stringsAsFactor=F)
+			
+a <- REx_LM(dataset=birth, dep_var='gestwks', indep_cat_var='bweight', indep_numeric_var=c('sex','hyp'), vars=c('bweight','sex','hyp'), noint=FALSE, 
+			CI=TRUE, confint.level=0.95, VIF=FALSE, GOF=FALSE, select=FALSE, direct='forward', ANOVA=TRUE, Resid=FALSE, stdResid=FALSE, studResid=FALSE, 
+			hat_value=FALSE, cook_distance=FALSE, Plot=FALSE, Valid.method='Partition', Part.method='all', ss='III', Predict_train=FALSE, 
+			Predict_CI_train=FALSE, Predict_PI_train=FALSE, Predict_test=FALSE, Predict_CI_test=FALSE, Predict_PI_test=FALSE, Predict_CI_pred=FALSE, 
+			Predict_PI_pred=FALSE, Part_index=FALSE);	
+
+dataset=birth; dep_var='gestwks'; indep_cat_var='bweight'; indep_numeric_var=c('sex','hyp'); vars=c('bweight','sex','hyp'); noint=FALSE; 
+			CI=TRUE; confint.level=0.95; VIF=FALSE; GOF=FALSE; select=FALSE; direct='forward'; ANOVA=TRUE; Resid=FALSE; stdResid=FALSE; studResid=FALSE; 
+			hat_value=FALSE; cook_distance=FALSE; Plot=FALSE; Valid.method='Partition'; Part.method='all'; ss='III'; Predict_train=FALSE; 
+			Predict_CI_train=FALSE; Predict_PI_train=FALSE; Predict_test=FALSE; Predict_CI_test=FALSE; Predict_PI_test=FALSE; Predict_CI_pred=FALSE; 
+			Predict_PI_pred=FALSE; Part_index=FALSE			

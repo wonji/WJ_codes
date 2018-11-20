@@ -1,0 +1,299 @@
+REx_Longi <- function(dataset,res_var,time_var, id_var, qual_var=NULL, quan_var=NULL, vars=NULL, noint=FALSE,
+		      time=NULL, time_code=NULL, rand_int=FALSE, rand_time=FALSE, rand_corr=FALSE,var_method="ML",
+		      resid_plot=FALSE, profile_plot=FALSE, Predict=FALSE, Resid=FALSE){
+
+	#### 변수 설명 ####
+	## dataset : 데이터셋이름
+	## res_var : 종속변수, 필수로 입력되어야 하며 2개 이상 입력가능
+	## time_var : 변수설정탭의 시간변수 (필수)
+	## id_var : 변수설정탭의 관측단위 변수 (필수)
+	## qual_var : 질적설명변수(independent variables) (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님)
+	## quan_var : 양적설명변수(independent variables) (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님)
+	## vars : 최종모형
+	## noint : 모형에 절편한 포함 여부. TRUE or FALSE.
+	## time, time_code : UI 설명 참고
+	## rand_int : 분석옵션탭의 '임의효과 중 관측 단위에 따라 절편이 다름을 가정'이 선택되면 TRUE, 그렇지 않으면 FALSE
+	## rand_time : 분석옵션탭의 '관측 단위에 따라 시간에 따른 종속변수의 변화율이  다름을 가정'이 선택되면 TRUE, 그렇지 않으면 FALSE
+	## rand_corr : 분석옵션탭의 '임의효과 사이에 상관성이 있음을 가정'이 선택되면 TRUE, 그렇지 않으면 FALSE
+	## var_method : 
+	## resid_plot
+	## profile_plot
+	## 
+	###################
+	#### Required packages : R2HTML, car, lattice, lme4 ####
+	###################
+	load.pkg(c("R2HTML", "car", "lme4", "lattice"))
+
+	html.output <- capture.output({
+		# Title
+		R2HTML::HTML(R2HTML::as.title("Longitudinal Data Analysis"),HR=1,file=stdout(),append=FALSE)
+
+		## Warnings
+		if(!is.numeric(dataset[,res_var])) warn.msg1 <- '\a Error : Response variable should be numeric. Analysis has been stopped.'
+
+		if(is.null(vars)) {
+			Vars <- c()
+		} else {
+			Vars <-  unique(unlist(strsplit(vars,":")))
+		}
+		qual_var <- qual_var[qual_var%in%Vars]
+		quan_var <- c(quan_var[quan_var%in%Vars],res_var)
+
+		if(!is.null(quan_var)) {
+			is.nom <- sapply(quan_var,function(i) !is.numeric(dataset[,i]))
+			if(any(is.nom)){
+				warn.msg3 <- paste0("\a Warning : The type of variable '",paste(quan_var[is.nom],collapse=', '),"' is not numeric but selected as the quantitative variable. It was excluded from the analysis.")
+
+				# explanatory variables
+				vars <- vars[!vars%in%ec]
+				if(length(vars)==0) vars <- NULL
+			}
+		}
+		if(!is.null(qual_var)) {
+			is.num <- sapply(qual_var,function(i) is.numeric(dataset[,i]))
+			if(any(is.num)) warn.msg5 <- paste0("\a Warning : The type of variable '",paste(qual_var[is.num],collapse=', '),"' is continuous but selected as the qualitative variable. It was coreced into character.")
+			for(i in qual_var) dataset[,i] <- factor(dataset[,i])
+		}
+		if(!rand_int & !rand_time) warn.msg6 <- "\a Error : No random effects term was specified by user. Analysis has been stopped."
+
+		if(exists('warn.msg1')|exists('warn.msg6')){
+			R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+			if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
+			if(exists('warn.msg6')) R2HTML::HTML(warn.msg6,file=stdout())
+		} else {
+
+			## Model formula
+			if(rand_int){
+				if(rand_time) {REx_Longi <- function(dataset,res_var,time_var, id_var, qual_var=NULL, quan_var=NULL, vars=NULL, noint=FALSE,
+		      time=NULL, time_code=NULL, rand_int=FALSE, rand_time=FALSE, rand_corr=FALSE,var_method="ML",
+		      resid_plot=FALSE, profile_plot=FALSE, Predict=FALSE, Resid=FALSE){
+
+	#### 변수 설명 ####
+	## dataset : 데이터셋이름
+	## res_var : 종속변수, 필수로 입력되어야 하며 2개 이상 입력가능
+	## time_var : 변수설정탭의 시간변수 (필수)
+	## id_var : 변수설정탭의 관측단위 변수 (필수)
+	## qual_var : 질적설명변수(independent variables) (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님)
+	## quan_var : 양적설명변수(independent variables) (2개 이상의 변수가 있는 경우 c(,,)로 구분, 필수사항아님)
+	## vars : 최종모형
+	## noint : 모형에 절편한 포함 여부. TRUE or FALSE.
+	## time, time_code : UI 설명 참고
+	## rand_int : 분석옵션탭의 '임의효과 중 관측 단위에 따라 절편이 다름을 가정'이 선택되면 TRUE, 그렇지 않으면 FALSE
+	## rand_time : 분석옵션탭의 '관측 단위에 따라 시간에 따른 종속변수의 변화율이  다름을 가정'이 선택되면 TRUE, 그렇지 않으면 FALSE
+	## rand_corr : 분석옵션탭의 '임의효과 사이에 상관성이 있음을 가정'이 선택되면 TRUE, 그렇지 않으면 FALSE
+	## var_method : 
+	## resid_plot
+	## profile_plot
+	## 
+	###################
+	#### Required packages : R2HTML, car, lattice, lme4 ####
+	###################
+	load.pkg(c("R2HTML", "car", "lme4", "lattice"))
+
+	html.output <- capture.output({
+		# Title
+		R2HTML::HTML(R2HTML::as.title("Longitudinal Data Analysis"),HR=1,file=stdout(),append=FALSE)
+
+		## Warnings
+		if(!is.numeric(dataset[,res_var])) warn.msg1 <- '\a Error : Response variable should be numeric. Analysis has been stopped.'
+
+		if(is.null(vars)) {
+			Vars <- c()
+		} else {
+			Vars <-  unique(unlist(strsplit(vars,":")))
+		}
+		qual_var <- qual_var[qual_var%in%Vars]
+		quan_var <- c(quan_var[quan_var%in%Vars],res_var)
+
+		if(!is.null(quan_var)) {
+			is.nom <- sapply(quan_var,function(i) !is.numeric(dataset[,i]))
+			if(any(is.nom)){
+				warn.msg3 <- paste0("\a Warning : The type of variable '",paste(quan_var[is.nom],collapse=', '),"' is not numeric but selected as the quantitative variable. It was excluded from the analysis.")
+
+				# explanatory variables
+				vars <- vars[!vars%in%ec]
+				if(length(vars)==0) vars <- NULL
+			}
+		}
+		if(!is.null(qual_var)) {
+			is.num <- sapply(qual_var,function(i) is.numeric(dataset[,i]))
+			if(any(is.num)) warn.msg5 <- paste0("\a Warning : The type of variable '",paste(qual_var[is.num],collapse=', '),"' is continuous but selected as the qualitative variable. It was coreced into character.")
+			for(i in qual_var) dataset[,i] <- factor(dataset[,i])
+		}
+		if(!rand_int & !rand_time) warn.msg6 <- "\a Error : No random effects term was specified by user. Analysis has been stopped."
+
+		if(exists('warn.msg1')|exists('warn.msg6')){
+			R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+			if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
+			if(exists('warn.msg6')) R2HTML::HTML(warn.msg6,file=stdout())
+		} else {
+
+			## Model formula
+			if(rand_int){
+				if(rand_time) {
+					if(rand_corr){
+						re <- paste0('(1 + ',time_var,' | ',id_var,')')
+					} else {
+						re <- paste0('(1 | ',id_var,') + (0 + ',time_var,' | ',id_var,')')
+					}
+				} else {
+					re <- paste0('(1 | ',id_var,')')
+				}
+			} else {
+				if(rand_time) {
+					re <- paste0('(',paste(c(-1,time_var),collapse=' + '),' | ',id_var,')')
+				}
+			}
+			fe <- paste(vars,collapse=' + ')
+			if(fe=="") fe <- NULL
+			form.0 <- paste0(res_var,' ~ ',paste(c(time_var,fe,re),collapse=' + '))
+			if(noint) form.0 <- paste(form.0,-1)
+			form.1 <- as.formula(form.0)
+
+			## Data processing
+			# id var
+			dataset[,id_var] <- factor(dataset[,id_var])
+			# time var
+			temp <- rep(NA,nrow(dataset))
+			for(i in 1:length(time)) temp[dataset[,time_var]==time[i]] <- time_code[i]
+			dataset[,time_var] <- temp
+
+			## Model Fitting
+			if(var_method=="ML") fit <- suppressWarnings(try(lmer(form.1,data=dataset,REML=0)))
+			if(var_method=="REML") fit <- suppressWarnings(try(lmer(form.1,data=dataset)))
+
+			## Data Structure
+			R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file=stdout())
+			total.var <- ncol(dataset)
+			used.var <- ifelse(is.null(vars),0,length(unique(unlist(strsplit(vars,":")))))
+			DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',nrow(dataset),total.var,used.var+1),ncol=2)
+			R2HTML::HTML(DS,file=stdout(), innerBorder = 1,align="left")
+
+			## Varibale list
+			R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file=stdout())
+			if(is.null(vars)) {
+				Vars <- c()
+			} else {
+				Vars <-  unique(unlist(strsplit(vars,":")))
+			}
+			qual <- qual_var[qual_var%in%Vars]
+			quan <- c(quan_var[quan_var%in%Vars],res_var)
+			varlist <- matrix(c('Quantitative variable',paste(quan,collapse=', ')),ncol=2,byrow=T)
+			if(length(qual)!=0) varlist <- rbind(varlist,c('Qualitative variable',paste(qual,collapse=', ')))
+			R2HTML::HTML(varlist,file=stdout(), innerBorder = 1,align="left")
+			if(exists('warn.msg3')) R2HTML::HTML(warn.msg3,file=stdout())
+			if(exists('warn.msg5')) R2HTML::HTML(warn.msg5,file=stdout())
+
+			## Analysis Description
+			R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file=stdout())
+			AD <- matrix(c('Response variables',res_var,'Explanatory variable',paste(vars,collapse=', '),'Time variable',time_var,'ID variable',id_var,'Intercept included',!noint,'Random effect on intercept',rand_int,'Random effect on time',rand_time),ncol=2,byrow=T)
+			if(rand_int&rand_time) AD <- rbind(AD,c('Correlation between random effect',rand_corr))
+			varmethod <- switch(var_method,ML="Maximum likelihood",REML="Restricted maximum likelihood")
+			AD <- rbind(AD,matrix(c('Distribution of response variable',family(fit)$family,'Link function',family(fit)$link,'Method for estimating variance',varmethod),ncol=2,byrow=T))
+			R2HTML::HTML(AD,file=stdout(), innerBorder = 1,align="left")
+
+			## Profile plot
+			if(profile_plot){
+				R2HTML::HTML(R2HTML::as.title("Profile Plot"),HR=2,file=stdout())
+				n.obs <- length(levels(dataset[,id_var]))
+				wh <- ifelse(n.obs<=16,500,ifelse(n.obs>16 & n.obs<=25,550,ifelse(n.obs>25 & n.obs<=36,600,ifelse(n.obs>36 & n.obs<=49,650,"\a Profile pictures are only available for observations of less than 50 observations."))))
+				if(is.numeric(wh)){
+					REx_ANA_PLOT(w=wh,h=wh)
+					xyplot(as.formula(paste(res_var,'~',time_var,'|',id_var)),type=c("p","r"),data=dataset, grid=T,col.line="dark orange",pch=16)
+					REx_ANA_PLOT_OFF('')
+				} else {
+					R2HTML::HTML(wh,file=stdout())
+				}
+			}
+
+			### Model Fitting
+			R2HTML::HTML(R2HTML::as.title(paste0("Linear Mixed Model Fit by ",varmethod)),HR=2,file=stdout())
+			
+			## Check convergence
+			CC <- capture.output(summary(fit))
+			is.conv <- grep("Model failed to converge",CC)
+			if(length(is.conv)==0){
+				## Time variable
+				R2HTML::HTML(R2HTML::as.title("Transformed Time Variable"),HR=3,file=stdout())
+				TV <- data.frame(time,time_code)
+				colnames(TV) <- c(time_var,'Coded value')
+				R2HTML::HTML(TV,file=stdout(), innerBorder = 1,align="left",row.names=F)
+				
+				# Fixed effect
+				R2HTML::HTML(R2HTML::as.title("Fixed effects"),HR=3,file=stdout())
+				CE <- data.frame(summary(fit)$coef)
+				CE <- cbind(CE,pt(abs(CE[,3]),df=1,lower.tail=F))
+				colnames(CE) <- c('Estimate','SE','T-value','P-value')
+				CE[,ncol(CE)] <- format(CE[,ncol(CE)],scientific=T,digits=4)
+				R2HTML::HTML(CE,file=stdout(), innerBorder = 1,align="left",digits=4)
+
+				# Random effect
+				R2HTML::HTML(R2HTML::as.title("Random effects"),HR=3,file=stdout())
+				RE <- as.data.frame(summary(fit)$varcor)
+				if(rand_corr){
+					RE <- RE[,-1]
+					RE[nrow(RE),1] <- "Residual"
+					colnames(RE) <- c('Variable 1','Variable 2','Variance (Covariance)','SD (Correlation)')
+					RE[is.na(RE)] <- ""
+					R2HTML::HTML(RE,file=stdout(), innerBorder = 1,align="left",digits=4,row.names=F)
+
+				} else {
+					RE <- RE[,-c(1,3)]
+					RE[nrow(RE),1] <- "Residual"
+					colnames(RE) <- c('Variable','Variance','SD')
+					RE[is.na(RE)] <- ""
+					R2HTML::HTML(RE,file=stdout(), innerBorder = 1,align="left",digits=4,row.names=F)
+				}
+
+				# Measure of GOF
+				if(var_method=="ML"){
+					R2HTML::HTML(R2HTML::as.title("Measures of Goodness of Fit"),HR=3,file=stdout())
+					GOF <- as.data.frame(t(as.matrix(summary(fit)$AIC)))
+					R2HTML::HTML(GOF,file=stdout(), innerBorder = 1,align="left",digits=4,row.names=F)
+				}
+
+				# Residual Plot
+				if(resid_plot){
+					R2HTML::HTML(R2HTML::as.title("Residual Plot"),HR=3,file=stdout())
+					REx_ANA_PLOT()
+					plot(fit,pch=16,ylab="Residual",xlab="Fitted Value")
+					REx_ANA_PLOT_OFF('')
+				}
+
+				# 다음의 값들은 엑셀 시트에 저장
+				if(Predict) {
+					temp.0 <- data.frame(Fitted_Longi=fitted(fit))
+					temp <- data.frame(Fitted_Longi=rep(NA,nrow(dataset)))
+					row.dataset <- rownames(dataset)
+					row.output <- rownames(temp.0)
+					for(i in row.dataset) if(i%in%row.output) temp[row.dataset==i,1] <- temp.0[row.output==i,1]
+					O <- temp
+				}
+				if(Resid) {
+					temp.0 <- data.frame(Resid_Longi=resid(fit))
+					temp <- data.frame(Resid_Longi=rep(NA,nrow(dataset)))
+					row.dataset <- rownames(dataset)
+					row.output <- rownames(temp.0)
+					for(i in row.dataset) if(i%in%row.output) temp[row.dataset==i,1] <- temp.0[row.output==i,1]
+					if(exists('O')) {
+						O <- cbind(O,temp)
+					} else { 
+						O <- temp
+					}
+				}
+			} else {
+				conv.msg <- paste('\a',CC[is.conv])
+				R2HTML::HTML(conv.msg,file=stdout())
+			}
+		}
+		R2HTML::HTMLhr(file=stdout())
+		R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". REx : Multivariate Linear Regression",sep=""),stdout())
+		R2HTML::HTMLhr(file=stdout())
+	})
+
+	if(exists('O')){
+		return(list(html=html.output,Output=O))
+	} else {
+		return(html.output)
+	}
+}

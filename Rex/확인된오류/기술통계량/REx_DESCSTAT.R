@@ -1,0 +1,205 @@
+##기술통계
+REx_DESCSTAT <- function(dataset,quan_var=NULL,qual_var=NULL,group_var=NULL) {
+	#### 변수 설명 ####
+	## dataset : 분석에 이용할 데이터셋
+	## quan_var : 데이터셋 내 분석할 양적 변수 (UI차원에서 type을 컨트롤 할 필요 없음). 필수아님. 여러변수가 선택되었을 시 c('','','')의 형식으로 입력.
+	## qual_var : 데이터셋 내 분석할 질적 변수 (UI차원에서 type을 컨트롤 할 필요 없음). 필수아님. 여러변수가 선택되었을 시 c('','','')의 형식으로 입력.
+	## quan_var와 qual_var 중 적어도 하나의 변수는 선택되어야 분석가능
+	## group_var : 그룹변수. 최대 한개. 필수 아님.
+
+	#############################################
+	#### Required packages : R2HTML, moments ####
+	#############################################
+	load.pkg(c("R2HTML", "moments"))
+
+	######################################################################################
+	############################### Descriptive Statistics ###############################
+	######################################################################################
+
+	html.output <- capture.output({
+		#분석 이름
+		R2HTML::HTML(R2HTML::as.title("Descriptive Statistics"),HR=1,file=stdout(),append=FALSE) 
+		
+		# 변수 type 변환
+		if(!is.null(quan_var)){
+			isnom <- !sapply(dataset[,quan_var,drop=F],is.numeric)
+			if(sum(isnom)>0){
+				isare <- ifelse(sum(isnom)==1,'is','are')
+				waswere <- ifelse(sum(isnom)==1,'was','were')
+				ItThey <- ifelse(sum(isnom)==1,'It','They')
+				warn.msg1 <- paste0("\a Warning : '",paste(names(isnom)[isnom],collapse=", "),"' ",isare," not continuous but ",waswere," chosen as continuous variable. ",ItThey," ",waswere," excluded from the analysis.")
+				quan_var <- quan_var[!isnom]
+				if(length(quan_var)==0) quan_var <- NULL
+			}
+		}
+		if(!is.null(qual_var)){
+			isnum <- sapply(dataset[,qual_var,drop=F],is.numeric)
+			if(sum(isnum)>0){
+				isare <- ifelse(sum(isnum)==1,'is','are')
+				waswere <- ifelse(sum(isnum)==1,'was','were')
+				ItThey <- ifelse(sum(isnum)==1,'It','They')
+				warn.msg2 <- paste0("\a Warning : '",paste(names(isnum)[isnum],collapse=", "),"' ",isare," continuous but ",waswere," chosen as categorical variable. ",ItThey," ",waswere," coerced into character.")
+				for(i in qual_var[isnum]) dataset[,i] <- as.factor(dataset[,i])
+			}
+		}
+		if(!is.null(group_var)) dataset[,group_var] <- as.factor(dataset[,group_var])
+		if(is.null(c(quan_var,qual_var))) warn.msg3 <- warn.msg2 <- "\a Error: At least one variable should be selected. Analysis has been stopped."
+
+		if(exists('warn.msg3')){
+			HTML(as.title("Warnings"),HR=2,file=stdout())
+			if(exists('warn.msg1')) HTML(warn.msg1,file=stdout())
+			HTML(warn.msg3,file=stdout())
+		} else {
+			## Data Structure
+			HTML(as.title("Data structure"),HR=2,file=stdout())
+			total.var <- ncol(dataset)
+			used.var <- length(c(quan_var,qual_var))
+			DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',nrow(dataset),total.var,used.var),ncol=2)
+			HTML(DS,file=stdout(), innerBorder = 1,align="left")
+
+			#선택변수 리스트
+			R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file=stdout()) 
+			VL <- matrix(0,nrow=1,ncol=2)
+			if(length(quan_var)!=0) VL <- rbind(VL,c('Continuous variable',paste(quan_var,collapse=', ')))
+			if(length(qual_var)!=0) VL <- rbind(VL,c('Categorical variable',paste(qual_var,collapse=', ')))
+			if(length(group_var)!=0) VL <- rbind(VL,c('Group variable',group_var))
+			VL <- VL[-1,,drop=F]
+			HTML(VL,file=stdout(), innerBorder = 1,align="left")
+			if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
+			if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
+
+			#분석결과	
+			R2HTML::HTML(R2HTML::as.title("Results of Descriptive Statistics"),HR=2,file=stdout())
+			if(length(group_var)==0){
+				if(length(quan_var)!=0){
+					R2HTML::HTML(R2HTML::as.title("Continuous variable"),HR=3,file=stdout())
+					result <- list()
+					resulttable <- data.frame()
+					for (i in 1:length(quan_var)) {
+						data <- dataset[,quan_var[i]]
+						all.n <- length(data)
+						num_miss <- sum(is.na(data))
+						n <- all.n-num_miss
+						if(n==0){
+							min <- max <- range <- sum <- mean <- median <- NA
+						} else {
+							min <- min(data[!is.na(data)]) #최소값
+							max <- max(data[!is.na(data)]) #최대값
+							range <- max-min #범위
+							sum <- sum(data[!is.na(data)]) #합계
+							mean <- mean(data[!is.na(data)]) #평균 
+							median <- median(data[!is.na(data)]) #평균 
+							if(n>1){
+								SD <- sd(data[!is.na(data)]) #표준편차
+								VAR <- var(data[!is.na(data)]) #분산
+								skew <- skewness(data[!is.na(data)]) #왜도
+								ifelse(n>2, skew_se <- sqrt(6*n*(n-1)/((n-2)*(n+1)*(n+3))),NA) #왜도의 표준오차
+								kurt <- kurtosis(data[!is.na(data)]) #첨도
+								ifelse(n>3, kurt_se <- 2*skew_se*sqrt((n^2-1)/((n-3)*(n+5))),NA) #첨도의 표준오차
+							} else {
+								SD <- VAR <- skew <- skew_se <- kurt <- kurt_se <- NA
+							}
+						}
+						
+						#결과 저장
+						o <- data.frame("N"=all.n,"Missing"=num_miss,"Min"=min,"Max"=max,"Range"=range,"Sum"=sum,"Mean"=mean,"Median"=median,
+								"Standard Deviation"=SD,"Variance"=VAR,"Skewness"=skew,"se(Skewness)"=skew_se,"Kurtosis"=kurt,"se(Kurtosis)"=kurt_se)
+						result[[i]] <- o
+						resulttable <- rbind(resulttable,result[[i]])
+					}
+					colnames(resulttable) <- c("N.observed","N.missing","Min","Max","Range","Sum","Mean","Median","SD","Variance","Skewness","se(Skewness)","Kurtosis","se(Kurtosis)")
+					rownames(resulttable) <- quan_var
+					#R2HTML::HTML(round(resulttable,4),file=stdout(),innerBorder = 1,align="left") #결과 출력
+					R2HTML::HTML(resulttable,file=stdout(),innerBorder = 1,align="left") #결과 출력
+					R2HTML::HTML("\a Standard deviation, variance, skewness and kurtosis are provided when the number of non-missing observation > 0.\n Standard error of skewness and that of kurtosis are provided when the number of non-missing observation > 1 and > 2, respectively.", file=stdout())
+				}
+				if(length(qual_var)!=0){
+					R2HTML::HTML(R2HTML::as.title("Categorical variable"),HR=3,file=stdout())
+					for(ii in qual_var){
+						R2HTML::HTML(R2HTML::as.title(ii),HR=4,file=stdout())
+						Nom <- dataset[,ii,drop=F]
+						tab <- table(Nom)
+						lev <- c(names(tab),'Missing','Total')
+						freq <- c(as.vector(tab),sum(is.na(Nom)),nrow(Nom))
+						rela.freq <- round(freq/sum(nrow(Nom)),4)
+						fin.tab <- data.frame(Level=lev,Freq=freq,Rela_Freq=rela.freq)
+						rownames(fin.tab) <- NULL
+						R2HTML::HTML(fin.tab,file=stdout(), innerBorder = 1,align="left",row.names=F)
+					}
+				}
+			} else {
+				G <- sort(unique(dataset[,group_var]))
+				if(length(quan_var)!=0){
+					R2HTML::HTML(R2HTML::as.title("Continuous variable"),HR=3,file=stdout())
+					for(g in G){
+						R2HTML::HTML(R2HTML::as.title(paste0(group_var,' - ',g)),HR=4,file=stdout())
+						ind <- which(dataset[,group_var]==g)
+						result <- list()
+						resulttable <- data.frame()
+						for (i in 1:length(quan_var)) {
+							data <- dataset[ind,quan_var[i]] 
+							all.n <- length(data)
+							num_miss <- sum(is.na(data))
+							n <- all.n-num_miss
+							if(n==0){
+								min <- max <- range <- sum <- mean <- median <- NA
+							} else {
+								min <- min(data[!is.na(data)]) #최소값
+								max <- max(data[!is.na(data)]) #최대값
+								range <- max-min #범위
+								sum <- sum(data[!is.na(data)]) #합계
+								mean <- mean(data[!is.na(data)]) #평균 
+								median <- median(data[!is.na(data)]) #평균 
+								if(n>1){
+									SD <- sd(data[!is.na(data)]) #표준편차
+									VAR <- var(data[!is.na(data)]) #분산
+									skew <- skewness(data[!is.na(data)]) #왜도
+									ifelse(n>2, skew_se <- sqrt(6*n*(n-1)/((n-2)*(n+1)*(n+3))),NA) #왜도의 표준오차
+									kurt <- kurtosis(data[!is.na(data)]) #첨도
+									ifelse(n>3, kurt_se <- 2*skew_se*sqrt((n^2-1)/((n-3)*(n+5))),NA) #첨도의 표준오차
+								} else {
+									SD <- VAR <- skew <- skew_se <- kurt <- kurt_se <- NA
+								}
+							}
+
+							
+							#결과 저장
+							o <- data.frame("N"=all.n,"Missing"=num_miss,"Min"=min,"Max"=max,"Range"=range,"Sum"=sum,"Mean"=mean,"Median"=median,
+									"Standard Deviation"=SD,"Variance"=VAR,"Skewness"=skew,"se(Skewness)"=skew_se,"Kurtosis"=kurt,"se(Kurtosis)"=kurt_se)
+							result[[i]] <- o
+							resulttable <- rbind(resulttable,result[[i]])
+						}
+						colnames(resulttable) <- c("N.observed","N.missing","Min","Max","Range","Sum","Mean","Median","SD","Variance","Skewness","se(Skewness)","Kurtosis","se(Kurtosis)")
+						rownames(resulttable) <- quan_var
+						#R2HTML::HTML(round(resulttable,4),file=stdout(),innerBorder = 1,align="left") #결과 출력
+						R2HTML::HTML(resulttable,file=stdout(),innerBorder = 1,align="left") #결과 출력
+					}
+				R2HTML::HTML("\a Standard deviation, variance, skewness and kurtosis are provided when the number of non-missing observation > 0.\n Standard errors of skewness and that of kurtosis are provided when the number of non-missing observation > 1 and > 2, respectively.", file=stdout())
+				}
+				if(length(qual_var)!=0){
+					R2HTML::HTML(R2HTML::as.title("Categorical variable"),HR=3,file=stdout())
+					for(ii in qual_var){
+						R2HTML::HTML(R2HTML::as.title(ii),HR=4,file=stdout())
+						Nom <- dataset[,c(ii,group_var),drop=F]
+						tab <- table(Nom)
+						lev <- c(rownames(tab),'Missing','Total')
+						freq <- rbind(matrix(tab,nrow=nrow(tab)),as.vector(table(Nom[is.na(Nom[,1]),2])))
+						freq <- rbind(freq,colSums(freq))
+						fin.tab <- data.frame(Level=lev,as.data.frame(matrix(NA,ncol=length(levels(Nom[,2]))*2,nrow=length(levels(Nom[,1]))+2)))
+						fin.tab[,seq(2,length(levels(Nom[,2]))*2,2)] <- freq
+						for(jj in 1:length(levels(Nom[,2]))) fin.tab[,jj*2+1] <- round(freq[,jj]/freq[nrow(freq),jj],4)
+						rownames(fin.tab) <- NULL
+						colnames(fin.tab) <- c('Level',paste0(rep(c('Freq(grp=','Rela_Freq(grp='),length(levels(Nom[,2]))),rep(levels(Nom[,2]),each=2),')'))
+						R2HTML::HTML(fin.tab,file=stdout(), innerBorder = 1,align="left",row.names=F)
+					}
+				}
+			}
+		}
+
+		#분석종료시간
+		R2HTML::HTMLhr(file=stdout())
+		R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". REx : Descriptive Statistics",sep=""),file=stdout())
+		R2HTML::HTMLhr(file=stdout())
+	})
+	return(html.output)
+}

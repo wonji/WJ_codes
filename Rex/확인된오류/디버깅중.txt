@@ -1,0 +1,645 @@
+indiv.pkg.info <- function(pkg.info) paste0("* ",pkg.info[[1]]," : ",paste0(paste0(paste0("<em>",pkg.info[[3]],"</em> ÆÐÅ°ÁöÀÇ <em>"),pkg.info[[2]],"</em> ÇÔ¼ö"),collapse=", "))
+used.pkg <- function(pkg.list) cat(paste(c(sapply(pkg.list,indiv.pkg.info),"* À§¿¡ ³ª¿­µÈ °á°ú ¿Ü¿¡´Â RÀÇ ±âº»ÇÔ¼ö¸¦ »ç¿ëÇÏ¿´À½."),collapse="\n"))
+
+
+
+
+### 이항자료회귀분석
+source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\prior_ft.txt")
+source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\회귀분석\\이항자료회귀분석\\REx_LGM.R")
+birth <- read.csv("C:\\Users\\김원지\\Downloads\\확인된오류\\birth_clean.csv",head=T,stringsAsFactor=F)
+
+
+
+
+
+dataset=iris
+dataset <- dataset[dataset$Species!='setosa',]
+
+dep_var = 'Species'; dep_ref='versicolor'; indep_cat_var=NULL; indep_numeric_var=c('Sepal.Length','Petal.Width')
+vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'); noint=F; indep_ref=NULL; link='logit'
+Valid.method='Cross';Part.method='percent';train.perc=70;Part.var=NULL; Cross.method=c('KFOLD'); Pred.var=NULL; Cutoff=0.5;k=12
+CI=TRUE;confint.level=0.95;odds=TRUE;VIF=TRUE;ANOVA=TRUE;ss="III";classtab=TRUE;GOF=TRUE;VIP=TRUE;ROCcurve=TRUE
+Predict_prob_train=TRUE; Predict_CI_train=TRUE;Predict_g_train=TRUE
+Resid=TRUE;stdResid=TRUE;studResid=TRUE;cook_distance=TRUE;linear_pred=TRUE;hat_value=TRUE;confint.level_train=0.95
+Predict_prob_test=TRUE;Predict_CI_test=TRUE;Predict_g_test=TRUE;confint.level_test=0.75
+Predict_CI_pred=TRUE;Part_index=TRUE;select=FALSE;direct="forward";keep_var=NULL;confint.level_pred=0.95
+
+# internal validation using training dataset 
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Partition',Part.method='percent',train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL, Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,select=TRUE,direct="forward",keep_var=NULL)
+
+# internal validation using training dataset 
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Partition',Part.method='all',train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL, Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,select=TRUE,direct="forward",keep_var=NULL)
+
+# internal validation using training/test dataset by variable
+dataset$partvar <- sample(c(1,2,3,4),nrow(dataset),prob=c(0.6,0.3,0.05,0.05),replace=T)
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Partition',Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL, Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,select=TRUE,direct="forward",keep_var=NULL)
+
+# 12 fold cross validation & prediction
+dataset$predvar <- sample(c(1,2,4),nrow(dataset),prob=c(0.6,0.3,0.1),replace=T)
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Cross',Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('KFOLD'),k=12,Pred.var='predvar', Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=TRUE,confint.level_pred=0.95,Part_index=TRUE,select=TRUE,direct="forward",keep_var=NULL)
+
+# LOOCV & prediction
+dataset$predvar <- sample(c(1,2,4),nrow(dataset),prob=c(0.6,0.3,0.1),replace=T)
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Cross',Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('LOOCV'),k=12,Pred.var='predvar', Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=TRUE,confint.level_pred=0.95,Part_index=TRUE,select=TRUE,direct="forward",keep_var=NULL)
+
+# Errors 1 (No training dataset)
+dataset$partvar <- sample(c(2,4),nrow(dataset),prob=c(0.6,0.3),replace=T)
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Partition',Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL, Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,select=TRUE,direct="forward",keep_var=NULL)
+	
+# Warning (No test dataset)
+dataset$partvar <- sample(c(1,4),nrow(dataset),prob=c(0.6,0.4),replace=T)
+a <- REx_LGM(dataset=dataset,dep_var= 'Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Partition',Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL, Cutoff=0.5,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,select=TRUE,direct="forward",keep_var=NULL)
+
+# Warning (No prediction dataset)
+dataset$predvar <- sample(c(2,4),nrow(dataset),prob=c(0.6,0.4),replace=T)
+a <- REx_LGM(dataset=dataset,dep_var='Species',dep_ref='versicolor',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Length','Petal.Width'),vars=c('Sepal.Length','Petal.Width','Sepal.Length:Petal.Width'),noint=FALSE,link='logit',
+			Valid.method='Partition',Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var="predvar", Cutoff=0.7,
+			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",classtab=FALSE,GOF=FALSE,VIP=FALSE,ROCcurve=FALSE,
+			Predict_prob_train=TRUE, Predict_CI_train=TRUE,confint.level_train=0.95,Predict_g_train=TRUE,
+			Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,linear_pred=TRUE,hat_value=TRUE,
+			Predict_prob_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,Predict_g_test=TRUE,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,select=TRUE,direct="forward",keep_var=NULL)
+			
+			
+# 선형회귀분석
+source("C:\\Users\\rewki\\Documents\\projects\\Rex\\prior_ft.txt")
+source("C:\\Users\\김원지\\Downloads\\확인된오류\\회귀분석\\선형회귀분석\\REx_LM.R")
+source("C:\\Users\\김원지\\Downloads\\확인된오류\\회귀분석\\가중선형회귀분석\\REx_WLM.R")
+source("C:\\Users\\김원지\\Documents\\Rex_git\\REx.r")
+
+dataset=iris;dep_var='Sepal.Length';indep_cat_var=NULL;indep_numeric_var=c('Sepal.Width','Petal.Length');vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length');noint=FALSE;
+Valid.method=c('Partition');Part.method='percent';train.perc=70;Part.var=NULL; Cross.method=c('LOOCV','KFOLD'); Pred.var=NULL;
+CI=TRUE;confint.level=0.95;VIF=TRUE;ANOVA=TRUE;ss='III';Plot=TRUE;VIP=TRUE;GOF=TRUE;
+Predict_train=TRUE;Predict_CI_train=TRUE;Predict_PI_train=TRUE;confint.level_train=0.95;Resid=TRUE;stdResid=TRUE;studResid=TRUE;cook_distance=TRUE;hat_value=TRUE;
+Predict_test=FALSE;Predict_CI_test=TRUE;Predict_PI_test=TRUE;confint.level_test=0.95;
+Predict_CI_pred=TRUE;Predict_PI_pred=FALSE;confint.level_pred=0.95;Part_index=TRUE;
+select=FALSE;direct="forward";keep_var=NULL
+
+# internal validation using training dataset 
+a <- REx_LM(dataset=iris,dep_var='Sepal.Length',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Width','Petal.Length'),vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length'),noint=FALSE,
+Valid.method=c('Partition'),Part.method='all',train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'), Pred.var=NULL,
+CI=TRUE,confint.level=0.95,VIF=TRUE,ANOVA=TRUE,ss='III',Plot=TRUE,VIP=TRUE,GOF=TRUE,
+Predict_train=TRUE,Predict_CI_train=TRUE,Predict_PI_train=TRUE,confint.level_train=0.95,Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,hat_value=TRUE,
+Predict_test=FALSE,Predict_CI_test=TRUE,Predict_PI_test=TRUE,confint.level_test=0.95,
+Predict_CI_pred=FALSE,Predict_PI_pred=FALSE,confint.level_pred=0.95,Part_index=TRUE,
+select=FALSE,direct="forward",keep_var=NULL)
+
+# wlm
+a <- REx_WLM(dataset=iris,dep_var='Sepal.Length',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Width','Petal.Length','Petal.Width'),vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length'),noint=FALSE,weight_var='Petal.Width',
+Valid.method=c('Partition'),Part.method='all',train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'), Pred.var=NULL,
+CI=TRUE,confint.level=0.95,VIF=TRUE,ANOVA=TRUE,ss='III',Plot=TRUE,VIP=TRUE,GOF=TRUE,
+Predict_train=TRUE,Predict_CI_train=TRUE,Predict_PI_train=TRUE,confint.level_train=0.95,Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,hat_value=TRUE,
+Predict_test=FALSE,Predict_CI_test=TRUE,Predict_PI_test=TRUE,confint.level_test=0.95,
+Predict_CI_pred=FALSE,Predict_PI_pred=FALSE,confint.level_pred=0.95,Part_index=TRUE,
+Select=FALSE,direct="forward",keep_var=NULL)
+
+dataset=iris;dep_var='Sepal.Length';indep_cat_var=NULL;indep_numeric_var=c('Sepal.Width','Petal.Length');vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length');noint=FALSE;weight_var='Petal.Width'
+Valid.method=c('Partition');Part.method='percent';train.perc=70;Part.var=NULL; Cross.method=c('LOOCV','KFOLD'); Pred.var=NULL;
+CI=TRUE;confint.level=0.95;VIF=TRUE;ANOVA=TRUE;ss='III';Plot=TRUE;VIP=TRUE;GOF=TRUE;
+Predict_train=TRUE;Predict_CI_train=TRUE;Predict_PI_train=TRUE;confint.level_train=0.95;Resid=TRUE;stdResid=TRUE;studResid=TRUE;cook_distance=TRUE;hat_value=TRUE;
+Predict_test=FALSE;Predict_CI_test=TRUE;Predict_PI_test=TRUE;confint.level_test=0.95;
+Predict_CI_pred=TRUE;Predict_PI_pred=FALSE;confint.level_pred=0.95;Part_index=TRUE;
+Select=FALSE;direct="forward";keep_var=NULL
+
+# internal validation using training/test dataset by percent
+a <- REx_LM(dataset=iris,dep_var='Sepal.Length',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Width','Petal.Length'),vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length'),noint=FALSE,
+Valid.method=c('Partition'),Part.method='percent',train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'), Pred.var=NULL,
+CI=TRUE,confint.level=0.95,VIF=TRUE,ANOVA=TRUE,ss='III',Plot=TRUE,VIP=TRUE,GOF=TRUE,
+Predict_train=TRUE,Predict_CI_train=TRUE,Predict_PI_train=TRUE,confint.level_train=0.95,Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,hat_value=TRUE,
+Predict_test=FALSE,Predict_CI_test=TRUE,Predict_PI_test=TRUE,confint.level_test=0.95,
+Predict_CI_pred=FALSE,Predict_PI_pred=FALSE,confint.level_pred=0.95,Part_index=TRUE,
+select=FALSE,direct="forward",keep_var=NULL)
+
+# internal validation using training/test dataset by variable
+iris$partvar <- sample(c(1,2,3,4),nrow(iris),prob=c(0.6,0.3,0.05,0.05),replace=T)
+
+a <- REx_LM(dataset=iris,dep_var='Sepal.Length',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Width','Petal.Length'),vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length'),noint=FALSE,
+Valid.method=c('Partition'),Part.method='variable',train.perc=70,Part.var='partvar', Cross.method=c('LOOCV','KFOLD'), Pred.var=NULL,
+CI=TRUE,confint.level=0.95,VIF=TRUE,ANOVA=TRUE,ss='III',Plot=TRUE,VIP=TRUE,GOF=TRUE,
+Predict_train=TRUE,Predict_CI_train=TRUE,Predict_PI_train=TRUE,confint.level_train=0.95,Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,hat_value=TRUE,
+Predict_test=FALSE,Predict_CI_test=TRUE,Predict_PI_test=TRUE,confint.level_test=0.95,
+Predict_CI_pred=FALSE,Predict_PI_pred=FALSE,confint.level_pred=0.95,Part_index=TRUE,
+select=FALSE,direct="forward",keep_var=NULL)
+
+# 12 fold cross validation & prediction
+iris$predvar <- sample(c(1,2,4),nrow(iris),prob=c(0.6,0.3,0.1),replace=T)
+
+a <- REx_LM(dataset=iris,dep_var='Sepal.Length',indep_cat_var=NULL,indep_numeric_var=c('Sepal.Width','Petal.Length'),vars=c('Sepal.Width','Petal.Length','Sepal.Width:Petal.Length'),noint=FALSE,
+Valid.method=c('Partition'),Part.method='percent',train.perc=70,Part.var='partvar', Cross.method=c('KFOLD'), Pred.var='predvar',k=12,
+CI=TRUE,confint.level=0.95,VIF=TRUE,ANOVA=TRUE,ss='III',Plot=TRUE,GOF=TRUE,
+Predict_train=TRUE,Predict_CI_train=TRUE,Predict_PI_train=TRUE,confint.level_train=0.95,Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,hat_value=TRUE,
+Predict_test=TRUE,Predict_CI_test=TRUE,Predict_PI_test=TRUE,confint.level_test=0.95,
+Predict_CI_pred=TRUE,Predict_PI_pred=TRUE,confint.level_pred=0.75,Part_index=TRUE,
+select=TRUE,direct="forward",keep_var=NULL)
+
+
+#### 포아송회귀분석
+source("C:\\Users\\김원지\\Downloads\\확인된오류\\prior_ft.txt")
+birth <- read.csv("C:\\Users\\김원지\\Downloads\\확인된오류\\birth_NA.csv",head=T,stringsAsFactor=F)
+source("C:\\Users\\김원지\\Downloads\\확인된오류\\회귀분석\\포아송회귀분석\\REx_PoisReg.R")
+
+dataset=birth; res_var='id'; quan_var=c('bweight','matage'); qual_var=c('preterm','hyp','sex'); vars=c('bweight','preterm','hyp','sex'); offset='matage'; link="log"; over_disp=TRUE; 
+			Valid.method='Partition';Part.method='percent';train.perc=70;Part.var=NULL; Cross.method=c('LOOCV','KFOLD');k=10;Pred.var=NULL; 
+			CI=TRUE;confint.level=0.95;exp_estim=TRUE;VIF=TRUE;ANOVA=TRUE;ss_type="III";GOF=TRUE;VIP=TRUE;ODtest=TRUE;
+			Predict_train=TRUE;Predict_CI_train=TRUE;confint.level_train=0.95;Resid=TRUE;stdResid=TRUE;studResid=TRUE;cook_distance=TRUE;hat_value=TRUE;linear_pred=TRUE
+			Predict_test=TRUE;Predict_CI_test=TRUE;confint.level_test=0.95;
+			Predict_CI_pred=FALSE;confint.level_pred=0.95;Part_index=TRUE;
+			Select=TRUE;direct="both";keep_var=NULL
+
+
+
+a <- REx_PoisReg(dataset=birth, res_var='id', quan_var=c('bweight','matage'), qual_var=c('preterm','hyp','sex'), vars=c('bweight','preterm','hyp','sex'), offset='matage', link="log", over_disp=TRUE, 
+			Valid.method='Partition',Part.method='percent',train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL, 
+			CI=TRUE,confint.level=0.95,exp_estim=TRUE,VIF=TRUE,ANOVA=TRUE,ss_type="III",GOF=TRUE,VIP=TRUE,ODtest=TRUE,
+			Predict_train=TRUE,Predict_CI_train=TRUE,confint.level_train=0.95,Resid=TRUE,stdResid=TRUE,studResid=TRUE,cook_distance=TRUE,hat_value=TRUE,
+			Predict_test=TRUE,Predict_CI_test=TRUE,confint.level_test=0.95,
+			Predict_CI_pred=FALSE,confint.level_pred=0.95,Part_index=TRUE,
+			Select=TRUE,direct="both",keep_var=NULL)
+
+
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp','gestwks:hyp'), offset='matage',link='log', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var='gestwks:hyp',VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+
+
+
+
+
+# ±â¼úÅë°è·®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±â¼úÅë°è·®\\REx_DESCSTAT.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_DESCSTAT(dataset=birth,quan_var=c('bweight','gestwks'),qual_var=c('hyp','sex'),group_var='matage',Mean=TRUE,Median=TRUE,Min=TRUE,Max=TRUE,Range=TRUE,Var=TRUE,Sd=TRUE,Skew=TRUE,Kurt=TRUE,Sum=TRUE,Freq=TRUE,CumFreq=TRUE,RelaFreq=TRUE,CumRelaFreq=TRUE,Perc=TRUE,CumPerc=TRUE,ValidPerc=TRUE,CumValidPerc=TRUE,Histogram=TRUE,Boxplot=TRUE,StemLeaf=TRUE,QQ=TRUE,Barplot=TRUE,PieChart=TRUE,PieFreq=TRUE,PiePerc=TRUE,Q1=TRUE,Q3=TRUE);
+REx_DESCSTAT(dataset=birth,quan_var=c('bweight','gestwks'),qual_var=c('hyp','sex'),group_var='lowbw',Mean=FALSE,Median=FALSE,Min=FALSE,Max=FALSE,Range=FALSE,Var=FALSE,Sd=FALSE,Skew=FALSE,Kurt=FALSE,Sum=FALSE,Freq=FALSE,CumFreq=FALSE,RelaFreq=TRUE,CumRelaFreq=FALSE,Perc=FALSE,CumPerc=FALSE,ValidPerc=FALSE,CumValidPerc=FALSE,Histogram=FALSE,Boxplot=FALSE,StemLeaf=F,QQ=FALSE,Barplot=FALSE,PieChart=F,PieFreq=FALSE,PiePerc=FALSE,Q1=FALSE,Q3=FALSE);
+dataset=birth;quan_var=c('bweight','gestwks');qual_var=c('hyp','sex');group_var='lowbw';Mean=TRUE;Median=TRUE;Min=TRUE;Max=TRUE;Range=TRUE;Var=TRUE;Sd=TRUE;Skew=TRUE;Kurt=TRUE;Sum=TRUE;Freq=TRUE;CumFreq=TRUE;RelaFreq=TRUE;CumRelaFreq=TRUE;Perc=TRUE;CumPerc=TRUE;ValidPerc=TRUE;CumValidPerc=TRUE;Histogram=TRUE;Boxplot=TRUE;StemLeaf=TRUE;QQ=TRUE;Barplot=TRUE;PieChart=TRUE;PieFreq=TRUE;PiePerc=TRUE
+
+REx_DESCSTAT(dataset=birth, quan_var=c('bweight','gestwks','matage'), qual_var=c('lowbw','hyp'), group_var='preterm', Mean=TRUE, Median=TRUE, Min=TRUE, Max=TRUE, Q1=TRUE, Q3=TRUE, Range=TRUE, Sum=TRUE, Var=TRUE, Sd=TRUE, Skew=TRUE, Kurt=TRUE, Histogram=FALSE, Boxplot=FALSE, StemLeaf=FALSE, QQ=FALSE, Freq=TRUE, CumFreq=TRUE, RelaFreq=TRUE, CumRelaFreq=TRUE, Perc=TRUE, CumPerc=TRUE, ValidPerc=TRUE, CumValidPerc=TRUE, Barplot=FALSE, PieChart=FALSE, PieFreq=FALSE, PiePerc=FALSE);
+
+
+# ÀÏÇ¥º»T°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\Æò±Õºñ±³\\ÀÏÇ¥º»T°ËÁ¤\\REx_oneTtest.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_oneTtest(dataset=birth, res_var='bweight', mu=0, alternative='less', CI=TRUE, conf.level=0.95,digit=5, Histogram=TRUE, Boxplot=TRUE)
+dataset=birth; res_var='bweight'; mu=0; alternative='less'; CI=TRUE; conf.level=0.95;digit=5; Histogram=TRUE; Boxplot=TRUE
+
+# µ¶¸³Ç¥º»T°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\Æò±Õºñ±³\\µ¶¸³Ç¥º»T°ËÁ¤\\REx_twoTtest.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_twoTtest(birth, res_var='bweight', group_var='hyp', alternative = "two.sided", CI=T, conf.level = 0.95, levenes.test=T, var.equal=T, digit=4, mu=0, Histogram=T, Boxplot=T) 
+dataset = birth; res_var='bweight'; group_var='hyp';mu=0; alternative='less'; CI=TRUE; conf.level=0.95; levenes.test=T;var.equal=T;Histogram=T;Boxplot=T
+
+
+# Â¦ÁøÇ¥º»T°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\Æò±Õºñ±³\\Â¦ÁøÇ¥º»T°ËÁ¤\\REx_pairedTtest.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_pairedTtest(birth, res_var1='matage', res_var2='gestwks', alternative = "two.sided", CI=T, conf.level = 0.95, levenes.test=T, var.equal=T, digit=4, mu=0,Boxplot=T,Spaplot=T)
+dataset=birth; res_var1='matage'; res_var2='gestwks'; alternative = "two.sided"; CI=T; conf.level = 0.95; levenes.test=T; var.equal=T; digit=4; mu=0;Scatterplot=TRUE
+
+
+# ÀÏº¯·®ºÐ»êºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\Æò±Õºñ±³\\ÀÏº¯·®ºÐ»êºÐ¼®\\REx_ANOVA.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_ANOVA(birth, res_var='bweight', vars=c('sex','hyp','preterm','sex:hyp'), ss='II', posthoc=TRUE, posthoc_var='sex', posthoc_method='Tukey', p_adj='none', posthoc_level=0.95, fitted_value=TRUE, resid=FALSE, resid_mode=NULL, cook_distance=TRUE, num_digit=3,resid.graph=TRUE,Boxplot=TRUE);
+dataset = birth; res_var='bweight'; vars=c('sex','hyp','preterm','sex:hyp'); ss='II'; posthoc=TRUE; posthoc_var='sex'; posthoc_method='Tukey'; p_adj='none'; posthoc_level=0.95; fitted_value=TRUE; resid=TRUE; resid_mode=c('original','standard','student'); cook_distance=TRUE; num_digit=3;resid.graph=TRUE;Boxplot=TRUE
+
+
+# ´Ùº¯·®ºÐ»êºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\Æò±Õºñ±³\\´Ùº¯·®ºÐ»êºÐ¼®\\REx_MANOVA.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_MANOVA(dataset=birth,res_var=c('bweight','gestwks'),qual_var=c('sex','hyp','preterm','time_longi'),vars=c('sex','hyp','sex:hyp'),noint=FALSE,ss="I",test_mode=c("Pillai",'Hotelling-Lawley','Wilks','Roy'),Boxplot=TRUE)
+REx_MANOVA(dataset=birth,res_var=c('bweight','gestwks'),qual_var=c('sex','hyp','preterm','time_longi'),vars=c('sex','hyp','sex:hyp'),noint=FALSE,ss="I",test_mode=c("Pillai",'Hotelling-Lawley','Wilks','Roy'),Boxplot=TRUE)
+dataset=birth;res_var=c('bweight','gestwks');qual_var=c('sex','hyp','preterm','time_longi');vars=c('sex','hyp');noint=FALSE;ss="I";test_mode=c("Pillai",'Hotelling-Lawley','Wilks','Roy');resid.graph=TRUE;Boxplot=TRUE
+
+
+
+# ÀÏÇ¥º»ºñÀ²°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\ºñÀ²ºñ±³\\ÀÏÇ¥º»ºñÀ²°ËÁ¤\\REx_OSPT.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_OSPT(exact=TRUE, x=324, n=3240, p=0.5, alternative='less', conf.level=0.95, correct=FALSE);
+REx_OSPT(exact=FALSE, dataset=birth, res_var='sex', event=2, p=0.5, alternative='less', conf.level=0.95, correct=FALSE);
+REx_OSPT(exact=FALSE, dataset=birth, res_var='hyp', event=1, p=0.5, alternative='less', conf.level=0.95, correct=TRUE)
+REx_OSPT(exact=T, dataset=birth, res_var='hyp', event=1, p=0.5, alternative='less', conf.level=0.95, correct=TRUE)
+
+exact=FALSE; x=324; n=3240; p=0.5; alternative='less'; conf.level=0.95; correct=FALSE
+exact=FALSE; dataset=birth; res_var='sex'; event=2; p=0.5; alternative='less'; conf.level=0.95; correct=FALSE
+exact=FALSE; dataset=birth; res_var='hyp'; event=1; p=0.5; alternative='less'; conf.level=0.95; correct=TRUE
+
+# ÀÌÇ¥º» ºñÀ²°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\ºñÀ²ºñ±³\\ÀÌÇ¥º»ºñÀ²°ËÁ¤\\REx_TSPT.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_TSPT(dataset = birth, dataid = 'lowbw', res_var ='hyp', event=0, pool=FALSE, alternative='two.sided', conf.level=0.95);
+REx_TSPT(dataset = birth, dataid = 'lowbw', res_var ='hyp', event=0, pool=TRUE, alternative='two.sided', conf.level=0.95);
+REx_TSPT(dataset = birth, res_var1 ='lowbw', res_var2 ='hyp', event1=0, event2=0, pool=FALSE, alternative='two.sided', conf.level=0.95);
+
+dataset = birth; dataid = 'lowbw'; res_var ='hyp'; event=0; pool=FALSE; alternative='two.sided'; conf.level=0.95
+dataset = birth; res_var1 ='lowbw'; res_var2 ='hyp'; event1=0; event2=0; pool=FALSE; alternative='two.sided'; conf.level=0.95
+
+
+
+# µîºÐ»ê °ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\±×·ìºñ±³\\ºÐ»êºñ±³\\µîºÐ»ê°ËÁ¤\\REx_VAR_TEST.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_VAR_TEST(birth, res_var='gestwks', group_var='hyp+sex', methods='F-test', centering='mean', alternative_hypothesis='two.sided', CI=TRUE, confi.level=0.95, digits=3,Boxplot=T);
+dataset=birth; res_var='gestwks'; group_var='hyp+sex'; methods='F-test'; centering='mean'; alternative_hypothesis='two.sided'; CI=TRUE; confi.level=0.95; digits=3;Boxplot=T
+REx_VAR_TEST(birth, res_var='bweight', group_var='sex', methods='levene', centering='mean', Boxplot=T);
+dataset=birth; res_var='bweight'; group_var='sex'; methods='levene'; centering='mean'; Boxplot=T
+
+
+
+REx_VAR_TEST(dataset=birth,res_var='bweight',group_var='sex',methods='Levene',centering='mean',alternative_hypothesis='two.sided',CI=FALSE,confi.level=0.95,digits=3,Boxplot=T)
+dataset=birth;res_var='bweight';group_var='sex';methods='Levene';centering='mean';alternative_hypothesis='two.sided';CI=FALSE;confi.level=0.95;digits=3;Boxplot=T
+
+
+
+# ¼±ÇüÈ¸±ÍºÐ¼®
+source("C:\\Users\\±è¿øÁö\\Downloads\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\¼±ÇüÈ¸±ÍºÐ¼®\\REx_LM.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\birth.csv",head=T,stringsAsFactor=F)
+
+REx_LM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp','preterm','lowbw'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','preterm','lowbw','gestwks','matage','gestwks:matage'), noint=FALSE, CI=TRUE, confint.level=0.95, VIF=TRUE, select=TRUE, keep_var=c('sex','preterm','matage','hyp'), direct='forward', ANOVA=TRUE, Predict=F, Resid=F, stdResid=F, Plot=TRUE, VIP=FALSE, GOF=TRUE, Validation=TRUE, k=500,hat_value=T,cook_distance=T);
+REx_LM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp','preterm','lowbw'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','preterm','lowbw','gestwks','matage','gestwks:matage'), noint=FALSE, CI=TRUE, confint.level=0.95, VIF=TRUE, select=TRUE, keep_var=c('sex','preterm','matage','hyp'), direct='both', ANOVA=TRUE, Predict=TRUE, Resid=TRUE, stdResid=TRUE, Plot=TRUE, VIP=FALSE, GOF=TRUE, Validation=TRUE, k=10, hat_value=T,cook_distance=T);
+REx_LM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp','preterm','lowbw'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','preterm','lowbw','gestwks','matage','gestwks:matage'), noint=FALSE, CI=TRUE, confint.level=0.95, VIF=TRUE, select=TRUE, keep_var='gestwks:matage', direct='forward', ANOVA=TRUE, Predict=F, Resid=F, stdResid=F, Plot=TRUE, VIP=FALSE, GOF=TRUE, Validation=F, k=500);
+dataset=birth; dep_var='bweight'; indep_cat_var=c('sex','hyp','preterm','lowbw'); indep_numeric_var=c('gestwks','matage'); vars=c('sex','hyp','preterm','lowbw','gestwks','matage','gestwks:matage'); noint=FALSE; CI=TRUE; confint.level=0.95; VIF=TRUE; select=TRUE; keep_var=c('matage','hyp'); direct='forward'; ANOVA=TRUE; Predict=F; Resid=F; stdResid=F; Plot=TRUE; VIP=FALSE; GOF=TRUE; Validation=TRUE; k=500;hat_value=T;cook_distance=T
+dataset=birth; dep_var='bweight'; indep_cat_var=c('lowbw'); indep_numeric_var=c('gestwks'); vars=c('lowbw','gestwks','lowbw:gestwks'); noint=FALSE; CI=TRUE; confint.level=0.95; VIF=TRUE; select=TRUE; keep_var=c('lowbw:gestwks'); direct='forward'; ANOVA=TRUE; Predict=F; Resid=F; stdResid=F; Plot=TRUE; VIP=FALSE; GOF=TRUE; Validation=TRUE; k=500;hat_value=T;cook_distance=T
+dataset=birth; dep_var='bweight'; indep_cat_var=c('sex','hyp','preterm','lowbw'); indep_numeric_var=c('gestwks','matage'); vars=c('sex','hyp','preterm','lowbw','gestwks','matage','gestwks:matage'); noint=FALSE; CI=TRUE; confint.level=0.95; VIF=TRUE; select=TRUE; keep_var='gestwks:matage'; direct='forward'; ANOVA=TRUE; Predict=TRUE; Resid=TRUE; stdResid=TRUE; Plot=TRUE; VIP=FALSE; GOF=TRUE; Validation=TRUE; k=500
+
+
+object=res_LM_1;type='lm';hr=3;WTS=NULL;link=NULL;res_type=NULL;dist=NULL;baseline=NULL;
+		       tmp.parallel=NULL;offset=NULL;time1=NULL;event=NULL
+,dataset,dep_var,type='lm',noint,direct,keep_var,hr=3,vars
+
+# °¡Áß¼±ÇüÈ¸±ÍºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\°¡Áß¼±ÇüÈ¸±ÍºÐ¼®\\REx_WLM.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\birth.csv",head=T,stringsAsFactor=F)
+
+REx_WLM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','gestwks','sex:gestwks'), weight_var='matage', weight_option=FALSE, noint=FALSE, CI=TRUE, confint.level=0.95, ANOVA=TRUE, Predict=FALSE, Resid=FALSE, stdResid=FALSE, weightVar=F, Plot=TRUE,VIF=TRUE,Select=TRUE,keep_var='sex',direct='both',VIP=T,Validation=T,k=20,GOF=T,hat_value=T,cook_distance=T,studResid=T);
+REx_WLM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','gestwks','sex:gestwks'), weight_var='matage', weight_option=FALSE, noint=FALSE, CI=TRUE, confint.level=0.95, ANOVA=TRUE, Predict=FALSE, Resid=FALSE, stdResid=FALSE, weightVar=TRUE, Plot=TRUE,VIF=TRUE,Select=TRUE,keep_var='sex',direct='both',VIP=T,Validation=T,k=500,GOF=T);
+REx_WLM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','gestwks','sex:gestwks'), weight_var='matage', weight_option=FALSE, noint=TRUE, CI=TRUE, confint.level=0.90, ANOVA=TRUE, Predict=FALSE, Resid=FALSE, stdResid=FALSE, weightVar=FALSE, Plot=TRUE,VIF=TRUE,Select=TRUE,keep_var=c('gestwks','sex:gestwks'),direct='forward');
+REx_WLM(dataset=birth, dep_var='bweight', indep_cat_var=c('sex','hyp'), indep_numeric_var=c('gestwks','matage'), vars=c('sex','hyp','gestwks','sex:gestwks'), weight_var='matage', weight_option=FALSE, noint=FALSE, CI=TRUE, confint.level=0.90, ANOVA=TRUE, Predict=FALSE, Resid=FALSE, stdResid=FALSE, weightVar=FALSE, Plot=TRUE,VIF=TRUE,Select=TRUE,keep_var=NULL,direct='forward');
+dataset=birth; dep_var='bweight'; indep_cat_var=c('sex','hyp'); indep_numeric_var=c('gestwks','matage'); vars=c('sex','hyp','gestwks','sex:gestwks'); weight_var='matage'; weight_option=FALSE; noint=FALSE; CI=TRUE; confint.level=0.95; ANOVA=TRUE; Predict=FALSE; Resid=FALSE; stdResid=FALSE; weightVar=TRUE; Plot=TRUE;VIF=TRUE;Select=TRUE;keep_var=NULL;direct='forward'
+dataset=birth; dep_var='bweight'; indep_cat_var=c('sex','hyp'); indep_numeric_var=c('gestwks','matage'); vars=c('sex','hyp','gestwks','sex:gestwks'); weight_var='matage'; weight_option=FALSE; noint=FALSE; CI=TRUE; confint.level=0.95; ANOVA=TRUE; Predict=FALSE; Resid=FALSE; stdResid=FALSE; weightVar=F; Plot=TRUE;VIF=TRUE;Select=TRUE;keep_var='sex';direct='both';VIP=T;Validation=T;k=20;GOF=T;hat_value=T;cook_distance=T;studResid=T
+
+# 이항자료회귀분석
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\이항자료회귀분석\\REx_LGM.R")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\stepAIC_wj.txt")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_LGM(dataset=birth, dep_var='hyp', dep_ref='0', indep_cat_var=c('sex'), indep_numeric_var='matage', vars=c('sex','matage','sex:matage'), noint=FALSE, link='logit', CI=TRUE, confint.level=0.95, odds=TRUE, Validation=TRUE, k=10, ANOVA=TRUE, ss='II', GOF=TRUE, classtab=TRUE, cutpoint=0.5, Predict_prob=FALSE, Predict_g=FALSE, Predict_g_criteria=0.5, Resid=FALSE, stdResid=FALSE, select=TRUE, keep_var=c('sex'), direct='forward', Plot=TRUE,ROCcurve=TRUE,linear_pred=F,cook_distance=F,hat_value=F);
+REx_LGM(dataset=birth, dep_var='lowbw', dep_ref='0', indep_cat_var=c('hyp','sex'), indep_numeric_var='matage', vars=c('hyp','sex','matage','sex:matage'), noint=FALSE, link='logit', CI=TRUE, confint.level=0.95, odds=TRUE, Validation=TRUE, k=10, ANOVA=TRUE, ss='I', GOF=TRUE, ng=10, classtab=TRUE, cutpoint=0.5, VIP=FALSE, corInform=FALSE, Predict_prob=FALSE, Predict_g=FALSE, Predict_g_criteria=0.5, Resid=FALSE, stdResid=FALSE, select=TRUE, keep_var=c('matage','sex:matage'), direct='forward', Plot=TRUE,ROCcurve=TRUE);
+REx_LGM(dataset=birth, link='cloglog', dep_var='lowbw', dep_ref='0', indep_cat_var=c('hyp','sex'), indep_numeric_var='matage', vars=c('hyp','sex','matage'), noint=TRUE, CI=TRUE, confint.level=0.95, odds=TRUE, Validation=TRUE, k=10, ANOVA=TRUE, ss='II', GOF=TRUE, ng=10, classtab=TRUE, cutpoint=0.5, VIP=FALSE, corInform=FALSE, Predict_prob=FALSE, Predict_g=FALSE, Predict_g_criteria=0.5, Resid=FALSE, stdResid=FALSE, select=TRUE, keep_var=c('hyp'), direct='forward', Plot=TRUE,ROCcurve=TRUE,studResid=T);
+
+dataset=birth; dep_var='lowbw'; dep_ref='0'; indep_cat_var=c('hyp','sex'); indep_numeric_var='matage'; vars=c('hyp','sex','matage'); noint=FALSE; link='logit'; CI=TRUE; confint.level=0.95; odds=TRUE; Validation=TRUE; k=10; ANOVA=TRUE; ss='I'; GOF=TRUE; ng=10; classtab=TRUE; cutpoint=0.5; VIP=FALSE; corInform=FALSE; Predict_prob=FALSE; Predict_g=FALSE; Predict_g_criteria=0.5; Resid=FALSE; stdResid=FALSE; select=TRUE; keep_var=c('hyp'); direct='forward'; Plot=TRUE; ROCcurve=TRUE
+dataset=birth; link='cloglog'; dep_var='lowbw'; dep_ref='0'; indep_cat_var=c('hyp','sex'); indep_numeric_var='matage'; vars=c('hyp','sex','matage'); noint=TRUE; CI=TRUE; confint.level=0.95; odds=TRUE; Validation=TRUE; k=10; ANOVA=TRUE; ss='II'; GOF=TRUE; ng=10; classtab=TRUE; cutpoint=0.5; VIP=FALSE; corInform=FALSE; Predict_prob=FALSE; Predict_g=FALSE; Predict_g_criteria=0.5; Resid=FALSE; stdResid=FALSE; select=TRUE; keep_var=c('hyp'); direct='forward'; Plot=TRUE
+
+
+# ´ÙÇ×ÀÚ·áÈ¸±ÍºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\´ÙÇ×ÀÚ·áÈ¸±ÍºÐ¼®\\REx_MultinomGLM.R")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\stepAIC_wj.txt")
+data(iris)
+REx_MultinomGLM(iris, res_var='Species', quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), res_type='nominal', baseline='setosa', ss_type='II', vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), CI=TRUE, CI_level=0.95, exp_estim=TRUE, fitted_value=TRUE, resid_orig=TRUE, linear_pred=TRUE, hat_value=TRUE, ANOVA=TRUE, classtab=TRUE, Select=TRUE, direct='forward',keep_var=NULL);
+REx_MultinomGLM(iris, res_var='Species', quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), res_type='nominal', baseline='setosa', ss_type='II', CI=TRUE, CI_level=0.95, exp_estim=TRUE, fitted_value=TRUE, resid_orig=TRUE, linear_pred=TRUE, hat_value=TRUE, ANOVA=TRUE, classtab=TRUE);
+REx_MultinomGLM(iris, res_var='Species', quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), res_type='ordinal', baseline='setosa', ss_type='II', vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), CI=TRUE, CI_level=0.95, exp_estim=TRUE, fitted_value=TRUE, resid_orig=TRUE, linear_pred=TRUE, hat_value=TRUE, ANOVA=TRUE, classtab=TRUE, Select=TRUE, direct='forward',keep_var=NULL);
+REx_MultinomGLM(iris, res_var='Species', quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), res_type='ordinal', baseline='setosa', ss_type='II', vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), CI=TRUE, CI_level=0.95, exp_estim=TRUE, fitted_value=TRUE, resid_orig=TRUE, linear_pred=TRUE, hat_value=TRUE, ANOVA=TRUE, classtab=TRUE, Select=TRUE, direct='forward',keep_var=NULL, link='probit');
+REx_MultinomGLM(iris, res_var='Species', quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), res_type='ordinal', baseline='setosa', ss_type='II', vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'), CI=TRUE, CI_level=0.95, exp_estim=TRUE, fitted_value=TRUE, resid_orig=TRUE, linear_pred=TRUE, hat_value=TRUE, ANOVA=TRUE, classtab=TRUE, Select=TRUE, direct='forward',keep_var=NULL, link='foldsqrt');
+
+REx_MultinomGLM(birth, res_var='time_longi', quan_var=c('matage'), qual_var='hyp', res_type='nominal', baseline='1', ss_type='II', vars=c('hyp','matage','hyp:matage'), CI=TRUE, CI_level=0.95, exp_estim=TRUE, fitted_value=F, resid_orig=F, linear_pred=F, hat_value=F, ANOVA=T, classtab=TRUE, Select=T, direct='forward',keep_var=NULL);
+dataset=birth; res_var='time_longi'; quan_var=c('matage'); qual_var='hyp'; res_type='nominal'; baseline='1'; ss_type='II'; vars=c('hyp','matage','hyp:matage'); CI=TRUE; CI_level=0.95; exp_estim=TRUE; fitted_value=F; resid_orig=F; linear_pred=F; hat_value=F; ANOVA=T; classtab=TRUE; Select=T; direct='forward';keep_var=NULL
+
+dataset=iris; res_var='Species'; quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'); res_type='nominal'; baseline='setosa'; ss_type='II'; vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'); CI=TRUE; CI_level=0.95; exp_estim=TRUE; fitted_value=TRUE; resid_orig=TRUE; resid_pearson=TRUE; linear_pred=TRUE; hat_value=TRUE; ANOVA=TRUE; classtab=TRUE; Select=TRUE; direct='forward';keep_var='Sepal.Length'; norm.parallel=TRUE
+dataset=iris; res_var='Species'; quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'); res_type='ordinal'; test_type='F'; ss_type='II'; vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'); CI=TRUE; CI_level=0.95; exp_estim=TRUE; fitted_value=TRUE; resid_orig=TRUE; resid_pearson=TRUE; linear_pred=TRUE; hat_value=TRUE; ANOVA=TRUE; classtab=TRUE; Select=TRUE; direct='forward';keep_var='Sepal.Length'; ord.parallel=TRUE; ord_levels=c('setosa','virginica','versicolor')
+dataset=iris; res_var='Species'; quan_var=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'); res_type='ordinal'; baseline='setosa'; test_type='Chisq'; ss_type='II'; vars=c('Sepal.Length','Sepal.Width','Petal.Length','Petal.Width'); CI=TRUE; CI_level=0.95; exp_estim=TRUE; fitted_value=TRUE; resid_orig=TRUE; resid_pearson=TRUE; linear_pred=TRUE; hat_value=TRUE; ANOVA=TRUE; classtab=TRUE; Select=TRUE; direct='forward';keep_var=NULL; ord.parallel=FALSE; link='foldsqrt'
+
+dat <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\¼³¸íº¯¼ö°£_»ó°ü°è¼ö.csv",head=T)
+REx_MultinomGLM(dat, res_var='age', qual_var=c('BMI'), quan_var=c('A'),vars=c('BMI','A'),res_type='nominal', baseline='a', ss_type='II', CI=TRUE, CI_level=0.95, exp_estim=TRUE);
+
+
+
+# Æ÷¾Æ¼ÛÈ¸±ÍºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\Æ÷¾Æ¼ÛÈ¸±ÍºÐ¼®\\REx_PoisReg.R")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\stepAIC_wj.txt")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp','gestwks:hyp'), offset='matage',link='log', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var='gestwks:hyp',VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset=NULL,link='log', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset=NULL,link='sqrt', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE,);
+
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset='matage',link='log', over_disp=TRUE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset=NULL,link='log', over_disp=TRUE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+REx_PoisReg(dataset=birth, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset=NULL,link='sqrt', over_disp=TRUE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE,);
+
+REx_PoisReg(dataset=birth, noint=TRUE, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset='matage',link='log', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+REx_PoisReg(dataset=birth, noint=TRUE, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset=NULL,link='log', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE);
+REx_PoisReg(dataset=birth, noint=TRUE, res_var='id', quan_var='gestwks', qual_var='hyp', vars=c('gestwks','hyp'), offset=NULL,link='sqrt', over_disp=FALSE, ss_type=2, CI=TRUE, CI_level=0.95, exp_estim=TRUE, ANOVA=TRUE, fitted_value=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, Select=TRUE,direct='forward',keep_var=NULL,VIF=TRUE,Validation=TRUE,k=50,GOF=TRUE,Plot=TRUE,);
+
+dataset=birth; res_var='id'; quan_var='gestwks'; qual_var='hyp'; vars=c('gestwks','hyp'); link='log'; over_disp=FALSE; ss_type=2; chisq_mode='likelihood'; CI_mode='likelihood'; CI_level=0.95; fit_info=TRUE; summary_stat=TRUE; fitness=TRUE; estim=TRUE; exp_estim=FALSE; testing=TRUE; covar_mat=TRUE; corr_mat=TRUE; fitted_value=FALSE; resid=FALSE; linear_pred=FALSE; hat_value=FALSE; cook_distance=FALSE; num_digit=3; Select=TRUE; keep_var=NULL; direct='forward'
+dataset=birth; res_var='id'; quan_var='gestwks'; qual_var='hyp'; vars=c('gestwks','hyp'); offset='matage';link='log'; over_disp=FALSE; ss_type=2; CI=TRUE; CI_level=0.95; exp_estim=TRUE; ANOVA=TRUE; fitted_value=FALSE; resid=FALSE; linear_pred=FALSE; hat_value=FALSE; cook_distance=FALSE; Select=TRUE;direct='forward';keep_var=NULL;VIF=TRUE;Validation=TRUE;k=50;GOF=TRUE;Plot=TRUE;noint=TRUE
+
+
+
+
+
+### ºÐÇÒÇ¥ºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\¹üÁÖÇüÀÚ·áºÐ¼®\\ºÐÇÒÇ¥ºÐ¼®\\REx_ContinTabAnal.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+birth$new_group <- sample(letters[1:4],nrow(birth),replace=T)
+
+## µ¥ÀÌÅÍ·Î ÀÚ·á ÁÖ¾îÁ³À» ¶§,
+# 2 nominal variables with no adj var & no freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = c('lowbw','sex'), ord_var = NULL, score1 = NULL, score2 = NULL,
+		  adj.var = NULL, freq.var = NULL,
+		  indep.test = TRUE, cmh.test = F, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 2 nominal variables with adj var & no freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = c('lowbw','sex'), ord_var = NULL, score1 = NULL, score2 = NULL,
+		  adj.var = 'hyp', freq.var = NULL,
+		  indep.test = TRUE, cmh.test = T, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 2 nominal variables with adj var & freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = c('lowbw','sex'), ord_var = NULL, score1 = NULL, score2 = NULL,
+		  adj.var = 'hyp', freq.var = "matage",
+		  indep.test = TRUE, cmh.test = T, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 2 ordinal variables with no adj var & no freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = NULL, ord_var = c('lowbw','sex'), score1 = list('0'=10,'1'=23), score2 = list('1'=5,'2'=1),
+		  adj.var = NULL, freq.var = NULL,
+		  indep.test = TRUE, cmh.test = F, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 2 nominal variables with adj var & no freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = NULL, ord_var = c('lowbw','sex'), score1 = list('0'=10,'1'=23), score2 = list('1'=5,'2'=1),
+		  adj.var = 'hyp', freq.var = NULL,
+		  indep.test = TRUE, cmh.test = T, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 2 nominal variables with adj var & freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = NULL, ord_var = c('lowbw','sex'), score1 = list('0'=10,'1'=23), score2 = list('1'=5,'2'=1),
+		  adj.var = 'hyp', freq.var = "matage",
+		  indep.test = TRUE, cmh.test = T, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 1 nominal 1 ordinal variables with no adj var & no freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = 'new_group', ord_var = 'sex', score1 = list('1'=10,'2'=23), score2 = NULL,
+		  adj.var = NULL, freq.var = NULL,
+		  indep.test = TRUE, cmh.test = F, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 1 nominal 1 ordinal variables with adj var & no freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = 'lowbw', ord_var = 'new_group', score1 = list('a'=10,'b'=23,'c'=0,'d'=-3), score2 = NULL,
+		  adj.var = 'hyp', freq.var = NULL,
+		  indep.test = TRUE, cmh.test = T, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+# 1 nominal 1 ordinal variables with adj var & freq var
+REx_ContinTabAnal(data=birth, freq.table = F, vartype=NULL,
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = 'lowbw', ord_var = 'sex', score1 = list('1'=10,'2'=23), score2 = NULL,
+		  adj.var = 'hyp', freq.var = "matage",
+		  indep.test = TRUE, cmh.test = T, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+## ºÐÇÒÇ¥·Î ÀÚ·á°¡ ÁÖ¾îÁ³À» ¶§
+# 2 ordinal variables with no adj var & no freq var
+REx_ContinTabAnal(data=data.frame("yes"=c(321,1265,1586),"no"=c(54,844,898),"tot"=c(875,2109,2484),row.names=c("yes","no","tot")),
+		  freq.table = TRUE, vartype=c('Norm','Norm'), freq.x="Smoking", freq.y="Lung Cancer",
+                  row.sum = T, col.sum = T, row.var.name = T, col.var.name = T,
+		  norm_var = NULL, ord_var = NULL, score1 = NULL, score2 = NULL,
+		  adj.var = NULL, freq.var = NULL,
+		  indep.test = TRUE, cmh.test = F, homo.test=TRUE, assoc.measure=TRUE,
+                  freq.obs = TRUE, freq.exp = TRUE, 
+                  percent.row = TRUE, percent.col = TRUE, percent.tl = TRUE, condi.tab=TRUE,
+                  res.unstnd = TRUE, res.stnd = T, res.adj = T,
+		  BarPlot=T, BalloonPlot=T, MosaicPlot=T)
+
+
+### ·Î±×¼±Çü¸ðÇü
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\¹üÁÖÇüÀÚ·áºÐ¼®\\·Î±×¼±ÇüºÐ¼®\\REx_loglinear.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+REx_loglinear(data=birth, freq.form = F, freq.var=NULL, variables=c('sex'),
+              table = T, exp_estim = T, CI = TRUE, CI_level = 0.95, 
+              testing = T, ss_type ="II", BarPlot = T, BalloonPlot = T, MosaicPlot = T)
+	      
+	      
+	      
+data=birth; freq.form=FALSE; variables=c('sex'); table=TRUE; cond.tab=TRUE; margin.tab=TRUE; fitness=TRUE; estim=TRUE; exp_estim=TRUE; CI=TRUE; CI_mode='both'; CI_level=0.95; testing=TRUE; chisq_mode='both'; ss_type='I'
+
+
+
+### »ý¸íÇ¥
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\»ýÁ¸ºÐ¼®\\»ý¸íÇ¥\\REx_LifeTable.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\birth.csv",head=T,stringsAsFactor=F)
+birth$newtime <- birth$time_longi/3
+
+REx_LifeTable(dataset=birth, aggre=F, time="time_longi", event="hyp", event.var=NULL, censor.var=NULL, Event="1", Censoring="0", confi=0.95, survival_plot=TRUE, a1_survival_plot=TRUE, log_survival_plot=TRUE, CHazard_plot=TRUE)
+REx_LifeTable(dataset=birth, aggre=T, time="sex", event=NULL, event.var="matage", censor.var="preterm", Event=NULL, Censoring=NULL, confi=0.95, survival_plot=TRUE, a1_survival_plot=TRUE, log_survival_plot=TRUE, CHazard_plot=TRUE)
+
+dataset=birth; aggre=T; time="time_longi"; event=NULL; event.var="matage"; censor.var="preterm"; Event=NULL; Censoring=NULL; confi=0.95; survival_plot=TRUE; a1_survival_plot=TRUE; log_survival_plot=TRUE; CHazard_plot=TRUE
+
+
+REx_LifeTable(dataset=birth, aggre=F, time="time_longi", event="hyp", event.var=NULL, censor.var=NULL, Event="1", Censoring="0", confi=0.95, survival_plot=TRUE, a1_survival_plot=TRUE, log_survival_plot=TRUE, CHazard_plot=TRUE)
+dataset=birth; aggre=F; time="time_longi"; event="hyp"; event.var=NULL; censor.var=NULL; Event="1"; Censoring="0"; confi=0.95; survival_plot=TRUE; a1_survival_plot=TRUE; log_survival_plot=TRUE; CHazard_plot=TRUE
+
+### Kaplan-Meier
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\»ýÁ¸ºÐ¼®\\Kaplan-Meier\\REx_KMsurv.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_KMsurv(dataset=birth, aggre=F, time='matage', event='hyp', event.var=NULL, group.var=NULL, censor.var=NULL, Event='1', Censoring='0', confi=0.95, survival_plot=T, a1_survival_plot=T, log_survival_plot=T, CHazard_plot=T, group.diff=T)
+REx_KMsurv(dataset=birth, aggre=F, time='matage', event='hyp', event.var=NULL, group.var="sex", censor.var=NULL, Event='1', Censoring='0', confi=0.95, survival_plot=T, a1_survival_plot=T, log_survival_plot=T, CHazard_plot=T, group.diff=T)
+REx_KMsurv(dataset=birth, aggre=T, time='matage', event=NULL, event.var="matage", group.var="sex", censor.var="obs_longi", Event=NULL, Censoring=NULL, confi=0.95, survival_plot=T, a1_survival_plot=T, log_survival_plot=T, CHazard_plot=T, group.diff=T)
+
+
+### Coxºñ·ÊÀ§Çè
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\»ýÁ¸ºÐ¼®\\Coxºñ·ÊÀ§Çè¸ðÇü\\REx_Coxph.R")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\stepAIC_wj.txt")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_Coxph(dataset=birth, time1='time_longi', event='lowbw', cov_set1='matage', cov_set2='hyp', tdp_time=NULL, tdp_cov=NULL, tdp_var=NULL, vars=c('hyp','matage','hyp:matage'), confi=0.95, Select=T, direct= "forward", keep_var = NULL, survival_plot=FALSE, a1_survival_plot=T, CHazard_plot=T, log_survival_plot=T, expestim=T, CI=TRUE, CI_level=0.95) 
+dataset=birth;time1='time_longi';event='lowbw';cov_set1='matage';cov_set2='hyp';vars=c('hyp','matage','hyp:matage');Select=T;keep_var=NULL
+
+REx_Coxph(dataset=birth, time1='time_longi', event='hyp', cov_set1='gestwks', cov_set2='lowbw', tdp_time=NULL, tdp_cov=NULL, tdp_var=NULL, vars=c('lowbw','gestwks','lowbw:gestwks'), confi=0.95, Select=T, direct= "forward", keep_var = NULL, survival_plot=T, a1_survival_plot=T, CHazard_plot=T, log_survival_plot=T, expestim=T, CI=TRUE, CI_level=0.95) 
+
+
+# ÆíÃÖ¼ÒÁ¦°ö
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\ÆíÃÖ¼ÒÁ¦°ö\\REx_PLS.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+aa <- REx_PLS(birth, dep_numeric_var=c('bweight'), dep_cat_var=c('hyp'), dep_cat_baseline=c('hyp::1'), indep_numeric_var=c('matage'), indep_cat_var=c('sex'), indep_cat_baseline=c('sex::2'), dimnum=2, crosval=TRUE, Xscore=TRUE, Yscore=TRUE, Pred=TRUE, Resid=TRUE);
+dataset=birth; dep_numeric_var=c('bweight'); dep_cat_var=c('hyp'); dep_cat_baseline=c('hyp::1'); indep_numeric_var=c('matage'); indep_cat_var=c('sex'); indep_cat_baseline=c('sex::2'); dimnum=2; crosval=TRUE; Xscore=TRUE; Yscore=TRUE; Pred=TRUE; Resid=TRUE
+
+
+# ´Ùº¯·®¼±ÇüÈ¸±ÍºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\´Ùº¯·®¼±ÇüÈ¸±ÍºÐ¼®\\REx_MultiVarReg.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+gg <- REx_MultiVarReg(birth, res_var=c('bweight','preterm','time_longi'), quan_var='gestwks', qual_var=c('sex','hyp'), vars=c('sex','hyp','gestwks','hyp:gestwks'), noint=FALSE, ss='II', test_mode=c('Pillai','Hotelling-Lawley','Wilks','Roy'));
+gg1 <- REx_MultiVarReg(birth, res_var=c('bweight','preterm','time_longi'), quan_var='gestwks', qual_var=c('sex','hyp'), vars=NULL, noint=FALSE, ss='II', test_mode=c('Pillai','Hotelling-Lawley','Wilks','Roy'));
+
+dataset=birth; res_var=c('bweight','preterm','time_longi'); quan_var='gestwks'; qual_var=c('sex','hyp'); vars=NULL; noint=FALSE; ss='II'; test_mode=c('Pillai','Hotelling-Lawley','Wilks','Roy')
+
+
+
+
+
+# ´ÙÇ×ÀÚ·áÈ¸±ÍºÐ¼®
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\È¸±ÍºÐ¼®\\´ÙÇ×ÀÚ·áÈ¸±ÍºÐ¼®\\REx_MultinomGLM.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_MultinomGLM(birth, res_var='sex', quan_var='time_longi', res_type='nominal', baseline='1', test_type='Chisq', ss_type='II', CI_level=0.95, exp_estim=FALSE, testing=TRUE, covar_mat=FALSE, corr_mat=FALSE, fitted_value=FALSE, resid_orig=FALSE, resid_pearson=FALSE, linear_pred=FALSE, hat_value=FALSE);
+dataset=birth; res_var='sex'; quan_var='time_longi'; res_type='nominal'; baseline='1'; test_type='Chisq'; ss_type='II'; CI_level=0.95; exp_estim=FALSE; testing=TRUE; covar_mat=FALSE; corr_mat=FALSE; fitted_value=FALSE; resid_orig=FALSE; resid_pearson=FALSE; linear_pred=FALSE; hat_value=FALSE;vars=NULL
+
+
+# °Å¸®Ãøµµ
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\»ó°üºÐ¼®\\°Å¸®Ãøµµ\\REx_DIST.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_DIST(birth, conti_var=c('bweight','obs_longi'), binary_var=c('sex','preterm'), conti_method=c('euclidean'), power=3, binary_method=c('JACCARD S3'), by='var', unit='log', zscore=FALSE);
+
+dataset=birth; conti_var=c('bweight','obs_longi'); binary_var=c('sex','preterm'); conti_method=c('euclidean'); power=3; binary_method=c('JACCARD S3'); by='var'; unit='log'; zscore=FALSE
+
+
+
+
+# °áÃøÄ¡´ëÃ¼
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\°áÃøÄ¡´ëÃ¼\\REx_MIMP.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+dataset=birth;quan_var='matage';unorder.qual_var=c('lowbw','sex','hyp');order.qual_var=NULL;level=NULL;vars='lowbw';predictor=c('sex','hyp','matage');method.quan=NULL;method.unorderqual=NULL;method.orderqual=NULL;method.any=c('cart','rf')
+
+oo1 <- REx_MIMP(dataset=birth,quan_var=c('bweight','matage'),unorder.qual_var=c('lowbw','sex','hyp'),order.qual_var=NULL,level=NULL,vars=c('bweight','lowbw'),predictor=c('sex','hyp','matage'),method.quan=NULL,method.unorderqual=NULL,method.orderqual=NULL,method.any=c('cart','rf'))
+oo2 <- REx_MIMP(dataset=birth,quan_var=c('bweight','matage'),unorder.qual_var=c('lowbw','sex','hyp'),order.qual_var=NULL,level=NULL,vars=c('bweight','lowbw'),predictor=c('sex','hyp','matage'),method.quan=c('pmm','norm','norm.nob','norm.boot','norm.predict','mean','2l.norm','2l.pan','2lonly.mean','2lonly.norm','quadratic'),method.unorderqual=c('logreg','lda'),method.orderqual=NULL,method.any=c('cart','rf'))
+
+dataset=birth;quan_var=c('bweight','matage');unorder.qual_var=c('lowbw','sex','hyp');order.qual_var=NULL;level=NULL;vars=c('bweight','lowbw');predictor=c('sex','hyp','matage');method.quan=c('pmm','norm','norm.nob','norm.boot','norm.predict','mean','2l.norm','2l.pan','2lonly.mean','2lonly.norm','quadratic');method.unorderqual=c('logreg','lda');method.orderqual=NULL;method.any=c('cart','rf')
+
+
+
+
+# ºñ¸ð¼ö°ËÁ¤ - ´ÜÀÏÇ¥º»ºÎÈ£°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Downloads\\REx_oneSigntest.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_oneSigntest(dataset=birth, res_var='bweight' , alternative = "two.sided", mu=0, exact=FALSE, digit=5)
+
+# ºñ¸ð¼ö°ËÁ¤ - ´ÜÀÏÇ¥º»ºÎÈ£¼øÀ§°ËÁ¤
+source("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\prior_ft.txt")
+source("C:\\Users\\Wonji\\Downloads\\REx_oneSignedRanktest.R")
+birth <- read.csv("C:\\Users\\Wonji\\Dropbox\\project\\REx\\È®ÀÎµÈ¿À·ù\\birth_NA.csv",head=T,stringsAsFactor=F)
+
+REx_oneSignedRanktest(dataset=birth, res_var='bweight' , alternative = "two.sided", mu=0, exact=FALSE, digit=5)
