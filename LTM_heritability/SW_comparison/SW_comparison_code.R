@@ -82,6 +82,7 @@ for(prev in c(0.05,0.1,0.2)){
 #########################################################
 
 #### Do GCTA
+## Scenario 1
 source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
 num_snp=1;n.cores=1
 for(prev in c(0.05,0.1,0.2)){
@@ -99,6 +100,45 @@ for(prev in c(0.05,0.1,0.2)){
     }
   }
 }
+
+## Scenario 2
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+n.cores=1
+Esth2.GCTA.S2 <- function(PREV,H2,n.fam){
+  for(prev in PREV){
+    for(h2 in H2){
+      for(totalfam in n.fam){
+		  print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+		  library(kinship2)
+		  setwd("~/paper/heritability/ML_ver2/variousFam/")
+		  fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
+		  fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+		  fin.dat <- fin.dat[fin.dat$FID%in%fin.dat$FID[fin.dat$ind==1 & fin.dat$Y==1],,drop=F]
+
+		  model <- Y~std_snp-1
+		  out <- paste0("~/paper/heritability/ML_ver2/variousFam/otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_",totalfam,"_asc_181114.txt")
+		  write.table(data.frame('Obs','h2','SE_h2'),out,col.names=F,row.names=F,quote=F)
+		  working_dir <- paste0("~/paper/heritability/ML_ver2/variousFam/otherSW/1.GCTA/prev_",prev,"_h2_",h2)
+		  Esth2 <- sapply(301:2000,getEsth2.GCTA,fin.dat=fin.dat,totalfam=totalfam,prev=prev,res_var='Y',exp_var='std_snp',out=out,working_dir=working_dir,seed=T)
+		}
+	  }
+	}
+}
+
+# n2
+Esth2.GCTA.S2(0.05,0.4,500)
+Esth2.GCTA.S2(0.1,0.4,500)
+Esth2.GCTA.S2(0.2,0.4,500)
+Esth2.GCTA.S2(0.05,0.2,500)
+
+# n11
+Esth2.GCTA.S2(0.1,0.2,500)
+Esth2.GCTA.S2(0.2,0.2,500)
+Esth2.GCTA.S2(0.05,0.05,500)
+Esth2.GCTA.S2(0.1,0.05,500)
+Esth2.GCTA.S2(0.2,0.05,500)
+
+
 
 
 ##########################################
@@ -133,5 +173,8 @@ doLRT.GCTA <- function(PREV,H2,n.fam){
 # n2
 doLRT.GCTA(0.05,c(0.2,0.4),500)
 doLRT.GCTA(0.1,c(0.2,0.4),500)
-doLRT.GCTA(0.2,c(0.2,0.4),500)	# Duplicated 0.2, 0.2
+
+# n16
+doLRT.GCTA(0.2,0.2,500)
+doLRT.GCTA(0.2,0.4,500)
 

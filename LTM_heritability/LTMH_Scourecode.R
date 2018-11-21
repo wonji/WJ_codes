@@ -530,7 +530,7 @@ LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 
 
 ########## H0 : h2=0
-CEST.h2 <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proband=NULL){
+CEST.h2 <- function(famid,V,init_beta=NULL,prev,Y,X=NULL,n.cores=1,proband=NULL){
   library(parallel)
   library(tmvtnorm)
   
@@ -655,32 +655,10 @@ CEST.h2 <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proband=NULL)
     T.h2 <- t(S.h2)%*%solve(varS.h2.1)%*%S.h2
     pval <- pchisq(T.h2,df=1,lower.tail=F)/2
   }
-  fin.res <- data.frame(Score=S.h2,var_Score_ver1=varS.h2.1,var_Score_ver2=varS.h2.2,Chisq=T.h2,Pvalue=pval)
-  colnames(fin.res) <- c('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue')
+  fin.res <- data.frame(Score=S.h2,var_Score_ver1=varS.h2.1,Chisq=T.h2,DF=1,Pvalue=pval)
+  colnames(fin.res) <- c('Score','var_Score','Chisq','DF','Pvalue')
   return(fin.res)
 }
-
-
-DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=1,out){
-  print(obs) 
-  
-  # Sampling test data
-  dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
-  Y <- dataset[,as.character(model)[2],drop=F]
-  if(!is.null(init_beta)) {
-    X <- model.matrix(model,dataset)
-  } else {
-    X <- NULL
-  }
-  famid <- dataset$FID
-  total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
-  V <- 2*as.matrix(kinship(total_ped))
-  
-  # Testing
-  Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
-  write.table(Testing.res,out,col.names=F,row.names=F,quote=F,append=TRUE)
-}
-
 
 
 
@@ -998,7 +976,7 @@ CEST.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,ma
     T.beta <- pval <- NA
   }
   
-  return(data.frame(Score=S.beta,var_Score_ver1=varS.beta.1,var_Score_ver2=varS.beta.2,Chisq=T.beta,Pvalue=pval))
+  return(data.frame(Score=S.beta,var_Score=ifelse(!is.na(varS.beta.1),varS.beta.1,varS.beta.2),Chisq=T.beta,DF=,length(test.beta.idx),Pvalue=pval))
 }			
 
 

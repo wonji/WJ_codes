@@ -110,27 +110,6 @@ Testing.h2 <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1){
 }
 
 
-DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=1,out){
-	print(obs) 
-
-	# Sampling test data
-	dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
-	Y <- dataset[,as.character(model)[2],drop=F]
-	if(!is.null(init_beta)) {
-		X <- model.matrix(model,dataset)
-	} else {
-		X <- NULL
-	}
-	famid <- dataset$FID
-	total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
-	V <- 2*as.matrix(kinship(total_ped))
-
-	# Testing
-	Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
-	write.table(Testing.res,out,col.names=F,row.names=F,quote=F,append=TRUE)
-}
-
-
 
 ########## H0 : beta=0
 Testing.beta <- function(init_beta,init_h2,V,famid,prev,Y,X,full.X,test.beta.idx,max.iter=100,max.sub.iter=50,n.cores=1){
@@ -759,12 +738,14 @@ Testing.h2.new <- function(famid,V,init_beta=NULL,prev,X=NULL,Y,n.cores=1,proban
 }
 
 
-DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=1,out,seed=F){
+DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=1,out,seed=F,Proband=NULL){
 	print(obs) 
 
 	# Sampling test data
-  if(seed) set.seed(obs)
-  dataset <- fin.dat[fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam),,drop=F]
+	if(seed) set.seed(obs)
+	ind <- fin.dat$FID%in%sample(unique(fin.dat$FID),totalfam)
+	dataset <- fin.dat[ind,,drop=F]
+	if(!is.null(Proband)) proband <- dataset[,Proband]
 	Y <- dataset[,as.character(model)[2],drop=F]
 	if(!is.null(init_beta)) {
 		X <- model.matrix(model,dataset)
@@ -776,7 +757,11 @@ DoTest.h2 <- function(obs,fin.dat,totalfam,model,init_beta=NULL,prev,h2,n.cores=
 	V <- 2*as.matrix(kinship(total_ped))
 
 	# Testing
-	Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
+	if(is.null(Proband)) {
+		Testing.res <- Testing.h2(famid,V,init_beta,prev,X,Y,n.cores)
+	} else {
+		Testing.res <- Testing.h2.new(famid,V,init_beta,prev,X,Y[,1],n.cores,proband)
+	}
 	write.table(Testing.res,out,col.names=F,row.names=F,quote=F,append=TRUE)
 }
 

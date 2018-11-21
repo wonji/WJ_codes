@@ -2,23 +2,33 @@
 
 ######## Tables ########
 
-##### Table 1 (Descriptive statistics for scenario 1)
+##### Table 1 (Descriptive statistics for scenario 1) - Need to be updated
 get.res.S1 <- function(prev,h2){
 	setwd("~/paper/heritability/ML_ver2/variousFam/")
+	print(c(prev,h2))
 	LTMH <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_181030.txt"),head=T)
+	if("Esth2_500_181114.txt" %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+		tmp <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_181114.txt"),head=T)
+		LTMH <- rbind(LTMH,tmp)
+	}
+
 	GCTA <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500.txt"),head=T)
+	tmp <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500_181114.txt"),head=T)
+	GCTA <- rbind(GCTA,tmp)
+
 	fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
 	LTMH$beta <- LTMH$beta_std_snp*sd(fin.dat$snp)		
+	# LTMH$beta <- LTMH$beta_std_snp/sd(fin.dat$snp)		
 		
-	res.beta <- data.frame(mean_beta=mean(LTMH$beta),median_beta=median(LTMH$beta),SD_beta=sd(LTMH$beta))
-	res.h2.LTMH <- data.frame(mean_h2_LTMH=mean(LTMH$h2),median_h2_LTMH=median(LTMH$h2),SD_h2_LTMH=sd(LTMH$h2))
-	res.h2.GCTA <- data.frame(mean_h2_GCTA=mean(GCTA$h2),median_h2_GCTA=median(GCTA$h2),SD_h2_GCTA=sd(GCTA$h2))
+	res.beta <- data.frame(beta=paste0(round(mean(LTMH$beta),4)," (",round(sd(LTMH$beta),4),")"))
+	res.h2.LTMH <- data.frame(h2_LTMH=paste0(round(mean(LTMH$h2),4)," (",round(sd(LTMH$h2),4),")"))
+	res.h2.GCTA <- data.frame(h2_GCTA=paste0(round(mean(GCTA$h2),4)," (",round(sd(GCTA$h2),4),")"))
 	res <- cbind(res.beta,res.h2.LTMH,res.h2.GCTA)
 	rownames(res) <- paste0("prev_",prev,"_h2_",h2)
 	return(res)
 }
 
-fin.res <- lapply(c(0.05,0.1,0.2),function(prev) do.call(rbind,lapply(c(0.05,0.2,0.4),get.res.S1,prev=prev)))
+fin.res <- lapply(c(0.05,0.2,0.4),function(hh) do.call(rbind,lapply(c(0.05,0.1,0.2),get.res.S1,h2=hh)))
 fin.res.I <- do.call(rbind,fin.res)
 write.csv(fin.res.I,"figure_and_table/table1.csv",quote=F)
 
@@ -26,59 +36,62 @@ write.csv(fin.res.I,"figure_and_table/table1.csv",quote=F)
 ##### Table 2 (Descriptive statistics for scenario 2)
 get.res.S2 <- function(prev,h2){
 	setwd("~/paper/heritability/ML_ver2/variousFam/")
-	LTMH <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_asc.txt"),head=T)
+	
+	if(prev==0.1 & h2==0.05){
+		LTMH <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_asc_181120.txt"),head=T)
+	} else {
+		LTMH <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_asc.txt"),head=T)
+		if("Esth2_500_newasc.txt" %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+			tmp <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_newasc.txt"),head=T)
+			LTMH <- rbind(LTMH,tmp)
+		}
+		if("Esth2_500_asc_181114.txt" %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+			tmp <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_asc_181114.txt"),head=T)
+			LTMH <- rbind(LTMH,tmp)
+		}
+	}
+
 	GCTA <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500_asc.txt"),head=T)
+	tmp <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500_asc_181114.txt"),head=T)
+	GCTA <- rbind(GCTA,tmp)
+
 	fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset.txt"),head=T,stringsAsFactor=F)
 	LTMH$beta <- LTMH$beta_std_snp*sd(fin.dat$snp)		
 		
-	res.beta <- data.frame(mean_beta=mean(LTMH$beta),median_beta=median(LTMH$beta),SD_beta=sd(LTMH$beta))
-	res.h2.LTMH <- data.frame(mean_h2_LTMH=mean(LTMH$h2),median_h2_LTMH=median(LTMH$h2),SD_h2_LTMH=sd(LTMH$h2))
-	res.h2.GCTA <- data.frame(mean_h2_GCTA=mean(GCTA$h2),median_h2_GCTA=median(GCTA$h2),SD_h2_GCTA=sd(GCTA$h2))
+	res.beta <- data.frame(beta=paste0(round(mean(LTMH$beta),4)," (",round(sd(LTMH$beta),4),")"))
+	res.h2.LTMH <- data.frame(h2_LTMH=paste0(round(mean(LTMH$h2),4)," (",round(sd(LTMH$h2),4),")"))
+	res.h2.GCTA <- data.frame(h2_GCTA=paste0(mean(GCTA$h2)," (",sd(GCTA$h2),")"))
 	res <- cbind(res.beta,res.h2.LTMH,res.h2.GCTA)
 	rownames(res) <- paste0("prev_",prev,"_h2_",h2)
 	return(res)
 }
 
-fin.res <- lapply(c(0.05,0.1,0.2),function(prev) do.call(rbind,lapply(c(0.05,0.2,0.4),get.res.S2,prev=prev)))
+fin.res <- lapply(c(0.05,0.2,0.4),function(hh) do.call(rbind,lapply(c(0.05,0.1,0.2),get.res.S2,h2=hh)))
 fin.res.I <- do.call(rbind,fin.res)
 write.csv(fin.res.I,"figure_and_table/table2.csv",quote=F)
 
 
-#### Table 3 - 1 (Empirical size table for h2)
+#### Table 3 (Empirical size & power table for h2)
 setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
 
 CEST.h2 <- function(prev,h2){
 	setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-	dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_all.txt"),head=T,stringsAsFactor=F)
-	res <- matrix(sapply(c(0.01,0.05,0.1),function(i) sum(dat$Pvalue<i)/nrow(dat)),ncol=1)
-	return(res)
+	LTMH.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_all.txt"),head=T,stringsAsFactor=F)
+	tmp.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_all_181116.txt"),head=T,stringsAsFactor=F)
+	LTMH.dat <- cbind(LTMH.dat,tmp.dat)
+	LTMH.res <- sapply(c(0.01,0.05,0.1),function(i) sum(LTMH.dat$Pvalue<i)/nrow(LTMH.dat))
+	
+	return(LTMH.res)
 }
 
-fin.res <- lapply(c(0.05,0.1,0.2),CEST.h2,h2=0)
-fin.res.I <- do.call(cbind,fin.res)
-colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
-fin.res.I <- cbind(sig_level=c(0.01,0.05,0.1),fin.res.I)
-setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
-write.csv(fin.res.I,"table3_CEST_h2_size.csv",quote=F,row.names=F)
-
-
-
-#### Table 3-2 (Empirical power table for h2)
-setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-
-CEST.h2 <- function(prev,h2){
-	setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
-	dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_all.txt"),head=T,stringsAsFactor=F)
-	res <- matrix(sapply(c(0.01,0.05,0.1),function(i) sum(dat$Pvalue<i)/nrow(dat)),ncol=1)
-	return(res)
-}
-
-fin.res <- lapply(c(0.2,0.4),function(hh) do.call(cbind,lapply(c(0.05,0.1,0.2),CEST.h2,h2=hh)))
+fin.res <- lapply(c(0,0.2,0.4),function(hh) do.call(rbind,lapply(c(0.05,0.1,0.2),CEST.h2,h2=hh)))
 fin.res.I <- do.call(rbind,fin.res)
-colnames(fin.res.I) <- paste0("Prev_",c(0.05,0.1,0.2))
-fin.res.I <- cbind(h2=rep(c(0.2,0.4),each=3),sig_level=rep(c(0.01,0.05,0.1),2),fin.res.I)
+colnames(fin.res.I) <- paste('siglevel_',c(0.01,0.05,0.1))
+fin.res.I <- cbind(h2=rep(c(0,0.2,0.4),each=3),prev=rep(c(0.05,0.1,0.2),3),fin.res.I)
+
 setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
-write.csv(fin.res.I,"table4_CEST_h2_power.csv",quote=F)
+write.csv(fin.res.I,"table3_h2_CEST_S1.csv",quote=F,row.names=F)
+
 
 
 #### Table 4-1 (Empirical size table for beta)
@@ -119,7 +132,28 @@ setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
 write.csv(fin.res.I,"table6_CEST_beta_power.csv",quote=F)
 
 
-#### Table 5 (Demographic information for T2D)
+#### Table 5 Empirical size and power for scenario 2
+setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+CEST.h2 <- function(prev,h2){
+	setwd("~/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+	LTMH.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/CEST_h2_500_asc_181120.txt"),head=T,stringsAsFactor=F)
+	LTMH.res <- sapply(c(0.01,0.05,0.1),function(i) sum(LTMH.dat$Pvalue<i)/nrow(LTMH.dat))
+	
+	return(LTMH.res)
+}
+
+fin.res <- lapply(c(0,0.2,0.4),function(hh) do.call(rbind,lapply(c(0.05,0.1,0.2),CEST.h2,h2=hh)))
+fin.res.I <- do.call(rbind,fin.res)
+colnames(fin.res.I) <- paste('siglevel_',c(0.01,0.05,0.1))
+fin.res.I <- cbind(h2=rep(c(0,0.2,0.4),each=3),prev=rep(c(0.05,0.1,0.2),3),fin.res.I)
+
+setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table")
+write.csv(fin.res.I,"table5_h2_CEST_S2.csv",quote=F,row.names=F)
+
+
+
+
+#### Table 6 (Demographic information for T2D)
 fam <- read.table("/data/kare/allmerge/allmerge_withrela.fam",head=F,stringsAsFactor=F)
 new.fam <- fam[-grep("^KNIH",fam$V1),]
 pheno <- read.csv("/home2/wjkim/project/kare+snu/snu/snu_pheno.csv",head=T,stringsAsFactor=F)
@@ -195,7 +229,6 @@ system("onetool --fam temp_SNUH.fam --vcf temp_SNUH.vcf --out SNUH_pedinfo")
 
 
 ######## Figures ########
-
 #### Figure 2
 library(ggplot2)
 library(gridExtra)
@@ -205,8 +238,15 @@ get.plot <- function(h2){
 	setwd("~/paper/heritability/ML_ver2/variousFam/")
 	get.dat <- function(h2,prev){
 		LTMH <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_181030.txt"),head=T)
+		if("Esth2_500_181114.txt" %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+			tmp <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_181114.txt"),head=T)
+			LTMH <- rbind(LTMH,tmp)
+		}
+
 		GCTA <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500.txt"),head=T)
-		res <- data.frame(h2=c(LTMH$h2,GCTA$h2),Prevalence=rep(prev,600),Method=rep(c("LTMH","GCTA"),each=300))
+		tmp <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500_181114.txt"),head=T)
+		GCTA <- rbind(GCTA,tmp)
+		res <- data.frame(h2=c(LTMH$h2,GCTA$h2),Prevalence=rep(prev,nrow(LTMH)+nrow(GCTA)),Method=c(rep("LTMH",nrow(LTMH)),rep("GCTA",nrow(GCTA))))
 		res$Method <- factor(res$Method,level=c("LTMH","GCTA"))
 		return(res)
 	}

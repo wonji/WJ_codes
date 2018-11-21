@@ -1,7 +1,8 @@
 #### data.generate
 ### Nuclear family
-genNucFam <- function(totalfam,MAF,h2,ha2,prev,num_snp){
+genNucFam <- function(totalfam,MAF,h2,ha2,prev,num_snp,n.cores=1){
 	library(MASS)
+	library(parallel)
 	## nucelar family ##
 	numfam <- sample(3:6,totalfam,replace=T,prob=c(0.2,0.3,0.3,0.2))
 	famid 	<- fatherid <- motherid <- famsize <- indiv <- iid <- pid <- mid <- sex <- c()
@@ -15,10 +16,10 @@ genNucFam <- function(totalfam,MAF,h2,ha2,prev,num_snp){
 		temp1[1] <- temp2[2] <-1
 		famsize	<- rep(numfam[i],numfam[i])
 		ind[3] 	<- 1
-		res <- data.frame(famid,father=temp1,mother=temp2,famsize=famsize,individual=ind,FID=famid,IID,PID,MID,SEX,ind)
+		res <- data.frame(famid,father=temp1,mother=temp2,famsize=famsize,individual=ind,FID=famid,IID,PID,MID,SEX,ind,stringsAsFactors=F)
 		return(res)
 	}
-	fam_res <- lapply(1:length(numfam),genFam,totalfam=totalfam,numfam=numfam)
+	fam_res <- mclapply(1:length(numfam),genFam,totalfam=totalfam,numfam=numfam,mc.cores=n.cores)
 	fam_res_I <- do.call(rbind,fam_res)
 	dat <- fam_res_I[,1:5]
 	fam <- fam_res_I[,6:11]

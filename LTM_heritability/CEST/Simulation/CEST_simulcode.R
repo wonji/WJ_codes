@@ -449,7 +449,7 @@ for(prev in c(0.1,0.2)){
 ############### New simul with seed #######################
 ###########################################################
 
-###### n14, CEST_h2_500_all_181116.txt
+###### Scenario 1, n14, CEST_h2_500_all_181116.txt
 source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
 n.cores=32
 
@@ -478,4 +478,76 @@ for(h2 in c(0.2, 0.4)){
   }
 }
 
-  
+
+###### Scenario 2, CEST_h2_500_asc_181120.txt
+## data generation
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/gen_simuldata.r')
+for(prev in c(0.1,0.2)){
+  for(h2 in c(0, 0.2, 0.4)){
+    print(paste0('prevalence:',prev,', heritability:',h2))
+    setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+    system(paste0("mkdir prev_",prev,"_h2_",h2))
+    dataset = genNucFam(totalfam=50000,MAF=0.2,h2,ha2=0.05,prev,num_snp=1,n.cores=24)
+    write.table(dataset,paste0("prev_",prev,"_h2_",h2,"/dataset_asc.txt"),row.names=F,quote=F)
+  }
+}
+
+
+
+source('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/CEST.R')
+do.CEST.S2 <- function(PREV,H2,N.fam,n.cores){
+	for(h2 in H2){
+	  for(prev in PREV){
+		for(totalfam in N.fam){
+		  print(paste0('prevalence:',prev,', heritability:',h2,', number of families:',totalfam))
+		  library(kinship2)
+		  setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+		  fin.dat <- read.table(paste0("prev_",prev,"_h2_",h2,"/dataset_asc.txt"),head=T,stringsAsFactor=F)
+		  fin.dat$std_snp <- (fin.dat$snp-mean(fin.dat$snp))/sd(fin.dat$snp)
+		  fin.dat <- fin.dat[fin.dat$FID%in%fin.dat$FID[fin.dat$ind==1 & fin.dat$Y==1],,drop=F]
+		  
+		  init_beta=matrix(0.2,1,1)
+		  model <- Y~std_snp-1
+		  out <- paste0("prev_",prev,"_h2_",h2,"/CEST_h2_",totalfam,"_asc_181120.txt")
+		  
+		  setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+		  if(paste0("CEST_h2_",totalfam,"_asc_181120.txt") %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+			start <- as.numeric(strsplit(system(paste0("wc -l ",out),intern=T)," ")[[1]][1])
+		  } else {
+			start <- 1
+			setwd("/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/1.h2")
+			write.table(data.frame('Score','var_Score_ver1','var_Score_ver2','Chisq','Pvalue'),out,col.names=F,row.names=F,quote=F)
+		  }
+		  CEST_h2 <- sapply(start:2000,DoTest.h2,fin.dat=fin.dat,totalfam=totalfam,model=model,init_beta=init_beta,prev=prev,h2=h2,n.cores=n.cores,out=out,seed=T,Proband="ind")
+		}
+	  }
+	}
+}
+
+# n4, 24 cores
+do.CEST.S2(0.05,0,500,24)
+
+# n5, 24 cores
+do.CEST.S2(0.05,0.2,500,24)
+
+# n6, 24 cores
+do.CEST.S2(0.05,0.4,500,24)
+
+# n9, 24 cores
+do.CEST.S2(0.1,0,500,24)
+
+# n10, 24 cores
+do.CEST.S2(0.1,0.2,500,24)
+
+# n11, 24 cores
+do.CEST.S2(0.1,0.4,500,24)
+
+# n14, 32 cores
+do.CEST.S2(0.2,0.2,500,32)
+
+# n15, 32 cores
+do.CEST.S2(0.2,0.4,500,32)
+
+# n15, 32 cores
+do.CEST.S2(0.2,0,500,32)
+
