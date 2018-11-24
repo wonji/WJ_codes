@@ -492,6 +492,7 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 				R2HTML::HTML(Digits(CE),file="./test.html",align="left",digits=15)
 				if(exists('warn.VIF')) R2HTML::HTML(warn.VIF,file="./test.html")
 				if(exists('warn.VIP')) R2HTML::HTML(warn.VIP,file="./test.html")
+				
 
 				# Anova table and R-squared
 				if(ANOVA){
@@ -548,6 +549,7 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 
 							options(contrasts=c("contr.sum", "contr.poly"))
 							res <- try(car::Anova(full.fit,type='III'))
+							options(contrasts=c('contr.treatment','contr.poly'))
 
 							if(class(res)[1]!='try-error'){
 								res <- data.frame(res)
