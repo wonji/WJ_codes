@@ -518,9 +518,7 @@ fin.dat$SEX <- ifelse(fin.dat$SEX=='M',1,2)
 fin.dat$std_age <- (fin.dat$DummyAge1-mean(fin.dat$DummyAge1))/sd(fin.dat$DummyAge1)
 fin.dat$std_sex <- (fin.dat$SEX-mean(fin.dat$SEX))/sd(fin.dat$SEX)
 
-model <- CRC~std_age+std_sex-1
-init_beta <- c(0,0)
-init_h2 <- 0.12
+model <- CRC~std_age-1
 total_ped <- with(fin.dat,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
 V <- 2*as.matrix(kinship(total_ped))
 famid <- as.character(fin.dat$FID)
@@ -530,8 +528,9 @@ proband <- ifelse(fin.dat$V8=='proband',1,0)
 
 source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
 out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/2.CRC/1.FDR/LTMH_FDR.txt"
+write.table(data.frame('beta_stdage','h2','n.iter'),out,row.names=F,col.names=F,quote=F)
 res <- LTMH.asc(model=model,
-				init_beta=c(0,0),
+				init_beta=0.2,
 				init_h2=0.12,
 				V=V,
 				famid=famid,
