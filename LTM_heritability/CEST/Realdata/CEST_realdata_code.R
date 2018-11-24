@@ -504,3 +504,40 @@ beta.age <- res[nrow(res),1]/sd(dataset$AGE)
 
 
 
+###### CRC ######
+### 1.FDR
+library(kinship2)
+
+setwd("/home2/wjkim/project/CRC/20171020/1.model_based/2.mendel/0.data")
+fin.dat <- read.table("reduced_FDR_mendel.in",head=F,sep=",",stringsAsFactor=F)
+fin.dat[fin.dat[,3]=='',3] <- 0
+fin.dat[fin.dat[,4]=='',4] <- 0
+colnames(fin.dat)[c(1:5,14,17)] <- c('FID','IID','PID','MID','SEX','DummyAge1','CRC')
+fin.dat$SEX <- ifelse(fin.dat$SEX=='M',1,2)
+
+fin.dat$std_age <- (fin.dat$DummyAge1-mean(fin.dat$DummyAge1))/sd(fin.dat$DummyAge1)
+fin.dat$std_sex <- (fin.dat$SEX-mean(fin.dat$SEX))/sd(fin.dat$SEX)
+
+model <- CRC~std_age+std_sex-1
+init_beta <- c(0,0)
+init_h2 <- 0.12
+total_ped <- with(fin.dat,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
+V <- 2*as.matrix(kinship(total_ped))
+famid <- as.character(fin.dat$FID)
+prev=0.002326
+max.iter=100;max.sub.iter=50
+proband <- ifelse(fin.dat$V8=='proband',1,0)
+
+source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
+out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/2.CRC/1.FDR/LTMH_FDR.txt"
+res <- LTMH.asc(model=model,
+				init_beta=c(0,0),
+				init_h2=0.12,
+				V=V,
+				famid=famid,
+				prev=0.002326,
+				dataset=fin.dat,
+				n.cores=32,
+				proband=proband,
+				SAVE=T,
+				out=out)
