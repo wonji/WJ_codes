@@ -530,8 +530,8 @@ source('~/paper/heritability/ML_ver2/LTM_heritability_ML_ver2.R')
 out <- "/home2/wjkim/paper/heritability/ML_ver2/variousFam/realdata/2.CRC/1.FDR/LTMH_FDR.txt"
 write.table(data.frame('beta_stdage','h2','n.iter'),out,row.names=F,col.names=F,quote=F)
 res <- LTMH.asc(model=model,
-				init_beta=0.2,
-				init_h2=0.12,
+				init_beta=0.262324068449362,
+				init_h2=0.399592068792674,
 				V=V,
 				famid=famid,
 				prev=0.002326,
