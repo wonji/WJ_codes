@@ -6,7 +6,7 @@ source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\회귀�
 birth <- read.csv("C:\\Users\\김원지\\Downloads\\확인된오류\\birth_clean.csv",head=T,stringsAsFactor=F)
 
 ## 시나리오 #1 문제화면 2 -> 문제 없음
-a <- REx_LGM(dataset=birth,dep_var= 'hyp',dep_ref='0',indep_cat_var='sex',indep_numeric_var=c('bweight','gestwks'),vars=c('bweight','sex','gestwks'),noint=FALSE,link='logit',
+a <- REx_LGM(dataset=birth,dep_var= 'hyp',dep_ref='0',indep_cat_var='sex',indep_numeric_var=c('bweight','gestwks'),vars=c('sex','gestwks','bweight'),noint=FALSE,link='logit',
 			CI=TRUE,confint.level=0.95,odds=FALSE,VIF=FALSE,ANOVA=TRUE,ss="III",GOF=FALSE,ROCcurve=FALSE,classtab=FALSE,
 			Resid=FALSE,stdResid=FALSE,studResid=FALSE,linear_pred=FALSE,hat_value=FALSE,cook_distance=FALSE,
 			select=FALSE,direct="forward",
@@ -40,6 +40,19 @@ a <- REx_LGM(dataset=birth, dep_var='hyp', dep_ref='0', indep_cat_var='sex', ind
 			Part_index=TRUE, Predict_g_train=FALSE, Predict_g_test=FALSE);
 			
 
+## Error
+a <- REx_LGM(dataset=birth, dep_var='hyp', dep_ref='0', indep_numeric_var=c('bweight','lowbw','gestwks'), vars=c('bweight','lowbw','gestwks'), noint=FALSE, link='logit',
+			CI=TRUE, confint.level=0.95, odds=FALSE, VIF=FALSE, ANOVA=TRUE, ss='III', GOF=FALSE, ROCcurve=FALSE, classtab=FALSE, 
+			Resid=FALSE, stdResid=FALSE, studResid=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, 
+			select=FALSE, direct='forward', 
+			Valid.method='Cross', Cross.method='KFOLD',k=3,
+			Predict_prob_train=FALSE, Predict_CI_train=FALSE, 
+			Predict_prob_test=FALSE, Predict_CI_test=FALSE, 
+			Predict_CI_pred=FALSE, 
+			Part_index=TRUE, Predict_g_train=FALSE, Predict_g_test=FALSE);
+			
+			
+			
 ### 선형회귀분석
 options(encoding="utf-8")
 source("C:\\Users\\김원지\\Documents\\WJ_codes\\Rex\\확인된오류\\prior_ft.txt")

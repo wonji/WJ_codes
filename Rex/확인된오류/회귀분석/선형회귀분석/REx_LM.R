@@ -1,3 +1,4 @@
+
 # 선형회귀분석
 REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,vars=NULL,noint=FALSE,
 				Valid.method=c('Partition','Cross'),Part.method=c('all','percent','variable'),train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL,
@@ -93,9 +94,9 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 		# predict variable
 		if(!is.null(Pred.var)){
 			pred.level <- na.omit(unique(dataset[,Pred.var]))
-			# No training & test dataset
+			# No training & testing dataset
 			if(!2%in%pred.level) {
-				warn.DP1 <- paste0("<li> Error : '2' is not observed in the split variable for prediction, '",Pred.var,"'. That is, no observations are assigned to the training & test dataset. Analysis has been stopped.")
+				warn.DP1 <- paste0("<li> Error : '2' is not observed in the split variable for prediction, '",Pred.var,"'. That is, no observations are assigned to the training & testing dataset. Analysis has been stopped.")
 			} else {
 				if(!1%in%pred.level) {	
 					# Only 2 is obaserved
@@ -105,30 +106,30 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 					# Value other than 1 and 2
 					warn.DP2 <- paste0("<li> Warning : Values other than '1' and '2' are observed in the split variable for prediction, '",Pred.var,"'. Observations with the value other than '1' and '2' are not included the analysis.")
 					pred.dataset <- dataset[dataset[,Pred.var]==1,]	# prediction dataset
-					dataset <- dataset[dataset[,Pred.var]==2,]	# training & test dataset
+					dataset <- dataset[dataset[,Pred.var]==2,]	# training & testing dataset
 				}
 			}
 		}
 		
-		# training & test
+		# training & testing
 		if(Valid.method=='Partition'){
 			if(Part.method=='percent'){
 				n.train <- round(nrow(dataset)*train.perc/100)
 				
 				if(train.perc==100 | n.train==nrow(dataset)){
-					warn.DP4 <- "<li> Warning : No observations are assigned to the test dataset due to too high percent for the training dataset. Validation using test dataset is not supported in this analysis."
+					warn.DP4 <- "<li> Warning : No observations are assigned to the testing dataset due to too high percent for the training dataset. Validation using testing dataset is not supported in this analysis."
 					Predict_test <- Predict_CI_test <- Predict_PI_test <- FALSE
 				} else if(n.train==0){
 					warn.DP5 <- "<li> Error : No observations are assigned to the training dataset due to too low percent for the training dataset. To secure sufficient number of observations for the training dataset, increase the percent. Analysis has been stopped."
 				} else {
 					train <- sample(seq(nrow(dataset)),n.train)
 
-					# test set
+					# testing set
 					test.dataset <- dataset[-train,,drop=F]
 					# training set
 					dataset <- dataset[train,,drop=F]
 					
-					if(nrow(original.dataset)!=(nrow(dataset)+nrow(test.dataset)))	warn.DP9 <- "<li> Warning : Observations with missing dependent variable were not assigned to training dataset or test dataset."
+					if(nrow(original.dataset)!=(nrow(dataset)+nrow(test.dataset)))	warn.DP9 <- "<li> Warning : Observations with missing dependent variable were not assigned to training dataset or testing dataset."
 					
 					# ordering
 					dataset <- dataset[order(as.numeric(rownames(dataset))),,drop=F]
@@ -137,23 +138,23 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 			}
 			if(Part.method=='variable'){
 				part.level <- na.omit(unique(dataset[,Part.var]))
-				# No training & test dataset
+				# No training & testing dataset
 				if(!1%in%part.level) {
 					warn.DP6 <- paste0("<li> Error : '1' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the training dataset. Analysis has been stopped.")
 				} else if(!2%in%part.level) {
-					warn.DP7 <- paste0("<li> Warning : '2' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the test dataset. Validation using test dataset is not supported in this analysis.")
+					warn.DP7 <- paste0("<li> Warning : '2' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the testing dataset. Validation using testing dataset is not supported in this analysis.")
 					Predict_prob_tet <- Predict_g_test <- FALSE
 				} else {
 					# Value other than 1 and 2
 					if(!all(part.level%in%c(1,2))) {
 						warn.DP8 <- paste0("<li> Warning : Values other than '1' and '2' are observed in the split variable for validation, '",Part.var,"'. Observations with the value other than '1' and '2' are not included the analysis.")
 					}
-					test.dataset <- dataset[dataset[,Part.var]==2,]	# test dataset
+					test.dataset <- dataset[dataset[,Part.var]==2,]	# testing dataset
 					dataset <- dataset[dataset[,Part.var]==1,]	# training dataset
 				}
 			}
 		}
-		#### Then, original.dataset : original dataset, dataset : training dataset, test.dataset : test dataset, pred.dataset : prediction dataset.
+		#### Then, original.dataset : original dataset, dataset : training dataset, test.dataset : testing dataset, pred.dataset : prediction dataset.
 
 
 		# warnings
@@ -288,16 +289,16 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 					}
 				}
 
-				# test dataset
+				# testing dataset
 				if(exists('test.dataset')&Predict_test) {
 					temp.0 <- data.frame(Fitted_LM=predict(res_LM_1,newdata=test.dataset))
 					temp <- data.frame(Fitted_LM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
 					mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
 					mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
 					if(exists('O')) {
-						O <- cbind(O,Predicted_test_LM=mer.1[,3])
+						O <- cbind(O,Predicted_testing_LM=mer.1[,3])
 					} else {
-						O <- data.frame(Predicted_test_LM=mer.1[,3])
+						O <- data.frame(Predicted_testing_LM=mer.1[,3])
 					}
 				}
 				if(exists('test.dataset')&Predict_CI_test){
@@ -305,7 +306,7 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 					temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
 					mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
 					mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-					colnames(mer.1) <- paste0('Predicted_',round(confint.level_test*100,0),'CI_',c('Lower','Upper'),'_test_LM')
+					colnames(mer.1) <- paste0('Predicted_',round(confint.level_test*100,0),'CI_',c('Lower','Upper'),'_testing_LM')
 					if(exists('O')) {
 						O <- cbind(O,mer.1)
 					} else {
@@ -317,7 +318,7 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 					temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
 					mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
 					mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-					colnames(mer.1) <- paste0('Predicted',round(confint.level_test*100,0),'PI_',c('Lower','Upper'),'_test_LM')
+					colnames(mer.1) <- paste0('Predicted',round(confint.level_test*100,0),'PI_',c('Lower','Upper'),'_testing_LM')
 					if(exists('O')) {
 						O <- cbind(O,mer.1)
 					} else {
@@ -366,7 +367,7 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 				if(Part_index){
 					temp <- rep('None',nrow(original.dataset))
 					temp[rownames(original.dataset)%in%rownames(dataset)] <- 'Training'
-					if(exists('test.dataset')) temp[rownames(original.dataset)%in%rownames(test.dataset)] <- 'Test'
+					if(exists('test.dataset')) temp[rownames(original.dataset)%in%rownames(test.dataset)] <- 'Testing'
 					if(exists('pred.dataset')) temp[rownames(original.dataset)%in%rownames(pred.dataset)] <- 'Prediction'
 					if(exists('O')) {
 						O <- cbind(O,Partition_idx_LM=temp,stringsAsFactors=F)
@@ -382,7 +383,8 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 				total.var <- ncol(original.dataset)
 				used.var <- ifelse(is.null(vars),0,length(unique(unlist(strsplit(vars,":")))))+length(c(Part.var,Pred.var))
 				none.n <- nrow(original.dataset)-nrow(dataset)-ifelse(exists("test.dataset"),nrow(test.dataset),0)-ifelse(exists("pred.dataset"),nrow(pred.dataset),0)
-				total.n <- paste0(nrow(original.dataset)," (Training: ",nrow(dataset),ifelse(exists("test.dataset"),paste0(", Test: ",nrow(test.dataset)),""),ifelse(exists("pred.dataset"),paste0(", Prediction: ",nrow(pred.dataset)),""),ifelse(none.n!=0,paste0(", None: ",none.n),""),")")
+				# total.n <- paste0(nrow(original.dataset)," (Training: ",nrow(dataset),ifelse(exists("test.dataset"),paste0(", Testing: ",nrow(test.dataset)),""),ifelse(exists("pred.dataset"),paste0(", Prediction: ",nrow(pred.dataset)),""),ifelse(none.n!=0,paste0(", None: ",none.n),""),")")
+				total.n <- paste0(nrow(original.dataset)," (Missing: ",sum(!complete.cases(original.dataset[,c(var_info,Part.var,Pred.var),drop=F])),")")
 
 				DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',total.n,total.var,used.var+1),ncol=2)
 				R2HTML::HTML(DS,file="./test.html",align="left")
@@ -421,12 +423,12 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 					if(!is.null(keep_var)) AD <- rbind(AD,c('Fixed variable for variable selection',paste(keep_var,collapse=', ')))
 				}
 				if(Valid.method=='Partition'){
-					VM <- ifelse(!exists('test.dataset'),"Internal validation using training dataset","Internal validation using training/test dataset")
+					VM <- ifelse(!exists('test.dataset'),"Validation using training dataset","Validation using training/testing dataset")
 					if(exists('test.dataset')){
 						if(Part.method=='percent'){
-							PM <- paste0("Randomly split by percent (training: ",train.perc,"%, test: ",100-train.perc,"%)")
+							PM <- paste0("Randomly split by percent (training: ",train.perc,"%, testing: ",100-train.perc,"%)")
 						} else if(Part.method=='variable'){
-							PM <- paste0("Split by variable '",Part.var,"' (1: training, 2: test)")
+							PM <- paste0("Split by variable '",Part.var,"' (1: training, 2: testing)")
 						}
 					}
 				} else {
@@ -435,7 +437,7 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 				AD <- rbind(AD,matrix(c('Validation method',VM),ncol=2,byrow=T))
 				if(exists('PM')) AD <- rbind(AD,matrix(c('Data splitting method for validataion',PM),ncol=2,byrow=T))
 				if(exists('pred.dataset')){
-					AD <- rbind(AD,matrix(c('Prediction using new dataset','TRUE','Data splitting method for prediction',paste0("Split by variable '",Pred.var,"' (1: prediction, 2: training/test)")),ncol=2,byrow=T))
+					AD <- rbind(AD,matrix(c('Prediction using new dataset','TRUE','Data splitting method for prediction',paste0("Split by variable '",Pred.var,"' (1: prediction, 2: training/testing)")),ncol=2,byrow=T))
 				} else {
 					AD <- rbind(AD,matrix(c('Prediction using new dataset','FALSE'),ncol=2,byrow=T))
 				}
@@ -492,7 +494,6 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 				R2HTML::HTML(Digits(CE),file="./test.html",align="left",digits=15)
 				if(exists('warn.VIF')) R2HTML::HTML(warn.VIF,file="./test.html")
 				if(exists('warn.VIP')) R2HTML::HTML(warn.VIP,file="./test.html")
-				
 
 				# Anova table and R-squared
 				if(ANOVA){
@@ -669,10 +670,11 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 						rownames(vali) <- 'Training'
 						if(exists('test.dataset')){
 							vali <- rbind(vali,data.frame(N.observed=test.n,Percent=(100-train.Perc),RMSE=test.RMSE,MAE=test.MAE,Rsquared=test.Rsq))
-							rownames(vali)[2] <- 'Test'
+							rownames(vali)[2] <- 'Testing'
 						}
 						colnames(vali)[1] <- 'N.non-missing<br>observations'
 						R2HTML::HTML(Digits(vali),file="./test.html",align="left",digits=15)
+						R2HTML::HTML("<li> Note : Be careful of overfitting in interpreting the result of the training dataset",file="./test.html")
 						if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file="./test.html")
 						if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
 						if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file="./test.html")
@@ -737,3 +739,4 @@ REx_LM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,var
 		return(html.output)
 	}
 }
+
