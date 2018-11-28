@@ -229,7 +229,44 @@ system("onetool --fam temp_SNUH.fam --vcf temp_SNUH.vcf --out SNUH_pedinfo")
 
 
 ######## Figures ########
-#### Figure 2
+#### Figure 2 - color
+library(ggplot2)
+library(gridExtra)
+setwd("~/paper/heritability/ML_ver2/variousFam/")
+png("figure_and_table/fig2_boxplot.png",width=1200,height=1200,res=200)
+get.plot <- function(h2){
+	setwd("~/paper/heritability/ML_ver2/variousFam/")
+	get.dat <- function(h2,prev){
+		LTMH <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_181030.txt"),head=T)
+		if("Esth2_500_181114.txt" %in% system(paste0("ls prev_",prev,"_h2_",h2),intern=T)){
+			tmp <- read.table(paste0("prev_",prev,"_h2_",h2,"/Esth2_500_181114.txt"),head=T)
+			LTMH <- rbind(LTMH,tmp)
+		}
+
+		GCTA <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500.txt"),head=T)
+		tmp <- read.table(paste0("otherSW/1.GCTA/prev_",prev,"_h2_",h2,"/Esth2_500_181114.txt"),head=T)
+		GCTA <- rbind(GCTA,tmp)
+		res <- data.frame(h2=c(LTMH$h2,GCTA$h2),Prevalence=rep(prev,nrow(LTMH)+nrow(GCTA)),Method=c(rep("LTMH",nrow(LTMH)),rep("GCTA",nrow(GCTA))))
+		res$Method <- factor(res$Method,level=c("LTMH","GCTA"))
+		return(res)
+	}
+	
+	dat <- do.call(rbind,lapply(c(0.05,0.1,0.2),get.dat,h2=h2))
+	dat$Prevalence <- factor(dat$Prevalence)
+	p <- ggplot(dat,aes(x=Prevalence,y=h2,fill=Method))+geom_boxplot()+theme_classic()+geom_hline(yintercept=h2,linetype='dashed',color='gray')+annotate("text",x=factor(0.2),y=(max(dat$h2)-0.05),label=paste0("italic(h)^2==",h2),parse=T)
+	if(h2==0.4){
+		p <- p+labs(y=expression(hat(italic(h))^2))
+	} else {
+		p <- p+labs(y=expression(hat(italic(h))^2),x="")
+	}	
+	return(p)
+}
+myPlot <- lapply(c(0.05,0.2,0.4),get.plot)
+grid.arrange(grobs=myPlot,mrow=3)
+dev.off()
+
+
+#### Figure 2 - black & white
 library(ggplot2)
 library(gridExtra)
 setwd("~/paper/heritability/ML_ver2/variousFam/")
