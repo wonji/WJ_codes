@@ -1,0 +1,147 @@
+---
+title: "**Manual for LTMH**"
+author: "Wonji Kim (dnjswlzz11@gmail.com)"
+date: "December 3, 2018"
+output: html_document
+---
+
+---
+
+### **Introduction**
+- This document was created to provide a guidance for R code of `LTMH` with some examples.
+
+---
+
+### **Code Dependencies**
+- Our R code depends on R packages `tmvtnorm`, `parallel` and `MASS`.
+
+---
+
+### **Usage**
+#### **Heritability estimation of Dichotomous Phenotypes (LTMH)**
+```
+# LTMH for random sample
+ LTMH(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max.sub.iter=50,n.cores=1)
+# LTMH for ascertained sample
+ LTMH.asc(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,n.cores=1,proband)
+```
+- **model** : An object of class [`formula`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html) which is a symbolic description of the model to be fitted.
+- **data** : A data frame containing the variables in the `model`. Dependent variable in the `model` should be coded as 0 and 1 for unaffected and affected subjects, repelctively.
+- **init_beta** : Initial values for beta. It should be a numeric vector whose dimension is equal to that of beta. If no values or `NULL` were provided, coefficient estimates of a probit model obtained from [`glm`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html).
+- **init_h2** : Initial values for heritability on liability scale. It should be a numeric.
+- **V** : Generic relationship matrix such as kinship coefficient matrix. It should be a matrix which elements are numeric.
+- **famid** : Family ID for subjects. It should be a vector.
+- **prev** : Prevalence of a disease. It should be a numeric.
+- **max.iter** : Maximum number of iterations for EM (Expectation-maximization) algorithm. Default is 100.
+- **max.sub.iter** : Maximum number of sub-iterations for NR (Newton-Rahpson) algorithm. Default is 50.
+- **n.cores** : Number of cores for parallel computing. Unfortunatedly, it is not supported on Windows.
+- **proband** : A vector containing proband information which is coded as 0 and 1 for non-proband and proband, respectively. 
+
+
+#### **Conditional Expected Score Test (CEST)**
+```
+# CEST for heritability
+ CEST.h2(model,data,init_beta=NULL,V,famid,prev,n.cores=1,proband=NULL)
+# CEST for beta
+ CEST.beta(model,data,test.beta,init_h2,V,famid,prev,max.iter=100,n.cores=1,proband=NULL)
+```
+- **model** : An object of class [`formula`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html) which is a symbolic description of the model to be fitted.
+- **data** : A data frame containing the variables in the `model`. Dependent variable in the `model` should be coded as 0 and 1 for unaffected and affected subjects, repelctively.
+- **test.beta** : A vector of variable names to be tested. 
+- **init_beta** : Initial values for beta. It should be a numeric vector whose dimension is equal to that of beta. If no values or `NULL` were provided, coefficient estimates of a probit model obtained from [`glm`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html).
+- **init_h2** : Initial values for heritability on liability scale. It should be a numeric.
+- **V** : Generic relationship matrix such as kinship coefficient matrix. It should be a matrix which elements are numeric.
+- **famid** : Family ID for subjects. It should be a vector.
+- **prev** : Prevalence of a disease. It should be a numeric which is ranged from 0 to 1.
+- **max.iter** : Maximum number of iterations for EM (Expectation-maximization) algorithm. Default is 100.
+- **n.cores** : Number of cores for parallel computing. Unfortunatedly, it is not supported on Windows.
+- **proband** : A vector containing proband information which is coded as 0 and 1 for non-proband and proband, respectively. If families were randomly selected, input `NULL`.
+
+#### **Generating the Simulation Data**
+```
+# Generating nuclear families with a one main genetic effect (SNP)
+ genNucFam(totalfam,num.fammem=c(3,4,5,6),prob.fammem=c(0.2,0.3,0.3,0.2),MAF,h2,ha2,prev,n.cores=1)
+```
+- **totalfam** : Number of total families.
+- **num.fammem** : A vector of the number of family members to be generated. Default is c(3,4,5,6).
+- **prob.fammem** : A vector of the corresponding probabilities of `num.fammem`. Each element should be ranged in from 0 to 1 and its summation should be equal to 1. Default is c(0.2,0.3,0.3,0.2).
+- **MAF** : Minor allele frequency for a SNP.
+- **h2** : Heritability which is ranged from 0 to 1.
+- **ha2** : A relative proportion of variance explained by the disease SNP. It should be ranged from 0 to 1.
+- **prev** : Prevalence of a disease. It should be a numeric which is ranged from 0 to 1.
+- **n.cores** : Number of cores for parallel computing. Unfortunatedly, it is not supported on Windows.
+
+---
+
+### **Output**
+`LTMH` and `LTMH.asc` return an object of class `list` containing the following compoenents:
+
+- `beta_std` : Coefficient estimates for standardized covariates.
+- `beta_unstd` : Coefficient estimates for unstandardized covariates. Even if you do not include the intercept in your `model`, the intercept will be always included.
+- `h2` : Heritability estimates.
+- `n_iter` : Number of iterations of EM.
+
+`CEST.h2` and `CEST.beta` return an object of class `data.frame` containing the following columns:
+
+- `Score` : Score estimate.
+- `var_Score` : Variance of `Score`.
+- `Chisq` : Chi-squared statistics.
+- `DF` : Degree of freedom of Chi-square distribution.
+- `Pvalue` : P-value of Chi-square statistics.
+
+---
+
+### **Examples**
+#### **Random families**
+- 500 families were randomly generated with heritability of 0.2 and prevalence of 0.1. 
+- `Random_sp.txt` : Datasets for 500 families which are randomly selected. 
+- `Random_kinship.txt` : Kinship coefficients matrix for 500 families which are randomly selected. 
+
+```
+## We recommend to run following example on device which can use multiple CPUs. It takes much time.
+source("LTMH_Sourcecode.R")
+dataset <- read.table("Random_sp.txt",head=T,stringsAsFactor=F)
+V <- as.matrix(read.table("Random_kinship.txt",head=F))
+
+LTMH(model=Y~snp-1,
+     data=dataset,
+     init_h2=0.2,
+     V=V,
+     famid=dataset$FID,
+     prev=0.1)
+
+CEST.h2(model=Y~snp-1,
+        data=dataset,
+        init_beta=NULL,
+        V=V,
+        famid=dataset$FID,
+        prev=0.1)
+```
+
+#### **Ascertained families**
+- 500 families with affected proband were generated with heritability of 0.4 and prevalence of 0.1. 
+- `Ascertained_sp.txt` : Datasets for 500 families with affected proband.
+- `Random_kinship.txt` : Kinship coefficients matrix for 500 families with affected proband.
+
+```
+## We recommend to run following example on device which can use multiple CPUs. It takes much time.
+source("LTMH_Sourcecode.R")
+dataset <- read.table("Ascertained_sp.txt",head=T,stringsAsFactor=F)
+V <- as.matrix(read.table("Random_kinship.txt",head=F))
+
+LTMH.asc(model=Y~snp-1,
+     data=dataset,
+     init_h2=0.4,
+     V=V,
+     famid=dataset$FID,
+     prev=0.1,
+     proband=dataset$ind)
+
+CEST.h2(model=Y~snp-1,
+        data=dataset,
+        init_beta=NULL,
+        V=V,
+        famid=dataset$FID,
+        prev=0.1,
+        proband=dataset$ind)
+```
