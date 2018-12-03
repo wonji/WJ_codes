@@ -156,9 +156,6 @@ LTMH <- function(model,init_beta=NULL,init_h2,V,famid,prev,data,max.iter=100,max
     return(f)
   }
   
-  if(as.character(model)[3]!='-1' & is.null(init_beta))
-    init_beta <- glm(model,data=data,family=binomial(link=probit))$coef
-
   Y <- data[,as.character(model)[2]]
   h2.old <- h2.OLD <- init_h2
   
@@ -169,8 +166,10 @@ LTMH <- function(model,init_beta=NULL,init_h2,V,famid,prev,data,max.iter=100,max
     notint <- which(colnames(X)!='(Intercept)')
     if(length(notint)!=0) {
       XX <- X
-      for(jj in notint) X[,jj] <- (X[,jj]-mean(X[,jj]))/sd(X[,jj])
+      for(jj in notint) X[,jj] <- (XX[,jj]-mean(XX[,jj],na.rm=T))/sd(XX[,jj],na.rm=T)
     }
+    if(as.character(model)[3]!='-1' & is.null(init_beta))
+      init_beta <- glm(Y~X-1,family=binomial(link=probit))$coef
     beta.old <- matrix(init_beta,ncol=1)
   }
   
@@ -454,103 +453,116 @@ LTMH.asc <- function(model,init_beta=NULL,init_h2,V,famid,prev,data,max.iter=100
   tr <- function(m) sum(diag(m))
   
   # calculate A and B
-  getAB <- function(i,h2.old,beta.old,famid,proband){
-    ## i : family id
-    fam <- which(famid==i)
-    PB <- proband[fam]
-    nn <- length(fam)			# number of family members for family i
-    Yi <- matrix(Y[fam],nrow=nn)		# disease status for family i
-    Xi <- matrix(X[fam,],nrow=nn)		# design matric for family i
-    Vi <- V[fam,fam]			# GRM matric for family i
-    Si <- h2.old*Vi+(1-h2.old)*diag(nn)	# Sigma for family i
-    
-    # calculating A and B
-    k <- which(Yi==1) # aff
-    kk <- which(Yi==0) # unaff
-    t <- qnorm(prev,0,1,lower.tail=F)
-    a <- rep(-Inf,nn); a[k] <- t
-    b <- rep(Inf,nn); b[kk] <- t
-    if(h2.old!=0){
-      para <- mtmvnorm(mean=as.vector(Xi%*%beta.old),sigma=Si,lower=a,upper=b,doComputeVariance=TRUE)
-      Bi <- matrix(para$tmean,ncol=1)
-      Ai <- para$tvar+Bi%*%t(Bi)
-    } else {
-      getAB_ij <- function(jj) {
-        para <- mtmvnorm(mean=as.vector(Xi[jj,,drop=F]%*%beta.old),sigma=1,lower=a[jj],upper=b[jj],doComputeVariance = TRUE)
-        Bi <- matrix(para$tmean,ncol=1)
-        Ai <- para$tvar+Bi%*%t(Bi)
-        return(c(Ai,Bi))
-      }
-      res <- lapply(1:nn,getAB_ij)
-      res <- do.call(rbind,res)
-      Bi <- res[,2,drop=F]
-      Ai <- Bi%*%t(Bi)
-      diag(Ai) <- res[,1]
-    }
-    
-    return(list(fam=fam,a=a,b=b,Yi=Yi,Xi=Xi,Vi=Vi,nn=nn,Ai=Ai,Bi=Bi,PB=PB,thres=t))
-  }
+	# calculate A and B
+	getAB <- function(i,h2.old,beta.old,famid,proband){
+		## i : family id
+		fam <- which(famid==i)
+		PB <- proband[fam]
+		nn <- length(fam)			# number of family members for family i
+		Yi <- matrix(Y[fam],nrow=nn)		# disease status for family i
+		Xi <- matrix(X[fam,],nrow=nn)		# design matric for family i
+		Vi <- V[fam,fam]			# GRM matric for family i
+		Si <- h2.old*Vi+(1-h2.old)*diag(nn)	# Sigma for family i
+
+		# calculating A and B
+		k <- which(Yi==1) # aff
+		kk <- which(Yi==0) # unaff
+		t <- qnorm(prev,0,1,lower.tail=F)
+		a <- rep(-Inf,nn); a[k] <- t
+		b <- rep(Inf,nn); b[kk] <- t
+		if(h2.old!=0){
+		  para <- mtmvnorm(mean=as.vector(Xi%*%beta.old),sigma=Si,lower=a,upper=b,doComputeVariance=TRUE)
+		  Bi <- matrix(para$tmean,ncol=1)
+		  Ai <- para$tvar+Bi%*%t(Bi)
+		} else {
+		  getAB_ij <- function(jj) {
+		    para <- mtmvnorm(mean=as.vector(Xi[jj,,drop=F]%*%beta.old),sigma=1,lower=a[jj],upper=b[jj],doComputeVariance = TRUE)
+		    Bi <- matrix(para$tmean,ncol=1)
+		    Ai <- para$tvar+Bi%*%t(Bi)
+		    return(c(Ai,Bi))
+		  }
+		  res <- lapply(1:nn,getAB_ij)
+		  res <- do.call(rbind,res)
+		  Bi <- res[,2,drop=F]
+		  Ai <- Bi%*%t(Bi)
+		  diag(Ai) <- res[,1]
+		}
+
+		return(list(fam=fam,a=a,b=b,Yi=Yi,Xi=Xi,Vi=Vi,nn=nn,Ai=Ai,Bi=Bi,PB=PB,thres=t))
+	}
+	
+	getELE <- function(i,resAB,h2.old,beta.old){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+		Si <- with(res,h2.old*Vi+(1-h2.old)*diag(nn))	# Sigma for family i
+		invSi <- solve(Si)
+		Ci <- with(res,-invSi%*%(Vi-diag(nn))%*%invSi)
+		Hi <- with(res,-2*invSi%*%(Vi-diag(nn))%*%Ci)
+		O1 <- with(res,t(Xi)%*%invSi%*%Xi)
+		O2 <- with(res,t(Xi)%*%Ci%*%Xi)
+		O3 <- with(res,t(Xi)%*%invSi%*%Bi)
+		O4 <- with(res,t(Xi)%*%Ci%*%Bi)
+		
+		dBeta <- O3 - O1%*%beta.old
+		dh2 <- with(res,-tr(invSi%*%(Vi-diag(nn)))/2 - tr(Ci%*%Ai)/2 + t(Xi%*%beta.old)%*%Ci%*%(Bi-Xi%*%beta.old/2))
+		
+		d2Beta <- -O1
+		d2h2Beta <- O4 - O2%*%beta.old
+		d2h2 <- with(res,-tr(Ci%*%(Vi-diag(nn)))/2 - tr(Hi%*%Ai)/2 + t(Xi%*%beta.old)%*%Hi%*%(Bi-Xi%*%beta.old/2))
+		
+		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
+	}
+
+	getELE.0 <- function(i,resAB,beta.old){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+		Si <- invSi <- with(res,diag(nn))	# Sigma for family i
+		Ci <- with(res,-(Vi-diag(nn)))
+		Hi <- with(res,-2*(Vi-diag(nn))%*%Ci)
+		O1 <- with(res,t(Xi)%*%Xi)
+		O2 <- with(res,t(Xi)%*%Ci%*%Xi)
+		O3 <- with(res,t(Xi)%*%Bi)
+		O4 <- with(res,t(Xi)%*%Ci%*%Bi)
+		
+		dBeta <- O3 - O1%*%beta.old
+		dh2 <- with(res,-tr(Vi-diag(nn))/2 - tr(Ci%*%Ai)/2 + t(Xi%*%beta.old)%*%Ci%*%(Bi-Xi%*%beta.old/2))
+		
+		d2Beta <- -O1
+		d2h2Beta <- O4 - O2%*%beta.old
+		d2h2 <- with(res,-tr(Ci%*%(Vi-diag(nn)))/2 - tr(Hi%*%Ai)/2 + t(Xi%*%beta.old)%*%Hi%*%(Bi-Xi%*%beta.old/2))
+		
+		return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
+	}
+	
+	getELE.PB <- function(i,resAB,beta.old){
+		# resAB : result of getAB
+		res <- resAB[[i]]
+
+		Yip <- with(res,Yi[PB==1])
+		Xip <- with(res,Xi[PB==1,drop=F])
+		Mui <- with(res,1-pnorm(thres-Xip%*%beta.old,lower.tail=T))
+		Alphai <- log(Mui/(1-Mui))
+		dBeta <- with(res,(Yip-Mui)/(Mui*(1-Mui))*dnorm(thres-Xip%*%beta.old)*t(Xip))
+		d2Beta <- with(res,dnorm(thres-Xip%*%beta.old)/(Mui*(1-Mui))*(-dnorm(thres-Xip%*%beta.old)+((Yip-Mui)*(2*Mui-1)*dnorm(thres-Xip%*%beta.old))/(Mui*(1-Mui))+(Yip-Mui)*(thres-Xip%*%beta.old))*Xip%*%t(Xip))
+		
+		return(list(dBeta=dBeta,d2Beta=d2Beta))
+	}
   
-  getELE <- function(i,resAB,h2.old,beta.old){
-    # resAB : result of getAB
-    res <- resAB[[i]]
-    Si <- with(res,h2.old*Vi+(1-h2.old)*diag(nn))	# Sigma for family i
-    invSi <- solve(Si)
-    Ci <- with(res,-invSi%*%(Vi-diag(nn))%*%invSi)
-    Hi <- with(res,-2*invSi%*%(Vi-diag(nn))%*%Ci)
-    O1 <- with(res,t(Xi)%*%invSi%*%Xi)
-    O2 <- with(res,t(Xi)%*%Ci%*%Xi)
-    O3 <- with(res,t(Xi)%*%invSi%*%Bi)
-    O4 <- with(res,t(Xi)%*%Ci%*%Bi)
-    
-    dBeta <- O3 - O1%*%beta.old
-    dh2 <- with(res,-tr(invSi%*%(Vi-diag(nn)))/2 - tr(Ci%*%Ai)/2 + t(Xi%*%beta.old)%*%Ci%*%(Bi-Xi%*%beta.old/2))
-    
-    d2Beta <- -O1
-    d2h2Beta <- O4 - O2%*%beta.old
-    d2h2 <- with(res,-tr(Ci%*%(Vi-diag(nn)))/2 - tr(Hi%*%Ai)/2 + t(Xi%*%beta.old)%*%Hi%*%(Bi-Xi%*%beta.old/2))
-    
-    return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
-  }
-  
-  getELE.0 <- function(i,resAB,beta.old){
-    # resAB : result of getAB
-    res <- resAB[[i]]
-    Si <- invSi <- with(res,diag(nn))	# Sigma for family i
-    Ci <- with(res,-(Vi-diag(nn)))
-    Hi <- with(res,-2*(Vi-diag(nn))%*%Ci)
-    O1 <- with(res,t(Xi)%*%Xi)
-    O2 <- with(res,t(Xi)%*%Ci%*%Xi)
-    O3 <- with(res,t(Xi)%*%Bi)
-    O4 <- with(res,t(Xi)%*%Ci%*%Bi)
-    
-    dBeta <- O3 - O1%*%beta.old
-    dh2 <- with(res,-tr(Vi-diag(nn))/2 - tr(Ci%*%Ai)/2 + t(Xi%*%beta.old)%*%Ci%*%(Bi-Xi%*%beta.old/2))
-    
-    d2Beta <- -O1
-    d2h2Beta <- O4 - O2%*%beta.old
-    d2h2 <- with(res,-tr(Ci%*%(Vi-diag(nn)))/2 - tr(Hi%*%Ai)/2 + t(Xi%*%beta.old)%*%Hi%*%(Bi-Xi%*%beta.old/2))
-    
-    return(list(Si=Si,invSi=invSi,Ci=Ci,Hi=Hi,O1=O1,O2=O2,O3=O3,O4=O4,dBeta=dBeta,dh2=dh2,d2Beta=d2Beta,d2h2Beta=d2h2Beta,d2h2=d2h2))
-  }
-  
-  getELE.PB <- function(i,resAB,beta.old){
-    # resAB : result of getAB
-    res <- resAB[[i]]
-    
-    Yip <- with(res,Yi[PB==1])
-    Xip <- with(res,Xi[PB==1,drop=F])
-    Mui <- with(res,1-pnorm(thres-Xip%*%beta.old,lower.tail=T))
-    Alphai <- log(Mui/(1-Mui))
-    dBeta <- with(res,(Yip-Mui)/(Mui*(1-Mui))*dnorm(thres-Xip%*%beta.old)*t(Xip))
-    d2Beta <- with(res,dnorm(thres-Xip%*%beta.old)/(Mui*(1-Mui))*(-dnorm(thres-Xip%*%beta.old)+((Yip-Mui)*(2*Mui-1)*dnorm(thres-Xip%*%beta.old))/(Mui*(1-Mui))+(Yip-Mui)*(thres-Xip%*%beta.old))*Xip%*%t(Xip))
-    
-    return(list(dBeta=dBeta,d2Beta=d2Beta))
-  }
-  
+
   Y <- data[,as.character(model)[2]]
-  X <- model.matrix(model,data)
-  beta.old <- beta.OLD <- matrix(init_beta,nrow=length(init_beta))
+  if(as.character(model)[3]=='-1'){
+    X <- NULL
+  } else {
+    X <- model.matrix(model,data)
+    notint <- which(colnames(X)!='(Intercept)')
+    if(length(notint)!=0) {
+      XX <- X
+      for(jj in notint) X[,jj] <- (XX[,jj]-mean(XX[,jj],na.rm=T))/sd(XX[,jj],na.rm=T)
+    }
+    if(as.character(model)[3]!='-1' & is.null(init_beta))
+      init_beta <- glm(Y~X-1,family=binomial(link=probit))$coef
+    beta.old <- beta.OLD <- matrix(init_beta,ncol=1)
+  }
   h2.old <- h2.OLD <- init_h2
   theta.old <- theta.OLD <- rbind(beta.old,h2.old)
   
@@ -669,7 +681,35 @@ LTMH.asc <- function(model,init_beta=NULL,init_h2,V,famid,prev,data,max.iter=100
       write.table(t(as.matrix(c(unlist(output),n_iter=n.iter))),out,row.names=F,col.names=F,append=T)
     }
     if(epsilon<1e-5) {
-      return(list(beta=beta.old,h2=h2.old,n_iter=n.iter))
+	  beta.new <- beta.std <- theta.new[-nrow(theta.new),,drop=F]
+	  colnames(beta.std) <- colnames(X)
+	  h2.new <- theta.new[nrow(theta.new),]
+	  names(h2.new) <- NULL
+      if(ncol(X)!=1 & '(Intercept)'%in%colnames(X)){
+        Mean <- colMeans(XX)
+        SD <- apply(XX,2,sd)
+        for(gg in 2:ncol(XX)){
+          beta.new[gg,1] <- beta.new[gg,1]/SD[gg]
+          beta.new[1,1] <- beta.new[1,1]-Mean[gg]/SD[gg]
+        }
+        beta.unstd <- data.frame(t(beta.new))
+		colnames(beta.unstd) <- colnames(X)
+      } else if(!'(Intercept)'%in%colnames(X)){
+        Mean <- colMeans(XX)
+        SD <- apply(XX,2,sd)
+        itc <- 0
+        for(gg in 1:ncol(XX)){
+          beta.new[gg,1] <- beta.new[gg,1]/SD[gg]
+          itc <- itc - Mean[gg]/SD[gg]
+        }
+        beta.unstd <- data.frame(t(beta.new))
+		colnames(beta.unstd) <- colnames(X)
+        beta.unstd <- data.frame(itc,beta.unstd)
+        colnames(beta.unstd)[1] <- '(Intercept)'
+      } else {
+        beta.unstd <- beta.std
+      }
+      return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter))
       break
     }
   }

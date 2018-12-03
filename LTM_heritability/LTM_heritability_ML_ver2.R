@@ -602,7 +602,7 @@ getEsth2 <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model,n.c
 	total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
 	V <- 2*as.matrix(kinship(total_ped))
 	famid <- as.character(dataset$FID)
-	output <- LTMH(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
+	output <- LTMH(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
 	write.table(t(as.matrix(c(obs=i,unlist(output)))),paste0("prev_",assumed_prev,"_h2_",init_h2,"/Esth2_",totalfam,".txt"),col.names=F,row.names=F,quote=F,append=TRUE)
 	return(c(i,output))
 }
@@ -616,7 +616,7 @@ getEsth2_ver2 <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,mode
 	total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
 	V <- 2*as.matrix(kinship(total_ped))
 	famid <- as.character(dataset$FID)
-	output <- LTMH(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
+	output <- LTMH(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
 	fin.res <- data.frame(obs=i,unlist(output))
 	write.table(fin.res,outpath,col.names=F,row.names=F,quote=F,append=TRUE)
 	return(c(i,output))
@@ -632,7 +632,7 @@ getEsth2.out <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model
   total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
   V <- 2*as.matrix(kinship(total_ped))
   famid <- as.character(dataset$FID)
-  output <- LTMH(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
+  output <- LTMH(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,data=dataset,n.cores=n.cores)
   write.table(t(as.matrix(c(obs=i,unlist(output)))),out,col.names=F,row.names=F,quote=F,append=TRUE)
   return(c(i,output))
 }
@@ -701,7 +701,7 @@ getEsth2.asc <- function(i,fin.dat,init_beta,init_h2,totalfam,assumed_prev,model
   total_ped <- with(dataset,pedigree(id=IID,dadid=PID,momid=MID,sex=SEX,famid=FID,missid='0'))
   V <- 2*as.matrix(kinship(total_ped))
   famid <- as.character(dataset$FID)
-  output <- LTMH.asc(mode=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,dataset=dataset,n.cores=n.cores,proband=proband)
+  output <- LTMH.asc(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=assumed_prev,dataset=dataset,n.cores=n.cores,proband=proband)
   write.table(t(as.matrix(c(obs=i,unlist(output)))),out,col.names=F,row.names=F,quote=F,append=TRUE)
   return(c(i,output))
 }
