@@ -1,0 +1,151 @@
+
+
+######## Figures ########
+## Fig 1 : KKT conditions
+setwd("~/paper/heritability/ML_ver2/variousFam/")
+pdf("figure_and_table/figure1.pdf",width=12,height=4.3)
+par(mfrow=c(1,3))
+
+f1 <- function(x) -5*(x+0.5)^2+5
+f1_p <- function(x) -10*(x+0.5)
+jup <- function(x,y) f1_p(x)*(y-x)+f1(x)
+
+xdat <- seq(-2,2,0.01)
+ydat <- sapply(xdat, f1)
+
+plot(xdat,ydat,type='n',xlim=c(-1,2),ylim=c(-10,10),xlab=expression(italic(h)^2),ylab=expression(paste("Q(",italic(h)^2,")")),main=expression(paste(argmax[italic(h)^2],' Q(',italic(h)^2,') < 0')))
+polygon(c(0,1,1,0),c(-10.7,-10.7,10.78,10.78),col='light gray',border=NA)
+lines(xdat,ydat)
+abline(v=c(0,1),lty=2)
+lines(c(-0.5,0.5),c(jup(0,-0.5),jup(0,0.5)),col='red',lwd=2)
+lines(c(0.7,1.3),c(jup(1,0.7),jup(1,1.3)),col='red',lwd=2)
+points(c(-0.5,0,1),c(5,f1(0),f1(1)),pch=c(2,19,19))
+mtext("(A)",SNORTH<-3,line=2,adj=0.01,cex=1)
+
+
+f1 <- function(x) -5*(x-1.5)^2+5
+f1_p <- function(x) -10*(x-1.5)
+jup <- function(x,y) f1_p(x)*(y-x)+f1(x)
+
+xdat <- seq(-2,2,0.01)
+ydat <- sapply(xdat, f1)
+
+plot(xdat,ydat,type='n',xlim=c(-1,2),ylim=c(-10,10),xlab=expression(italic(h)^2),ylab=expression(paste("Q(",italic(h)^2,")")),main=expression(paste(argmax[italic(h)^2],' Q(',italic(h)^2,') > 1')))
+polygon(c(0,1,1,0),c(-10.7,-10.7,10.78,10.78),col='light gray',border=NA)
+lines(xdat,ydat)
+abline(v=c(0,1),lty=2)
+lines(c(-0.7,0.3),c(jup(0,-0.7),jup(0,0.3)),col='red',lwd=2)
+lines(c(0.7,1.3),c(jup(1,0.7),jup(1,1.3)),col='red',lwd=2)
+points(c(1.5,0,1),c(5,f1(0),f1(1)),pch=c(2,19,19))
+mtext("(B)",SNORTH<-3,line=2,adj=0.01,cex=1)
+
+f1 <- function(x) -5*(x-0.5)^2+5
+f1_p <- function(x) -10*(x-0.5)
+jup <- function(x,y) f1_p(x)*(y-x)+f1(x)
+
+xdat <- seq(-2,3,0.01)
+ydat <- sapply(xdat, f1)
+
+plot(xdat,ydat,type='n',xlim=c(-1,2),ylim=c(-10,10),xlab=expression(italic(h)^2),ylab=expression(paste("Q(",italic(h)^2,")")),main=expression(paste(argmax[italic(h)^2],' Q(',italic(h)^2,') in [0,1]')))
+polygon(c(0,1,1,0),c(-10.7,-10.7,10.78,10.78),col='light gray',border=NA)
+lines(xdat,ydat)
+abline(v=c(0,1),lty=2)
+lines(c(-0.3,0.3),c(jup(0,-0.3),jup(0,0.3)),col='red',lwd=2)
+lines(c(0.7,1.3),c(jup(1,0.7),jup(1,1.3)),col='red',lwd=2)
+points(c(0.5,0,1),c(5,f1(0),f1(1)),pch=c(2,19,19))
+mtext("(C)",SNORTH<-3,line=2,adj=0.01,cex=1)
+dev.off()
+
+#### Figure 3
+V <- matrix(1/2,4,4)
+diag(V) <- 1
+V[1,2] <- V[2,1] <- 0
+
+h2=0.2944
+beta.hat=matrix(0.8,1,1)
+thres <- qnorm(0.109,lower.tail=F)
+
+get.risk <- function(Y,age,V,h2,beta.hat,thres,ind){
+	library(mvtnorm)
+	X <- matrix((c(age+29,age+26,age,age-3)-48.62664)/15.7037,ncol=1)
+
+	# Nominator
+	a <- ifelse(Y==0,-Inf,thres)
+	b <- ifelse(Y==0,thres,Inf)
+	a[ind] <- thres; b[ind] <- Inf
+	S <- h2*V+(1-h2)*diag(length(Y))
+	nom <- pmvnorm(lower=a,upper=b,mean=as.vector(X%*%beta.hat),sigma=S)[1]
+	
+	# Denominator
+	a <- a[-ind]; b <- b[-ind]
+	S <- S[-ind,-ind]
+	X <- X[-ind,]
+	denom <- pmvnorm(lower=a,upper=b,mean=as.vector(X%*%beta.hat),sigma=S)[1]
+	
+	res <- data.frame(age=age,prob=nom/denom)
+	return(res)
+}
+
+get.risk.uni <- function(age,beta.hat,thres){
+	library(mvtnorm)
+	X <- (age-48.62664)/15.7037
+	res.1 <- pnorm(thres,mean=X*beta.hat,sd=1,lower.tail=F)
+	res <- data.frame(age=age,prob=res.1)
+	return(res)
+}
+	
+library(parallel)
+# 1. Y=c(0,0,0,0)
+Y=c(0,0,0,0)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.I <- do.call(rbind,Res)
+Res.I <- Res.I[order(Res.I$age),]
+	
+# 2. Y=c(1,0,0,0)
+Y=c(1,0,0,0)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.II <- do.call(rbind,Res)
+Res.II <- Res.II[order(Res.II$age),]
+
+# 3. Y=c(1,1,0,0)
+Y=c(1,1,0,0)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.III <- do.call(rbind,Res)
+Res.III <- Res.III[order(Res.III$age),]
+
+# 4. Y=c(1,1,0,1)
+Y=c(1,1,0,1)
+Res <- mclapply(seq(20,80,by=1),get.risk,Y=Y,V=V,h2=h2,beta.hat=beta.hat,thres=thres,ind=3,mc.cores=24)
+Res.IV <- do.call(rbind,Res)
+Res.IV <- Res.IV[order(Res.IV$age),]
+
+# 5. random sample
+Res <- lapply(seq(20,80,by=1),get.risk.uni,beta.hat=beta.hat,thres=thres)
+Res.V <- do.call(rbind,Res)
+
+# Fig 3A
+setwd("~/paper/heritability/ML_ver2/variousFam/figure_and_table/")
+pdf("figure3.pdf",width=10,height=4.7)
+par(mfrow=c(1,2))
+par(oma=c(0, 0, 0, 5))
+plot(1,1,type='n',xlim=c(20,80),ylim=c(Res.I[1,'prob'],Res.IV[61,'prob']),xlab="Age of proband",ylab="Probability of being affected")
+lines(seq(20,80,by=1),Res.I$prob,lty=1)
+lines(seq(20,80,by=1),Res.II$prob,lty=2)
+lines(seq(20,80,by=1),Res.III$prob,lty=3)
+lines(seq(20,80,by=1),Res.IV$prob,lty=4)
+mtext(text="(A)", side=3, at=10, cex=1.2, line=1)
+
+# Fig 3B
+Res.I$RR <- Res.I$prob/Res.V$prob
+Res.II$RR <- Res.II$prob/Res.V$prob
+Res.III$RR <- Res.III$prob/Res.V$prob
+Res.IV$RR <- Res.IV$prob/Res.V$prob
+
+plot(1,1,type='n',xlim=c(20,80),ylim=c(0,max(Res.IV[,'RR'])),xlab="Age of proband",ylab="Relative Risk")
+lines(seq(20,80,by=1),Res.I$RR,lty=1)
+lines(seq(20,80,by=1),Res.II$RR,lty=2)
+lines(seq(20,80,by=1),Res.III$RR,lty=3)
+lines(seq(20,80,by=1),Res.IV$RR,lty=4)
+legend("topright", inset=c(-0.3,0.07), legend=paste0(0:3), lty=1:4, title="Number of\naffected\nrelatives",xpd=NA,bty="n")
+mtext(text="(B)", side=3, at=10, cex=1.2, line=1)
+dev.off()

@@ -229,6 +229,61 @@ system("onetool --fam temp_SNUH.fam --vcf temp_SNUH.vcf --out SNUH_pedinfo")
 
 
 ######## Figures ########
+## Fig 1 : KKT conditions
+setwd("~/paper/heritability/ML_ver2/variousFam/")
+png("figure_and_table/fig1_KKT.png",width=1900,height=650,res=200)
+par(mfrow=c(1,3))
+
+f1 <- function(x) -5*(x+0.5)^2+5
+f1_p <- function(x) -10*(x+0.5)
+jup <- function(x,y) f1_p(x)*(y-x)+f1(x)
+
+xdat <- seq(-2,2,0.01)
+ydat <- sapply(xdat, f1)
+
+plot(xdat,ydat,type='n',xlim=c(-1,2),ylim=c(-10,10),xlab=expression(italic(h)^2),ylab=expression(paste("Q(",italic(h)^2,")")),main=expression(paste(argmax[italic(h)^2],' Q(',italic(h)^2,') < 0')))
+polygon(c(0,1,1,0),c(-10.8,-10.8,10.78,10.78),col='light gray',border=NA)
+lines(xdat,ydat)
+abline(v=c(0,1),lty=2)
+lines(c(-0.5,0.5),c(jup(0,-0.5),jup(0,0.5)),col='red',lwd=2)
+lines(c(0.7,1.3),c(jup(1,0.7),jup(1,1.3)),col='red',lwd=2)
+points(c(-0.5,0,1),c(5,f1(0),f1(1)),pch=c(2,19,19))
+mtext("A",SNORTH<-3,line=2,adj=0.01,cex=1)
+
+
+f1 <- function(x) -5*(x-1.5)^2+5
+f1_p <- function(x) -10*(x-1.5)
+jup <- function(x,y) f1_p(x)*(y-x)+f1(x)
+
+xdat <- seq(-2,2,0.01)
+ydat <- sapply(xdat, f1)
+
+plot(xdat,ydat,type='n',xlim=c(-1,2),ylim=c(-10,10),xlab=expression(italic(h)^2),ylab=expression(paste("Q(",italic(h)^2,")")),main=expression(paste(argmax[italic(h)^2],' Q(',italic(h)^2,') > 1')))
+polygon(c(0,1,1,0),c(-10.8,-10.8,10.78,10.78),col='light gray',border=NA)
+lines(xdat,ydat)
+abline(v=c(0,1),lty=2)
+lines(c(-0.7,0.3),c(jup(0,-0.7),jup(0,0.3)),col='red',lwd=2)
+lines(c(0.7,1.3),c(jup(1,0.7),jup(1,1.3)),col='red',lwd=2)
+points(c(1.5,0,1),c(5,f1(0),f1(1)),pch=c(2,19,19))
+mtext("B",SNORTH<-3,line=2,adj=0.01,cex=1)
+
+f1 <- function(x) -5*(x-0.5)^2+5
+f1_p <- function(x) -10*(x-0.5)
+jup <- function(x,y) f1_p(x)*(y-x)+f1(x)
+
+xdat <- seq(-2,3,0.01)
+ydat <- sapply(xdat, f1)
+
+plot(xdat,ydat,type='n',xlim=c(-1,2),ylim=c(-10,10),xlab=expression(italic(h)^2),ylab=expression(paste("Q(",italic(h)^2,")")),main=expression(paste(argmax[italic(h)^2],' Q(',italic(h)^2,') in [0,1]')))
+polygon(c(0,1,1,0),c(-10.8,-10.8,10.78,10.78),col='light gray',border=NA)
+lines(xdat,ydat)
+abline(v=c(0,1),lty=2)
+lines(c(-0.3,0.3),c(jup(0,-0.3),jup(0,0.3)),col='red',lwd=2)
+lines(c(0.7,1.3),c(jup(1,0.7),jup(1,1.3)),col='red',lwd=2)
+points(c(0.5,0,1),c(5,f1(0),f1(1)),pch=c(2,19,19))
+mtext("C",SNORTH<-3,line=2,adj=0.01,cex=1)
+dev.off()
+
 #### Figure 2 - color
 library(ggplot2)
 library(gridExtra)
