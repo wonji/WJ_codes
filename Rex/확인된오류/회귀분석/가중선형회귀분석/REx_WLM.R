@@ -1,804 +1,808 @@
+# ????????????????????????
 REx_WLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,vars=NULL,weight_var=NULL,weight_option=FALSE,noint=FALSE,
-			Valid.method=c('Partition','Cross'),Part.method=c('all','percent','variable'),train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL,
-			CI=TRUE,confint.level=0.95,VIF=FALSE,ANOVA=TRUE,ss=c('I','II','III'),Plot=FALSE,VIP=FALSE,GOF=FALSE,
-			Predict_train=FALSE,Predict_CI_train=FALSE,Predict_PI_train=FALSE,confint.level_train=0.95,Resid=FALSE,stdResid=FALSE,studResid=FALSE,cook_distance=FALSE,hat_value=FALSE,weightVar=FALSE,
-			Predict_test=FALSE,Predict_CI_test=FALSE,Predict_PI_test=FALSE,confint.level_test=0.95,
-			Predict_CI_pred=FALSE,Predict_PI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,
-			Select=FALSE,direct=c("forward","backward","both"),keep_var=NULL){
-	load.pkg(c("R2HTML", "rms", "MASS", "caret"))
-
-	if(length(dep_var) > 1) 
-		Predict_train <- Predict_CI_train <- Predict_PI_train <- Resid <- stdResid <- studResid <- cook_distance <- hat_value <- Predict_test <- Predict_CI_test <- Predict_PI_test <- Predict_CI_pred <- Predict_PI_pred <- Part_index <- FALSE
-	
-	Dep_var <- dep_var
-	FIN.RESULT <- list()
-	
-	for(dep_var in Dep_var){
-		
-		html.output <- capture.output({
-
-			# Title
-			R2HTML::HTML(R2HTML::as.title("Weighted Linear Regression"),HR=1,file=stdout(),append=FALSE)
-
-			## Warnings
-			# Response variable type
-			if(!is.numeric(dataset[,dep_var])) warn.msg1 <- '<li> Error : Dependent variable should be numeric. Analysis has been stopped.'
-
-			# explanatory variable type
-			if(is.null(vars)) {
-				Vars <- c()
-			} else {
-				Vars <-  unique(unlist(strsplit(c(vars,weight_var),":")))
-			}
-			indep_cat_var <- indep_cat_var[indep_cat_var%in%Vars]
-			if(length(indep_cat_var)==0) indep_cat_var <- NULL
-			indep_numeric_var <- indep_numeric_var[indep_numeric_var%in%Vars]
-			if(length(indep_numeric_var)==0) indep_numeric_var <- NULL
-
-			if(!is.null(indep_numeric_var)) {
-				is.nom <- sapply(indep_numeric_var,function(i) !is.numeric(dataset[,i]))
-				if(any(is.nom)){
-					warn.msg2 <- paste0("<li> Warning : The type of variable '",paste(indep_numeric_var[is.nom],collapse=', '),"' is not numeric but selected as the quantitative variable. It was excluded from the analysis.")
-					ec <- indep_numeric_var[is.nom]
-					for(jj in ec) vars <- vars[-grep(jj,vars)]
-					if(length(vars)==0) vars <- NULL
-					if(weight_var%in%ec) weight_var <- NULL
-				}
-			}
-			if(!is.null(indep_cat_var)) {
-				is.num <- sapply(indep_cat_var,function(i) is.numeric(dataset[,i]))
-				if(any(is.num)) warn.msg3 <- paste0("<li> Warning : The type of variable '",paste(indep_cat_var[is.num],collapse=', '),"' is numeric but selected as the qualitative variable. It was coerced into character.")
-				for(i in indep_cat_var[is.num]) dataset[,i] <- as.factor(dataset[,i])
-			}
-
-			if(is.null(vars)) {
-				Vars <- c()
-			} else {
-				Vars <-  unique(unlist(strsplit(c(vars,weight_var),":")))
-			}
-			indep_cat_var <- indep_cat_var[indep_cat_var%in%Vars]
-			if(length(indep_cat_var)==0) indep_cat_var <- NULL
-			indep_numeric_var <- indep_numeric_var[indep_numeric_var%in%Vars]
-			if(length(indep_numeric_var)==0) indep_numeric_var <- NULL
-
-			# Warning in variable selection
-			if(Select) {
-				if(is.null(vars)) {
-					Select <- FALSE
-					warn.VS <- '<li> Warning : Variable selection is not supported for intercept only model.'
-				}
-				keep_var <- keep_var[keep_var%in%vars]
-				if(length(keep_var)==0) keep_var <- NULL
-			}
-
-			# no intercept & no explanatory variable : error
-			if(noint&is.null(vars)) warn.msg4 <- '<li> Error : With no intercept, at least 1 independent variable should be selected. Analysis has been stopped.'
-
-			if(is.null(weight_var)) warn.msg5 <- '<li> Error : Weight variable should be selected. Analysis has been stopped.'
-			
-			if(!is.null(weight_var) & weight_var%in%indep_numeric_var & 0%in%dataset[,weight_var]) warn.msg7 <- '<li> Error : If weight variable is quantitative, 0 is not allowed for weight. Analysis has been stopped.'
-
-			## Data processing
-			original.dataset <- dataset
-			
-			# predict variable
-			if(!is.null(Pred.var)){
-				pred.level <- na.omit(unique(dataset[,Pred.var]))
-				# No training & testing dataset
-				if(!2%in%pred.level) {
-					warn.DP1 <- paste0("<li> Error : '2' is not observed in the split variable for prediction, '",Pred.var,"'. That is, no observations are assigned to the training & testing dataset. Analysis has been stopped.")
-				} else {
-					if(!1%in%pred.level) {	
-						# Only 2 is obaserved
-						warn.DP3 <- paste0("<li> Warning : '1' is not observed in the split variable for prediction, '",Pred.var,"'. That is, no observations are assigned to the prediction dataset. Prediction is not supported in this analysis.")
-						Predict_CI_pred <- Predict_PI_pred <- FALSE
-					} else if(!all(pred.level%in%c(1,2))) {
-						# Value other than 1 and 2
-						warn.DP2 <- paste0("<li> Warning : Values other than '1' and '2' are observed in the split variable for prediction, '",Pred.var,"'. Observations with the value other than '1' and '2' are not included the analysis.")
-						pred.dataset <- dataset[dataset[,Pred.var]==1,]	# prediction dataset
-						dataset <- dataset[dataset[,Pred.var]==2,]	# training & testing dataset
-					}
-				}
-			}
-			
-			# training & testing
-			if(Valid.method=='Partition'){
-				if(Part.method=='percent'){
-					n.train <- round(nrow(dataset)*train.perc/100)
-					
-					if(train.perc==100 | n.train==nrow(dataset)){
-						warn.DP4 <- "<li> Warning : No observations are assigned to the testing dataset due to too high percent for the training dataset. Validation using testing dataset is not supported in this analysis."
-						Predict_test <- Predict_CI_test <- Predict_PI_test <- FALSE
-					} else if(n.train==0){
-						warn.DP5 <- "<li> Error : No observations are assigned to the training dataset due to too low percent for the training dataset. To secure sufficient number of observations for the training dataset, increase the percent. Analysis has been stopped."
-					} else {
-						train <- sample(seq(nrow(dataset)),n.train)
-
-						# testing set
-						test.dataset <- dataset[-train,,drop=F]
-						# training set
-						dataset <- dataset[train,,drop=F]
-						
-						if(nrow(original.dataset)!=(nrow(dataset)+nrow(test.dataset)))	warn.DP9 <- "<li> Warning : Observations with missing dependent variable were not assigned to training dataset or testing dataset."
-						
-						# ordering
-						dataset <- dataset[order(as.numeric(rownames(dataset))),,drop=F]
-						test.dataset <- test.dataset[order(as.numeric(rownames(test.dataset))),,drop=F]
-					}
-				}
-				if(Part.method=='variable'){
-					part.level <- na.omit(unique(dataset[,Part.var]))
-					# No training & testing dataset
-					if(!1%in%part.level) {
-						warn.DP6 <- paste0("<li> Error : '1' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the training dataset. Analysis has been stopped.")
-					} else if(!2%in%part.level) {
-						warn.DP7 <- paste0("<li> Warning : '2' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the testing dataset. Validation using testing dataset is not supported in this analysis.")
-						Predict_prob_tet <- Predict_g_test <- FALSE
-					} else {
-						# Value other than 1 and 2
-						if(!all(part.level%in%c(1,2))) {
-							warn.DP8 <- paste0("<li> Warning : Values other than '1' and '2' are observed in the split variable for validation, '",Part.var,"'. Observations with the value other than '1' and '2' are not included the analysis.")
-						}
-						test.dataset <- dataset[dataset[,Part.var]==2,]	# testing dataset
-						dataset <- dataset[dataset[,Part.var]==1,]	# training dataset
-					}
-				}
-			}
-			#### Then, original.dataset : original dataset, dataset : training dataset, test.dataset : testing dataset, pred.dataset : prediction dataset.
-
-			# warnings
-			if(exists('warn.msg1')|exists('warn.msg4')|exists('warn.msg5')|exists('warn.msg7')|exists('warn.DP1')|exists('warn.DP5')|exists('warn.DP6')){
-				R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
-				if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
-				if(exists('warn.msg4')){
-					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
-					R2HTML::HTML(warn.msg4,file=stdout())
-				}
-				if(exists('warn.msg5')) {
-					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
-					R2HTML::HTML(warn.msg5,file=stdout())
-				}
-				if(exists('warn.msg7')) R2HTML::HTML(warn.msg7,file=stdout())
-				if(exists('warn.DP1')) R2HTML::HTML(warn.DP1,file=stdout())
-				if(exists('warn.DP5')) R2HTML::HTML(warn.DP5,file=stdout())
-				if(exists('warn.DP6')) R2HTML::HTML(warn.DP6,file=stdout())
-			} else {
-				## model formula
-				var_info <- c(dep_var,indep_numeric_var, indep_cat_var)
-				raw.dat <- dataset
-				temp.dat <- dataset[complete.cases(dataset[,var_info,drop=F]),,drop=F]
-
-				form.0 <- ifelse(is.null(vars),paste0(dep_var,' ~ 1'),paste0(dep_var,' ~ ',paste(vars,collapse=' + ')))
-				if(noint) form.0 <- paste(form.0,-1)
-				form.1 <- as.formula(form.0)
-
-				## Fitting WLS
-				wts <- temp.dat[,weight_var]
-				wts1 <- wts2 <- wts3 <- wts4 <- rep(NA,nrow(temp.dat))
-				if(weight_var%in%indep_numeric_var){	
-					if(!weight_option){
-						#weight_option=FALSE
-						wts1 <- 1/wts^2
-						WTS <- wts1
-					}else{
-						#weight_option=TRUE
-						wts1 <- 1/wts^2
-						model.1 <- lm(formula(form.1),data=temp.dat,weight=wts1)
-						wts2 <- 1/fitted(lm(abs(residuals(model.1)) ~ fitted(model.1)))^2
-						WTS <- wts2
-					}
-				}else{
-					if(!weight_option){
-						#weight_option=FALSE
-						model.1 <- lm(formula(form.1),data=temp.dat)
-						VV <- tapply(residuals(model.1), wts, var)
-						ll <- levels(wts)
-						for(i in seq_along(ll)){
-							wts3[wts==ll[i]] <- 1/VV[i]
-						}
-						WTS <- wts3
-					}else{
-						#weight_option=TRUE
-						model.1 <- lm(formula(form.1),data=temp.dat)
-						VV <- tapply(residuals(model.1), wts, var)
-						ll <- levels(wts)
-						for(i in seq_along(ll)){
-							wts3[wts==ll[i]] <- 1/VV[i]
-						}
-						model.2 <- lm(formula(form.1),data=temp.dat,weight=wts3)
-						wts4 <- 1/fitted(lm(abs(residuals(model.2)) ~ fitted(model.2)))^2
-						WTS <- wts4
-					}
-				}
-				res_LM_1 <- try(lm(form.1,data=temp.dat,weight=WTS))
-
-				if(class(res_LM_1)=='try-error'){
-					R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
-					warn.msg.conv <- "<li> Warning : Weighted linear regression was not fitted. Analysis has been stopped."
-					R2HTML::HTML(warn.msg.conv,file=stdout())
-				} else {
-					### final model:res_LM_1
-					### weight_var = WTS
-
-					### Options
-					# Training dataset
-					if(Predict_train) {
-						temp.0 <- data.frame(Fitted_WLM=predict(res_LM_1,newdata=temp.dat))
-						temp <- data.frame(Fitted_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						O <- data.frame(Fitted_train_WLM=mer.1[,3])
-					}
-					if(Predict_CI_train){
-						temp.0 <- data.frame(predict(res_LM_1,newdata=temp.dat,interval='confidence',level=confint.level_train))
-						temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-						colnames(mer.1) <- paste0('Fitted_',round(confint.level_train*100,0),'CI_',c('Lower','Upper'),'_train_WLM')
-						if(exists('O')) {
-							O <- cbind(O,mer.1)
-						} else {
-							O <- mer.1
-						}
-					}
-					if(Predict_PI_train){
-						# Warning message
-						# In predict.lm(res_LM_1, newdata = temp.dat, interval = "prediction",  :
-						# Assuming constant prediction variance even though model fit is weighted
-
-						temp.0 <- data.frame(predict(res_LM_1,newdata=temp.dat,interval='prediction',level=confint.level_train))
-						temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-						colnames(mer.1) <- paste0('Fitted_',round(confint.level_train*100,0),'PI_',c('Lower','Upper'),'_train_WLM')
-						if(exists('O')) {
-							O <- cbind(O,mer.1)
-						} else {
-							O <- mer.1
-						}
-					}
-					if(Resid) {
-						temp.0 <- data.frame(Resid_WLM=resid(res_LM_1))
-						temp <- data.frame(Resid_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						if(exists('O')) {
-							O <- cbind(O,unstdResid_train_WLM=mer.1[,3])
-						} else {
-							O <- data.frame(unstdResid_train_WLM=mer.1[,3])
-						}
-					}
-					if(stdResid) {
-						temp.0 <- data.frame(stdResid_WLM=MASS::stdres(res_LM_1))
-						is.singular <- "try-error"%in%class(try(temp.0[,1],silent=T))
-						if(is.singular){
-							warn.res1 <- "<li> Error : Cannnot calculate standardized residuals because of the (near) linear dependences in explatory variables. Please check multicollinearity problem."
-						} else {
-							temp <- data.frame(stdResid_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-							mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-							mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-							if(exists('O')) {
-								O <- cbind(O,stdResid_train_WLM=mer.1[,3])
-							} else {
-								O <- data.frame(stdResid_train_WLM=mer.1[,3])
-							}
-						}
-					}
-					if(studResid) {
-						temp.0 <- data.frame(studResid_WLM=MASS::studres(res_LM_1))
-						is.singular <- "try-error"%in%class(try(temp.0[,1],silent=T))
-						if(is.singular){
-							warn.res2 <- "<li> Error : Cannnot calculate standardized residuals because of the (near) linear dependences in explatory variables. Please check multicollinearity problem."
-						} else {
-							temp <- data.frame(studResid_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-							mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-							mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-							if(exists('O')) {
-								O <- cbind(O,studResid_train_WLM=mer.1[,3])
-							} else {
-								O <- data.frame(studResid_train_WLM=mer.1[,3])
-							}
-						}
-					}
-					if(cook_distance){
-						temp.0 <- data.frame(CookDist_WLM=cooks.distance(res_LM_1))
-						temp <- data.frame(CookDist_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						if(exists('O')) {
-							O <- cbind(O,CookDist_train_WLM=mer.1[,3])
-						} else {
-							O <- data.frame(CookDist_train_WLM=mer.1[,3])
-						}
-					}
-					if(hat_value){
-						temp.0 <- data.frame(HatValue_WLM=hatvalues(res_LM_1))
-						temp <- data.frame(HatValue_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						if(exists('O')) {
-							O <- cbind(O,HatValue_train_WLM=mer.1[,3])
-						} else {
-							O <- data.frame(HatValue_train_WLM=mer.1[,3])
-						}
-					}
-					if(weightVar) {
-						temp.0 <- data.frame(weightVar_WLM=WTS)
-						temp <- data.frame(weightVar_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						if(exists('O')) {
-							O <- cbind(O,WeightVar_WLM=mer.1[,3])
-						} else {
-							O <- data.frame(WeightVar_WLM=mer.1[,3])
-						}
-					}
-
-					# testing dataset
-					if(exists('test.dataset')&Predict_test) {
-						temp.0 <- data.frame(Fitted_WLM=predict(res_LM_1,newdata=test.dataset))
-						temp <- data.frame(Fitted_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						if(exists('O')) {
-							O <- cbind(O,Predicted_testing_WLM=mer.1[,3])
-						} else {
-							O <- data.frame(Predicted_testing_WLM=mer.1[,3])
-						}
-					}
-					if(exists('test.dataset')&Predict_CI_test){
-						temp.0 <- data.frame(predict(res_LM_1,newdata=test.dataset,interval='confidence',level=confint.level_test))
-						temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-						colnames(mer.1) <- paste0('Predicted_',round(confint.level_test*100,0),'CI_',c('Lower','Upper'),'_testing_WLM')
-						if(exists('O')) {
-							O <- cbind(O,mer.1)
-						} else {
-							O <- mer.1
-						}
-					}
-					if(exists('test.dataset')&Predict_PI_test){
-						# Warning message
-						# In predict.lm(res_LM_1, newdata = pred.dataset, interval = "prediction",  :
-						# Assuming constant prediction variance even though model fit is weighted
-
-						temp.0 <- data.frame(predict(res_LM_1,newdata=test.dataset,interval='prediction',level=confint.level_test))
-						temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-						colnames(mer.1) <- paste0('Predicted',round(confint.level_test*100,0),'PI_',c('Lower','Upper'),'_testing_WLM')
-						if(exists('O')) {
-							O <- cbind(O,mer.1)
-						} else {
-							O <- mer.1
-						}
-					}
-
-					# prediction dataset
-					if(exists('pred.dataset')){
-						# Probability
-						temp.0 <- data.frame(Predicted_LM=predict(res_LM_1,newdata=pred.dataset))
-						temp <- data.frame(Predicted_LM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
-						if(exists('O')) {
-							O <- cbind(O,Predicted_pred_WLM=mer.1[,3])
-						} else {
-							O <- data.frame(Predicted_pred_WLM=mer.1[,3])
-						}
-					}
-					if(exists('pred.dataset')&Predict_CI_pred){
-						temp.0 <- data.frame(predict(res_LM_1,newdata=pred.dataset,interval='confidence',level=confint.level_pred))
-						temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-						colnames(mer.1) <- paste0('Predicted',round(confint.level_pred*100,0),'CI_',c('Lower','Upper'),'_pred_WLM')
-						if(exists('O')) {
-							O <- cbind(O,mer.1)
-						} else {
-							O <- mer.1
-						}
-					}
-					if(exists('pred.dataset')&Predict_PI_pred){
-						# Warning message
-						# In predict.lm(res_LM_1, newdata = pred.dataset, interval = "prediction",  :
-						# Assuming constant prediction variance even though model fit is weighted
-
-						temp.0 <- data.frame(predict(res_LM_1,newdata=pred.dataset,interval='prediction',level=confint.level_pred))
-						temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
-						mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
-						mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
-						colnames(mer.1) <- paste0('Predicted',round(confint.level_pred*100,0),'PI_',c('Lower','Upper'),'_pred_WLM')
-						if(exists('O')) {
-							O <- cbind(O,mer.1)
-						} else {
-							O <- mer.1
-						}
-					}
-					
-					if(Part_index){
-						temp <- rep('None',nrow(original.dataset))
-						temp[rownames(original.dataset)%in%rownames(dataset)] <- 'Training'
-						if(exists('test.dataset')) temp[rownames(original.dataset)%in%rownames(test.dataset)] <- 'Testing'
-						if(exists('pred.dataset')) temp[rownames(original.dataset)%in%rownames(pred.dataset)] <- 'Prediction'
-						if(exists('O')) {
-							O <- cbind(O,Partition_idx_WLM=temp,stringsAsFactors=F)
-						} else {
-							O <- data.frame(Partition_idx_WLM=temp,stringsAsFactors=F)
-						}
-					}
-
-					if(exists('O'))	O[is.na(O)] <- ''
-
-					# Data Structure
-					R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file=stdout())
-					total.var <- ncol(original.dataset)
-					used.var <- ifelse(is.null(vars),0,length(unique(unlist(strsplit(vars,":")))))+length(c(weight_var,Part.var,Pred.var))
-					none.n <- nrow(original.dataset)-nrow(dataset)-ifelse(exists("test.dataset"),nrow(test.dataset),0)-ifelse(exists("pred.dataset"),nrow(pred.dataset),0)
-					# total.n <- paste0(nrow(original.dataset)," (Training: ",nrow(dataset),ifelse(exists("test.dataset"),paste0(", Testing: ",nrow(test.dataset)),""),ifelse(exists("pred.dataset"),paste0(", Prediction: ",nrow(pred.dataset)),""),ifelse(none.n!=0,paste0(", None: ",none.n),""),")")
-					total.n <- paste0(nrow(original.dataset)," (Missing: ",sum(!complete.cases(original.dataset[,c(var_info,Part.var,Pred.var),drop=F])),")")
-					
-					DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',total.n,total.var,used.var+1),ncol=2)
-					R2HTML::HTML(DS,file=stdout(),align="left")
-					if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
-					if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
-					if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file=stdout())
-					if(exists('warn.DP9')) R2HTML::HTML(warn.DP9,file=stdout())
-					if(exists('warn.DP2')) R2HTML::HTML(warn.DP2,file=stdout())
-					if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file=stdout())
-
-					# Varibale list
-					R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file=stdout())
-					if(is.null(vars)) {
-						Vars <- c()
-					} else {
-						Vars <-  unique(unlist(strsplit(c(vars,weight_var),":")))
-					}
-
-					qual <- c(indep_cat_var[indep_cat_var%in%Vars],Pred.var,Part.var)
-					quan <- c(indep_numeric_var[indep_numeric_var%in%Vars],dep_var)
-					varlist <- matrix(c('Quantitative variable',paste(quan,collapse=', ')),ncol=2,byrow=T)
-					if(length(qual)!=0) varlist <- rbind(varlist,c('Qualitative variable',paste(qual,collapse=', ')))
-					R2HTML::HTML(varlist,file=stdout(),align="left")
-					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
-					if(exists('warn.msg3')) R2HTML::HTML(warn.msg3,file=stdout())
-
-					# Analysis Description
-					R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file=stdout())
-					AD <- matrix(c('Dependent variable',dep_var),ncol=2,byrow=T)
-					if(!is.null(vars)) AD <- rbind(AD,c('Explanatory variable',paste(vars,collapse=', ')))
-					AD <- rbind(AD,matrix(c('Weight variable',weight_var,'Intercept included',!noint,'Adjusted weight variable',weight_option,'Variable selection',Select),ncol=2,byrow=T))
-					#variable selection
-					if(Select) {
-						direction <- switch(direct,forward="Forward selection",backward="Backward elimination",both="Stepwise regression")
-						AD <- rbind(AD,matrix(c('Method for variable selection',direction),ncol=2,byrow=T))
-						if(!is.null(keep_var)) AD <- rbind(AD,c('Fixed variable for variable selection',paste(keep_var,collapse=', ')))
-					}
-					if(Valid.method=='Partition'){
-						VM <- ifelse(!exists('test.dataset'),"Validation using training dataset","Validation using training/testing dataset")
-						if(exists('test.dataset')){
-							if(Part.method=='percent'){
-								PM <- paste0("Randomly split by percent (training: ",train.perc,"%, testing: ",100-train.perc,"%)")
-							} else if(Part.method=='variable'){
-								PM <- paste0("Split by variable '",Part.var,"' (1: training, 2: testing)")
-							}
-						}
-					} else {
-						VM <- ifelse(Cross.method=='LOOCV',"Leave-One-Out cross validation",paste0(k,"-fold cross validation"))
-					}
-					AD <- rbind(AD,matrix(c('Validation method',VM),ncol=2,byrow=T))
-					if(exists('PM')) AD <- rbind(AD,matrix(c('Data splitting method for validataion',PM),ncol=2,byrow=T))
-					if(exists('pred.dataset')){
-						AD <- rbind(AD,matrix(c('Prediction using new dataset','TRUE','Data splitting method for prediction',paste0("Split by variable '",Pred.var,"' (1: prediction, 2: training/testing)")),ncol=2,byrow=T))
-					} else {
-						AD <- rbind(AD,matrix(c('Prediction using new dataset','FALSE'),ncol=2,byrow=T))
-					}
-					R2HTML::HTML(AD,file=stdout(),align="left")
-					if(exists('warn.VS')) R2HTML::HTML(warn.VS,file=stdout())
-					if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
-					if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
-					if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file=stdout())
-
-					## Results
-					R2HTML::HTML(R2HTML::as.title("Results of Weighted Linear Regression"),HR=2,file=stdout())
-
-					# Coefficient Estimate
-					R2HTML::HTML(R2HTML::as.title("Coefficient Estimates"),HR=3,file=stdout())
-					CE <- as.data.frame(summary(res_LM_1)$coef)
-					colnames(CE) <- c('Estimate','SE','T-value','P-value')
-					if(CI){
-						tmp <- merge(CE,confint(res_LM_1, level=confint.level),by="row.names",all=TRUE,sort=F)
-						rownames(tmp) <- tmp[,1]
-						CE <- tmp[,-1]
-						colnames(CE)[(ncol(CE)-1):ncol(CE)] <- paste0(c('Lower','Upper'),' bound of<br>',confint.level*100,'% CI')
-					}
-					if(VIF)	{
-						if(is.null(vars)){
-							warn.VIF <- '<li> Warning : VIF is not supported for intercept only model.'
-						} else {
-							VIF.1 <- rms::vif(res_LM_1)
-							if(!noint) {
-							  VIF.1 <- c(NA,VIF.1)
-							  names(VIF.1)[1] <- "(Intercept)"
-							}
-							
-							tmp <- merge(CE,VIF.1,by='row.names',all=TRUE)
-							rownames(tmp) <- tmp[,1]
-							colnames(tmp)[ncol(tmp)] <- "VIF"
-							CE <- tmp[,-1]
-						}
-					}
-					if(VIP){
-						if(!is.null(vars)){
-							vip <- caret::varImp(res_LM_1)
-							if(!noint) {
-							  vip <- rbind(NA,vip)
-							  rownames(vip)[1] <- "(Intercept)"
-							}
-
-							tmp <- merge(CE,vip,by='row.names',all=TRUE)
-							rownames(tmp) <- tmp[,1]
-							colnames(tmp)[ncol(tmp)] <- "VIP"
-							CE <- tmp[,-1]
-						} else {
-							warn.VIP <- "<li> Warning : Variable importance table is not supported for intercept only model."
-						}
-					}
-					R2HTML::HTML(Digits(CE),file=stdout(),align="left",digits=15)
-					if(exists('warn.VIF')) R2HTML::HTML(warn.VIF,file=stdout())
-					if(exists('warn.VIP')) R2HTML::HTML(warn.VIP,file=stdout())
-
-					# Anova table and R-squared
-					# Anova table and R-squared
-					if(ANOVA){
-						R2HTML::HTML(R2HTML::as.title("Analysis-of-Variance Table"),HR=3,file=stdout())
-						if(length(vars)==0){
-							warn.AT1 <- "<li> Warning : ANOVA table is not supported for intercept only model."
-							R2HTML::HTML(warn.AT1,file=stdout())
-						} else if(noint){
-							warn.AT2 <- "<li> Warning : ANOVA table is not supported for the model without intercept."
-							R2HTML::HTML(warn.AT2,file=stdout())
-						} else {
-							R2HTML::HTML(R2HTML::as.title("Model Effect (Goodness of Fit Test)"),HR=4,file=stdout())
-							Anova <- as.matrix(anova(lm(formula(paste(dep_var,'~1',sep='')),x=TRUE,data=temp.dat,weight=WTS),res_LM_1))
-							A1 <- rbind(Anova[2,4:3], Anova[2:1,c(2,1)])
-							MS <- c(A1[1:2,1]/A1[1:2,2],NA)
-							A2 <- data.frame(A1,MS=MS,Fvalue=c(Anova[2,5],NA,NA),Pvalue=c(Anova[2,6],NA,NA),R2=c(summary(res_LM_1)$r.squared,NA,NA),adj.R2=c(summary(res_LM_1)$adj.r.squared,NA,NA))
-							colnames(A2) <- c('SS','DF','MS','F-value','P-value','R2','adj.R2')
-							rownames(A2) <- c('Regression','Residual','Total')
-							R2HTML::HTML(Digits(A2),file=stdout(),align="left",digits=15)
-
-							R2HTML::HTML(R2HTML::as.title(paste0("Variable Effect with Type ",ss," SS")),HR=4,file=stdout())
-							warn.desc <- ifelse(ss=='I',"<li> Note : In type I test, terms are added sequentially (first to last).",
-									ifelse(ss=='II',"<li> Note : In type II test, each row is the testing result for each main effect after the other main effect.",
-									"<li> Note : In type III test, each row is the testing result for each effect after the other effect."))
-							
-							if(ss=='I'){
-								AT <- try(anova(res_LM_1,test="Chisq"),s=T)
-								rowNames <- rownames(AT)
-								if(class(AT)[1]!='try-error'){
-									AT <- data.frame(AT)
-									AT <- AT[,c(2,1,3,4,5)]
-									rownames(AT) <- rowNames
-									colnames(AT) <- c('SS','DF','MS','F-value','P-value')
-									R2HTML::HTML(Digits(AT),file=stdout(),align="left",digits=15)
-									R2HTML::HTML(warn.desc,file=stdout())
-								} else {
-									warn.AT3 <- "<li> Error : Fail to fit the Model."
-									R2HTML::HTML(warn.AT3,file=stdout())
-								}
-							}
-
-							if(ss %in% c('II','III')){
-								# II type : ignore interaction term
-								# III type : calculate SS including interaction term
-								RN <- vars
-								if(ss=='II' & length(grep(':',RN))>0) {
-									RN <- RN[-grep(':',RN)]
-									warn.AT4 <- '<li> Warning : Test for interaction effects is not provided in type II test. Use type III test for interaction effects.'
-								}
-								# warn.AT5 <- '<li> Note : If there is indeed no interaction, then type II is statistically more powerful than type III.'
-
-								AT.form.full <- paste(dep_var,'~',paste(RN,collapse=' + '))
-								full.fit <- lm(formula(AT.form.full),data=temp.dat)
-
-								options(contrasts=c("contr.sum", "contr.poly"))
-								res <- try(car::Anova(full.fit,type='III'))
-								options(contrasts=c('contr.treatment','contr.poly'))
-
-								if(class(res)[1]!='try-error'){
-									res <- data.frame(res)
-									MS <- res[,1]/res[,2]
-									AT <- data.frame(res[,c(1:2)],MS,res[,c(3,4)])
-									colnames(AT) <- c('SS','DF','MS','F-value','P-value')
-
-									R2HTML::HTML(Digits(AT[-nrow(AT),]),file=stdout(),align="left",digits=15)
-									R2HTML::HTML(warn.desc,file=stdout())
-									if(exists('warn.AT4')) R2HTML::HTML(warn.AT4,file=stdout())
-								} else {
-									warn.AT6 <- "<li> Error : Fail to fit the Model."
-									R2HTML::HTML(warn.AT6,file=stdout())
-								}
-							}
-						}
-					}
-
-					R2HTML::HTML(R2HTML::as.title("Model Fitness Measurements"),HR=3,file=stdout())
-					fitness_print	<- data.frame(numeric(0), numeric(0)) ;
-					fitness_print	<- rbind(fitness_print, c(sum(residuals(res_LM_1, type="deviance")^2), res_LM_1$df.residual)) ;
-					fitness_print	<- rbind(fitness_print, c(sum(residuals(res_LM_1, type="pearson")^2), res_LM_1$df.residual)) ;
-					LL <- logLik(res_LM_1)
-					fitness_print	<- rbind(fitness_print, c(-2*LL[1], attr(LL,'df'))) ;
-					fitness_print	<- rbind(fitness_print, c(AIC(res_LM_1), NA)) ;
-					fitness_print	<- rbind(fitness_print, c(BIC(res_LM_1), NA)) ;
-					names(fitness_print)	<- c("Value", "DF") ;
-					row.names(fitness_print)	<- c("Deviance", "Pearson's chi-square", "-2*log-likelihood", "AIC", "BIC") ;
-					R2HTML::HTML(Digits(fitness_print), file=stdout(), align="left",digits=15,caption="<div style='text-align:left'> <li> A model with a smaller value is better.") ;
-
-					# Goodness of fit test
-					if(GOF){
-						R2HTML::HTML(R2HTML::as.title("Goodness of Fit Test (Likelihood Ratio Test)"),HR=3,file=stdout())
-						if(length(vars)!=0){
-							## log-liklehood ratio
-							if(!noint){
-								null.model <- lm(formula(paste(dep_var,"~1")),data=temp.dat,weight=WTS)
-								GOF1 <- anova(null.model, res_LM_1, test ="Chisq")
-								A3 <- as.data.frame(GOF1)[,c(2,1,4,3,5)]
-								rownames(A3) <- c("Null Model","Proposed Model")
-								colnames(A3) <- c('RSS','DF(RSS)','Chisq','DF(Chisq)','P-value')
-								R2HTML::HTML(Digits(A3),file=stdout(),align="left",digits=15)
-							} else {
-								R2HTML::HTML('<li> Warning : Likelihood Ratio Test is not supported for the model without intercept.',file=stdout())
-							}
-						} else {
-							warn.GOF <- "<li> Warning : Goodness of fit test is not supported for intercept only model."
-							R2HTML::HTML(warn.GOF,file=stdout())
-						}
-					}
-
-					### Diagnostic residual plot
-					if(Plot) {
-						R2HTML::HTML(R2HTML::as.title("Graphs for Regression Diagnostics"),HR=3,file=stdout(),append=TRUE)
-						load.pkg("ggfortify")
-						REx_ANA_PLOT(800,1200)
-						print(autoplot(res_LM_1, which=1:6) + theme_bw() + 
-							theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank(), plot.title = element_text(hjust = 0.5)))
-						REx_ANA_PLOT_OFF("")
-					}
-
-					#### validataion ####
-					if(Valid.method=='Partition'){
-						R2HTML::HTML(R2HTML::as.title(VM),HR=3,file=stdout())
-					} else {
-						if(Cross.method=='LOOCV'){
-							R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file=stdout())
-						} else {
-							if(k>nrow(temp.dat)) {
-								warn.valid <- paste0('<li> Warning : The number of folds cannot be greater than the number of non-missing observations. (# of non-missing observations: ',nrow(temp.dat),', # of folds specified by user: ',k,', readjusted # of folds: ',nrow(temp.dat),')')  
-								k <- nrow(temp.dat)
-								R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file=stdout())
-							} else {
-								R2HTML::HTML(R2HTML::as.title(paste0(k,"-Fold Cross Validation")),HR=3,file=stdout())
-							}
-						}
-				
-					}
-					if(length(vars)!=0){
-						# Function that returns Root Mean Squared Error
-						rmse <- function(error){
-							sqrt(mean(error^2,na.rm=T))
-						}
-						# Function that returns MAE
-						mae <- function(error){
-							mean(abs(error),na.rm=T)
-						}
-						# Function that returns R-squared (correlation)
-						rsq <- function(pred,obs){
-							cor(pred,obs,use='complete.obs')
-						}
-						
-						if(Valid.method=='Partition'){
-							if(exists('test.dataset')){
-								test.Predicted <- predict(res_LM_1,newdata=test.dataset,type='response')
-								test.Observed <- test.dataset[,dep_var]
-								test.Resid <- test.Predicted-test.Observed
-								
-								test.RMSE <- rmse(test.Resid)
-								test.MAE <- mae(test.Resid)
-								test.Rsq <- rsq(test.Predicted,test.Observed)
-								test.n <- sum(!is.na(test.Resid))
-							} else {
-								train.Perc <- 100
-							}
-							train.Observed <- temp.dat[,dep_var]
-							train.Predicted <- predict(res_LM_1,type='response')
-							train.Resid <- train.Predicted-train.Observed
-							
-							train.RMSE <- rmse(train.Resid)
-							train.MAE <- mae(train.Resid)
-							train.Rsq <- rsq(train.Predicted,train.Observed)
-							train.n <- sum(!is.na(train.Resid))
-							
-							train.Perc <- ifelse(exists('test.dataset'),train.n/(train.n+test.n)*100,100)
-
-							vali <- data.frame(N.observed=train.n,Percent=train.Perc,RMSE=train.RMSE,MAE=train.MAE,Rsquared=train.Rsq)
-							rownames(vali) <- 'Training'
-							if(exists('test.dataset')){
-								vali <- rbind(vali,data.frame(N.observed=test.n,Percent=(100-train.Perc),RMSE=test.RMSE,MAE=test.MAE,Rsquared=test.Rsq))
-								rownames(vali)[2] <- 'Testing'
-							}
-							colnames(vali)[1] <- 'N.non-missing<br>observations'
-							R2HTML::HTML(Digits(vali),file=stdout(),align="left",digits=15)
-							R2HTML::HTML("<li> Note : Be careful of overfitting in interpreting the result of the training dataset",file=stdout())
-							if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
-							if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
-							if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file=stdout())
-						} else {
-							ctrl <- caret::trainControl(method = ifelse(k==nrow(temp.dat)|Cross.method=='LOOCV',"LOOCV","cv"), number = k)
-							newdat <- temp.dat[,c(dep_var,indep_numeric_var,indep_cat_var),drop=F]
-							mod_fit <- caret::train(form.1,  data=newdat, method='glm',family=gaussian,trControl = ctrl, tuneLength = 5, weights=WTS)
-							A8 <- mod_fit$results
-							if(k==nrow(temp.dat)|Cross.method=='LOOCV'){
-								res.acc.II <- A8[,c('RMSE','Rsquared')]
-							} else {
-								res.acc.II <- A8[,c('RMSE','RMSESD','Rsquared','RsquaredSD')]
-								colnames(res.acc.II)[c(2,4)] <- c('SD(RMSE)','SD(Rsquared)')
-							}
-							R2HTML::HTML(Digits(res.acc.II),file=stdout(),align="left",digits=15,row.names=F)
-							if(exists('warn.valid')) R2HTML::HTML(warn.valid,file=stdout())
-						} 
-					} else {
-						warn.msg10 <- "<li> Warning : Validation is not supported for intercept only model."
-						R2HTML::HTML(warn.msg10,file=stdout())
-					}
-
-					## Variable selection
-					if(Select) stepAIC.wj(object=res_LM_1,dataset=dataset,dep_var=dep_var,type='wlm',noint=noint,direct=direct,keep_var=keep_var,hr=3,vars=vars,WTS=WTS,CI=CI,confint.level=confint.level,VIP=VIP,VIF=VIF)
-
-					if(exists('warn.res1')|exists('warn.res2')){
-						R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
-						if(exists('warn.res1')) R2HTML::HTML(warn.res1,file=stdout())
-						if(exists('warn.res2')) R2HTML::HTML(warn.res2,file=stdout())
-					}
-				}
-			}
-
-			# Used R packages
-			R2HTML::HTML(R2HTML::as.title("Used R Packages"),HR=2,file=stdout())
-			pkg.list <- list(list("Weighted linear regression","lm","stats"),
-					 list("Confidence interval for regression coefficients","confint","stats"),
-					 list("Variance inflation factor (VIF)","vif","rms"),
-					 list("ANOVA table",c("anova","Anova"),c("stats","car")),
-					 list("Model fitness measurements","residuals, logLik, AIC, BIC","stats"),
-					 list("Goodness of fit test","anova","stats"),
-					 list("Cross validation","trainControl, train","caret"),
-					 list("Fitted value","fitted","stats"),
-					 list("Predicted value","predict","stats"),
-					 list("Confidence & Prediction interval for fitted & predicted value","predict","stats"),
-					 list("Unstandardized residual","residuals","stats"),
-					 list("Standardized residual","stdres","MASS"),
-					 list("Studentized residual","studres","MASS"),
-					 list("Cook's distance","cooks.distance","stats"),
-					 list("Diagonals of hat matrix","hatvalues","stats"))
-			R2HTML::HTML(used.pkg(pkg.list), file=stdout())
-
-			# Analysis end time
-			R2HTML::HTMLhr(file=stdout())
-			R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". Rex : Weighted Linear Regression.",sep=""),file=stdout())
-			R2HTML::HTMLhr(file=stdout())
-		})
-		if(exists('O')){
-			RESULT <- list(html=html.output,Output=O)
-		} else {
-			RESULT <- html.output
-		}
-		FIN.RESULT[[which(Dep_var%in%dep_var)]] <- RESULT
-	}
-	
-	if(length(Dep_var)==1)
-		FIN.RESULT <- FIN.RESULT[[1]]
-		
-	return(FIN.RESULT)
+                    Valid.method=c('Partition','Cross'),Part.method=c('all','percent','variable'),train.perc=70,Part.var=NULL, Cross.method=c('LOOCV','KFOLD'),k=10,Pred.var=NULL,
+                    CI=TRUE,confint.level=0.95,VIF=FALSE,ANOVA=TRUE,ss=c('I','II','III'),Plot=FALSE,VIP=FALSE,GOF=FALSE,
+                    Predict_train=FALSE,Predict_CI_train=FALSE,Predict_PI_train=FALSE,confint.level_train=0.95,Resid=FALSE,stdResid=FALSE,studResid=FALSE,cook_distance=FALSE,hat_value=FALSE,weightVar=FALSE,
+                    Predict_test=FALSE,Predict_CI_test=FALSE,Predict_PI_test=FALSE,confint.level_test=0.95,
+                    Predict_CI_pred=FALSE,Predict_PI_pred=FALSE,confint.level_pred=0.95,Part_index=FALSE,
+                    Select=FALSE,direct=c("forward","backward","both"),keep_var=NULL){
+  load.pkg(c("R2HTML", "rms", "MASS", "caret"))
+  
+  orig.dataset <- dataset 
+  if(length(dep_var) > 1) 
+    Predict_train <- Predict_CI_train <- Predict_PI_train <- Resid <- stdResid <- studResid <- cook_distance <- hat_value <- Predict_test <- Predict_CI_test <- Predict_PI_test <- Predict_CI_pred <- Predict_PI_pred <- Part_index <- FALSE
+  
+  Dep_var <- dep_var
+  FIN.RESULT <- rep(NA, length(Dep_var))
+  
+  for(dep_var in Dep_var){
+    dataset <- orig.dataset
+    
+    html.output <- capture.output({
+      
+      # Title
+      R2HTML::HTML(R2HTML::as.title("Weighted Linear Regression"),HR=1,file=stdout(),append=FALSE)
+      
+      ## Warnings
+      # Response variable type
+      if(!is.numeric(dataset[,dep_var])) warn.msg1 <- '<li> Error : Dependent variable should be numeric. Analysis has been stopped.'
+      
+      # explanatory variable type
+      if(is.null(c(vars,weight_var))) {
+        Vars <- c()
+      } else {
+        Vars <-  unique(unlist(strsplit(c(vars,weight_var),":")))
+      }
+      indep_cat_var <- indep_cat_var[indep_cat_var%in%Vars]
+      if(length(indep_cat_var)==0) indep_cat_var <- NULL
+      indep_numeric_var <- indep_numeric_var[indep_numeric_var%in%Vars]
+      if(length(indep_numeric_var)==0) indep_numeric_var <- NULL
+      
+      if(!is.null(indep_numeric_var)) {
+        is.nom <- sapply(indep_numeric_var,function(i) !is.numeric(dataset[,i]))
+        if(any(is.nom)){
+          warn.msg2 <- paste0("<li> Warning : The type of variable '",paste(indep_numeric_var[is.nom],collapse=', '),"' is not numeric but selected as the quantitative variable. It was excluded from the analysis.")
+          ec <- indep_numeric_var[is.nom]
+          for(jj in ec) vars <- vars[-grep(jj,vars)]
+          if(length(vars)==0) vars <- NULL
+          if(weight_var%in%ec) weight_var <- NULL
+        }
+      }
+      if(!is.null(indep_cat_var)) {
+        is.num <- sapply(indep_cat_var,function(i) is.numeric(dataset[,i]))
+        if(any(is.num)) warn.msg3 <- paste0("<li> Warning : The type of variable '",paste(indep_cat_var[is.num],collapse=', '),"' is numeric but selected as the qualitative variable. It was coerced into character.")
+        for(i in indep_cat_var[is.num]) dataset[,i] <- as.factor(dataset[,i])
+      }
+      
+      if(is.null(c(vars,weight_var))) {
+        Vars <- c()
+      } else {
+        Vars <-  unique(unlist(strsplit(c(vars,weight_var),":")))
+      }
+      indep_cat_var <- indep_cat_var[indep_cat_var%in%Vars]
+      if(length(indep_cat_var)==0) indep_cat_var <- NULL
+      indep_numeric_var <- indep_numeric_var[indep_numeric_var%in%Vars]
+      if(length(indep_numeric_var)==0) indep_numeric_var <- NULL
+      
+      # Warning in variable selection
+      if(Select) {
+        if(is.null(vars)) {
+          Select <- FALSE
+          warn.VS <- '<li> Warning : Variable selection is not supported for intercept only model.'
+        }
+        keep_var <- keep_var[keep_var%in%vars]
+        if(length(keep_var)==0) keep_var <- NULL
+      }
+      
+      # no intercept & no explanatory variable : error
+      if(noint&is.null(vars)) warn.msg4 <- '<li> Error : With no intercept, at least 1 independent variable should be selected. Analysis has been stopped.'
+      
+      ## weight_variable??? ?????? ?????? (??????????????? ??????????????? ???????????? ???????????? ????????? ??????)
+      if(is.null(weight_var)) warn.msg5 <- '<li> Error : Weight variable should be selected. Analysis has been stopped.'
+      
+      # ??????????????? ????????????????????? 0??? ???????????? ?????? ?????? : error
+      if(!is.null(weight_var) & weight_var%in%indep_numeric_var & 0%in%dataset[,weight_var]) warn.msg7 <- '<li> Error : If weight variable is quantitative, 0 is not allowed for weight. Analysis has been stopped.'
+      
+      ## Data processing
+      original.dataset <- dataset
+      
+      # predict variable
+      if(!is.null(Pred.var)){
+        pred.level <- na.omit(unique(dataset[,Pred.var]))
+        # No training & testing dataset
+        if(!2%in%pred.level) {
+          warn.DP1 <- paste0("<li> Error : '2' is not observed in the split variable for prediction, '",Pred.var,"'. That is, no observations are assigned to the training & testing dataset. Analysis has been stopped.")
+        } else {
+          if(!1%in%pred.level) {	
+            # Only 2 is obaserved
+            warn.DP3 <- paste0("<li> Warning : '1' is not observed in the split variable for prediction, '",Pred.var,"'. That is, no observations are assigned to the prediction dataset. Prediction is not supported in this analysis.")
+            Predict_CI_pred <- Predict_PI_pred <- FALSE
+          } else if(!all(pred.level%in%c(1,2))) {
+            # Value other than 1 and 2
+            warn.DP2 <- paste0("<li> Warning : Values other than '1' and '2' are observed in the split variable for prediction, '",Pred.var,"'. Observations with the value other than '1' and '2' are not included the analysis.")
+            pred.dataset <- dataset[dataset[,Pred.var]==1,]	# prediction dataset
+            dataset <- dataset[dataset[,Pred.var]==2,]	# training & testing dataset
+          }
+        }
+      }
+      
+      # training & testing
+      if(Valid.method=='Partition'){
+        if(Part.method=='percent'){
+          n.train <- round(nrow(dataset)*train.perc/100)
+          
+          if(train.perc==100 | n.train==nrow(dataset)){
+            warn.DP4 <- "<li> Warning : No observations are assigned to the testing dataset due to too high percent for the training dataset. Validation using testing dataset is not supported in this analysis."
+            Predict_test <- Predict_CI_test <- Predict_PI_test <- FALSE
+          } else if(n.train==0){
+            warn.DP5 <- "<li> Error : No observations are assigned to the training dataset due to too low percent for the training dataset. To secure sufficient number of observations for the training dataset, increase the percent. Analysis has been stopped."
+          } else {
+            train <- sample(seq(nrow(dataset)),n.train)
+            
+            # testing set
+            test.dataset <- dataset[-train,,drop=F]
+            # training set
+            dataset <- dataset[train,,drop=F]
+            
+            if(nrow(original.dataset)!=(nrow(dataset)+nrow(test.dataset)))	warn.DP9 <- "<li> Warning : Observations with missing dependent variable were not assigned to training dataset or testing dataset."
+            
+            # ordering
+            dataset <- dataset[order(as.numeric(rownames(dataset))),,drop=F]
+            test.dataset <- test.dataset[order(as.numeric(rownames(test.dataset))),,drop=F]
+          }
+        }
+        if(Part.method=='variable'){
+          part.level <- na.omit(unique(dataset[,Part.var]))
+          # No training & testing dataset
+          if(!1%in%part.level) {
+            warn.DP6 <- paste0("<li> Error : '1' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the training dataset. Analysis has been stopped.")
+          } else if(!2%in%part.level) {
+            warn.DP7 <- paste0("<li> Warning : '2' is not observed in the split variable for validation, '",Part.var,"'. That is, no observations are assigned to the testing dataset. Validation using testing dataset is not supported in this analysis.")
+            Predict_prob_tet <- Predict_g_test <- FALSE
+          } else {
+            # Value other than 1 and 2
+            if(!all(part.level%in%c(1,2))) {
+              warn.DP8 <- paste0("<li> Warning : Values other than '1' and '2' are observed in the split variable for validation, '",Part.var,"'. Observations with the value other than '1' and '2' are not included the analysis.")
+            }
+            test.dataset <- dataset[dataset[,Part.var]==2,]	# testing dataset
+            dataset <- dataset[dataset[,Part.var]==1,]	# training dataset
+          }
+        }
+      }
+      #### Then, original.dataset : original dataset, dataset : training dataset, test.dataset : testing dataset, pred.dataset : prediction dataset.
+      
+      # warnings
+      if(exists('warn.msg1')|exists('warn.msg4')|exists('warn.msg5')|exists('warn.msg7')|exists('warn.DP1')|exists('warn.DP5')|exists('warn.DP6')){
+        R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+        if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
+        if(exists('warn.msg4')){
+          if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
+          R2HTML::HTML(warn.msg4,file=stdout())
+        }
+        if(exists('warn.msg5')) {
+          if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
+          R2HTML::HTML(warn.msg5,file=stdout())
+        }
+        if(exists('warn.msg7')) R2HTML::HTML(warn.msg7,file=stdout())
+        if(exists('warn.DP1')) R2HTML::HTML(warn.DP1,file=stdout())
+        if(exists('warn.DP5')) R2HTML::HTML(warn.DP5,file=stdout())
+        if(exists('warn.DP6')) R2HTML::HTML(warn.DP6,file=stdout())
+      } else {
+        ## model formula
+        var_info <- c(dep_var,indep_numeric_var, indep_cat_var)
+        raw.dat <- dataset
+        temp.dat <- dataset[complete.cases(dataset[,var_info,drop=F]),,drop=F]
+        
+        form.0 <- ifelse(is.null(vars),paste0(dep_var,' ~ 1'),paste0(dep_var,' ~ ',paste(vars,collapse=' + ')))
+        if(noint) form.0 <- paste(form.0,-1)
+        form.1 <- as.formula(form.0)
+        
+        ## Fitting WLS
+        wts <- temp.dat[,weight_var]
+        wts1 <- wts2 <- wts3 <- wts4 <- rep(NA,nrow(temp.dat))
+        # ??????????????? ?????????????????????
+        if(weight_var%in%indep_numeric_var){	
+          if(!weight_option){
+            #weight_option=FALSE
+            wts1 <- 1/wts^2
+            WTS <- wts1
+          }else{
+            #weight_option=TRUE
+            wts1 <- 1/wts^2
+            model.1 <- lm(formula(form.1),data=temp.dat,weight=wts1)
+            wts2 <- 1/fitted(lm(abs(residuals(model.1)) ~ fitted(model.1)))^2
+            WTS <- wts2
+          }
+        }else{
+          # ??????????????? ?????????????????????
+          if(!weight_option){
+            #weight_option=FALSE
+            model.1 <- lm(formula(form.1),data=temp.dat)
+            VV <- tapply(residuals(model.1), wts, var)
+            ll <- levels(wts)
+            for(i in seq_along(ll)){
+              wts3[wts==ll[i]] <- 1/VV[i]
+            }
+            WTS <- wts3
+          }else{
+            #weight_option=TRUE
+            model.1 <- lm(formula(form.1),data=temp.dat)
+            VV <- tapply(residuals(model.1), wts, var)
+            ll <- levels(wts)
+            for(i in seq_along(ll)){
+              wts3[wts==ll[i]] <- 1/VV[i]
+            }
+            model.2 <- lm(formula(form.1),data=temp.dat,weight=wts3)
+            wts4 <- 1/fitted(lm(abs(residuals(model.2)) ~ fitted(model.2)))^2
+            WTS <- wts4
+          }
+        }
+        res_LM_1 <- try(lm(form.1,data=temp.dat,weight=WTS))
+        
+        if(class(res_LM_1)=='try-error'){
+          R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+          warn.msg.conv <- "<li> Warning : Weighted linear regression was not fitted. Analysis has been stopped."
+          R2HTML::HTML(warn.msg.conv,file=stdout())
+        } else {
+          ### final model:res_LM_1
+          ### weight_var = WTS
+          
+          ### Options
+          # ????????? ????????? ?????? ????????? ??????
+          # Training dataset
+          if(Predict_train) {
+            temp.0 <- data.frame(Fitted_WLM=predict(res_LM_1,newdata=temp.dat))
+            temp <- data.frame(Fitted_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            O <- data.frame(Fitted_train_WLM=mer.1[,3])
+          }
+          if(Predict_CI_train){
+            temp.0 <- data.frame(predict(res_LM_1,newdata=temp.dat,interval='confidence',level=confint.level_train))
+            temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
+            colnames(mer.1) <- paste0('Fitted_',round(confint.level_train*100,0),'CI_',c('Lower','Upper'),'_train_WLM')
+            if(exists('O')) {
+              O <- cbind(O,mer.1)
+            } else {
+              O <- mer.1
+            }
+          }
+          if(Predict_PI_train){
+            # Warning message
+            # In predict.lm(res_LM_1, newdata = temp.dat, interval = "prediction",  :
+            # Assuming constant prediction variance even though model fit is weighted
+            
+            temp.0 <- data.frame(predict(res_LM_1,newdata=temp.dat,interval='prediction',level=confint.level_train))
+            temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
+            colnames(mer.1) <- paste0('Fitted_',round(confint.level_train*100,0),'PI_',c('Lower','Upper'),'_train_WLM')
+            if(exists('O')) {
+              O <- cbind(O,mer.1)
+            } else {
+              O <- mer.1
+            }
+          }
+          if(Resid) {
+            temp.0 <- data.frame(Resid_WLM=resid(res_LM_1))
+            temp <- data.frame(Resid_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            if(exists('O')) {
+              O <- cbind(O,unstdResid_train_WLM=mer.1[,3])
+            } else {
+              O <- data.frame(unstdResid_train_WLM=mer.1[,3])
+            }
+          }
+          if(stdResid) {
+            temp.0 <- data.frame(stdResid_WLM=MASS::stdres(res_LM_1))
+            is.singular <- "try-error"%in%class(try(temp.0[,1],silent=T))
+            if(is.singular){
+              warn.res1 <- "<li> Error : Cannnot calculate standardized residuals because of the (near) linear dependences in explatory variables. Please check multicollinearity problem."
+            } else {
+              temp <- data.frame(stdResid_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+              mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+              mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+              if(exists('O')) {
+                O <- cbind(O,stdResid_train_WLM=mer.1[,3])
+              } else {
+                O <- data.frame(stdResid_train_WLM=mer.1[,3])
+              }
+            }
+          }
+          if(studResid) {
+            temp.0 <- data.frame(studResid_WLM=MASS::studres(res_LM_1))
+            is.singular <- "try-error"%in%class(try(temp.0[,1],silent=T))
+            if(is.singular){
+              warn.res2 <- "<li> Error : Cannnot calculate standardized residuals because of the (near) linear dependences in explatory variables. Please check multicollinearity problem."
+            } else {
+              temp <- data.frame(studResid_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+              mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+              mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+              if(exists('O')) {
+                O <- cbind(O,studResid_train_WLM=mer.1[,3])
+              } else {
+                O <- data.frame(studResid_train_WLM=mer.1[,3])
+              }
+            }
+          }
+          if(cook_distance){
+            temp.0 <- data.frame(CookDist_WLM=cooks.distance(res_LM_1))
+            temp <- data.frame(CookDist_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            if(exists('O')) {
+              O <- cbind(O,CookDist_train_WLM=mer.1[,3])
+            } else {
+              O <- data.frame(CookDist_train_WLM=mer.1[,3])
+            }
+          }
+          if(hat_value){
+            temp.0 <- data.frame(HatValue_WLM=hatvalues(res_LM_1))
+            temp <- data.frame(HatValue_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            if(exists('O')) {
+              O <- cbind(O,HatValue_train_WLM=mer.1[,3])
+            } else {
+              O <- data.frame(HatValue_train_WLM=mer.1[,3])
+            }
+          }
+          if(weightVar) {
+            temp.0 <- data.frame(weightVar_WLM=WTS)
+            temp <- data.frame(weightVar_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            if(exists('O')) {
+              O <- cbind(O,WeightVar_WLM=mer.1[,3])
+            } else {
+              O <- data.frame(WeightVar_WLM=mer.1[,3])
+            }
+          }
+          
+          # testing dataset
+          if(exists('test.dataset')&Predict_test) {
+            temp.0 <- data.frame(Fitted_WLM=predict(res_LM_1,newdata=test.dataset))
+            temp <- data.frame(Fitted_WLM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            if(exists('O')) {
+              O <- cbind(O,Predicted_testing_WLM=mer.1[,3])
+            } else {
+              O <- data.frame(Predicted_testing_WLM=mer.1[,3])
+            }
+          }
+          if(exists('test.dataset')&Predict_CI_test){
+            temp.0 <- data.frame(predict(res_LM_1,newdata=test.dataset,interval='confidence',level=confint.level_test))
+            temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
+            colnames(mer.1) <- paste0('Predicted_',round(confint.level_test*100,0),'CI_',c('Lower','Upper'),'_testing_WLM')
+            if(exists('O')) {
+              O <- cbind(O,mer.1)
+            } else {
+              O <- mer.1
+            }
+          }
+          if(exists('test.dataset')&Predict_PI_test){
+            # Warning message
+            # In predict.lm(res_LM_1, newdata = pred.dataset, interval = "prediction",  :
+            # Assuming constant prediction variance even though model fit is weighted
+            
+            temp.0 <- data.frame(predict(res_LM_1,newdata=test.dataset,interval='prediction',level=confint.level_test))
+            temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
+            colnames(mer.1) <- paste0('Predicted',round(confint.level_test*100,0),'PI_',c('Lower','Upper'),'_testing_WLM')
+            if(exists('O')) {
+              O <- cbind(O,mer.1)
+            } else {
+              O <- mer.1
+            }
+          }
+          
+          # prediction dataset
+          if(exists('pred.dataset')){
+            # Probability
+            temp.0 <- data.frame(Predicted_LM=predict(res_LM_1,newdata=pred.dataset))
+            temp <- data.frame(Predicted_LM=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),]
+            if(exists('O')) {
+              O <- cbind(O,Predicted_pred_WLM=mer.1[,3])
+            } else {
+              O <- data.frame(Predicted_pred_WLM=mer.1[,3])
+            }
+          }
+          if(exists('pred.dataset')&Predict_CI_pred){
+            temp.0 <- data.frame(predict(res_LM_1,newdata=pred.dataset,interval='confidence',level=confint.level_pred))
+            temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
+            colnames(mer.1) <- paste0('Predicted',round(confint.level_pred*100,0),'CI_',c('Lower','Upper'),'_pred_WLM')
+            if(exists('O')) {
+              O <- cbind(O,mer.1)
+            } else {
+              O <- mer.1
+            }
+          }
+          if(exists('pred.dataset')&Predict_PI_pred){
+            # Warning message
+            # In predict.lm(res_LM_1, newdata = pred.dataset, interval = "prediction",  :
+            # Assuming constant prediction variance even though model fit is weighted
+            
+            temp.0 <- data.frame(predict(res_LM_1,newdata=pred.dataset,interval='prediction',level=confint.level_pred))
+            temp <- data.frame(temp=rep(NA,nrow(original.dataset)),row.names=rownames(original.dataset))
+            mer <- merge(temp,temp.0,by='row.names',sort=F,all=T)
+            mer.1 <- mer[order(as.numeric(as.character(mer$Row.names))),c((ncol(mer)-1),ncol(mer))]
+            colnames(mer.1) <- paste0('Predicted',round(confint.level_pred*100,0),'PI_',c('Lower','Upper'),'_pred_WLM')
+            if(exists('O')) {
+              O <- cbind(O,mer.1)
+            } else {
+              O <- mer.1
+            }
+          }
+          
+          if(Part_index){
+            temp <- rep('None',nrow(original.dataset))
+            temp[rownames(original.dataset)%in%rownames(dataset)] <- 'Training'
+            if(exists('test.dataset')) temp[rownames(original.dataset)%in%rownames(test.dataset)] <- 'Testing'
+            if(exists('pred.dataset')) temp[rownames(original.dataset)%in%rownames(pred.dataset)] <- 'Prediction'
+            if(exists('O')) {
+              O <- cbind(O,Partition_idx_WLM=temp,stringsAsFactors=F)
+            } else {
+              O <- data.frame(Partition_idx_WLM=temp,stringsAsFactors=F)
+            }
+          }
+          
+          if(exists('O'))	O[is.na(O)] <- ''
+          
+          # Data Structure
+          R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file=stdout())
+          total.var <- ncol(original.dataset)
+          used.var <- ifelse(is.null(vars),0,length(unique(unlist(strsplit(vars,":")))))+length(c(weight_var,Part.var,Pred.var))
+          none.n <- nrow(original.dataset)-nrow(dataset)-ifelse(exists("test.dataset"),nrow(test.dataset),0)-ifelse(exists("pred.dataset"),nrow(pred.dataset),0)
+          # total.n <- paste0(nrow(original.dataset)," (Training: ",nrow(dataset),ifelse(exists("test.dataset"),paste0(", Testing: ",nrow(test.dataset)),""),ifelse(exists("pred.dataset"),paste0(", Prediction: ",nrow(pred.dataset)),""),ifelse(none.n!=0,paste0(", None: ",none.n),""),")")
+          total.n <- paste0(nrow(original.dataset)," (Missing: ",sum(!complete.cases(original.dataset[,c(var_info,Part.var,Pred.var),drop=F])),")")
+          
+          DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',total.n,total.var,used.var+1),ncol=2)
+          R2HTML::HTML(DS,file=stdout(),align="left")
+          if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
+          if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
+          if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file=stdout())
+          if(exists('warn.DP9')) R2HTML::HTML(warn.DP9,file=stdout())
+          if(exists('warn.DP2')) R2HTML::HTML(warn.DP2,file=stdout())
+          if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file=stdout())
+          
+          # Varibale list
+          R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file=stdout())
+          if(is.null(c(vars,weight_var))) {
+            Vars <- c()
+          } else {
+            Vars <-  unique(unlist(strsplit(c(vars,weight_var),":")))
+          }
+          
+          qual <- c(indep_cat_var[indep_cat_var%in%Vars],Pred.var,Part.var)
+          quan <- c(indep_numeric_var[indep_numeric_var%in%Vars],dep_var)
+          varlist <- matrix(c('Quantitative variable',paste(quan,collapse=', ')),ncol=2,byrow=T)
+          if(length(qual)!=0) varlist <- rbind(varlist,c('Qualitative variable',paste(qual,collapse=', ')))
+          R2HTML::HTML(varlist,file=stdout(),align="left")
+          if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
+          if(exists('warn.msg3')) R2HTML::HTML(warn.msg3,file=stdout())
+          
+          # Analysis Description
+          R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file=stdout())
+          AD <- matrix(c('Dependent variable',dep_var),ncol=2,byrow=T)
+          if(!is.null(vars)) AD <- rbind(AD,c('Explanatory variable',paste(vars,collapse=', ')))
+          AD <- rbind(AD,matrix(c('Weight variable',weight_var,'Intercept included',!noint,'Adjusted weight variable',weight_option,'Variable selection',Select),ncol=2,byrow=T))
+          #variable selection
+          if(Select) {
+            direction <- switch(direct,forward="Forward selection",backward="Backward elimination",both="Stepwise regression")
+            AD <- rbind(AD,matrix(c('Method for variable selection',direction),ncol=2,byrow=T))
+            if(!is.null(keep_var)) AD <- rbind(AD,c('Fixed variable for variable selection',paste(keep_var,collapse=', ')))
+          }
+          if(Valid.method=='Partition'){
+            VM <- ifelse(!exists('test.dataset'),"Validation using training dataset","Validation using training/testing dataset")
+            if(exists('test.dataset')){
+              if(Part.method=='percent'){
+                PM <- paste0("Randomly split by percent (training: ",train.perc,"%, testing: ",100-train.perc,"%)")
+              } else if(Part.method=='variable'){
+                PM <- paste0("Split by variable '",Part.var,"' (1: training, 2: testing)")
+              }
+            }
+          } else {
+            VM <- ifelse(Cross.method=='LOOCV',"Leave-One-Out cross validation",paste0(k,"-fold cross validation"))
+          }
+          AD <- rbind(AD,matrix(c('Validation method',VM),ncol=2,byrow=T))
+          if(exists('PM')) AD <- rbind(AD,matrix(c('Data splitting method for validataion',PM),ncol=2,byrow=T))
+          if(exists('pred.dataset')){
+            AD <- rbind(AD,matrix(c('Prediction using new dataset','TRUE','Data splitting method for prediction',paste0("Split by variable '",Pred.var,"' (1: prediction, 2: training/testing)")),ncol=2,byrow=T))
+          } else {
+            AD <- rbind(AD,matrix(c('Prediction using new dataset','FALSE'),ncol=2,byrow=T))
+          }
+          R2HTML::HTML(AD,file=stdout(),align="left")
+          if(exists('warn.VS')) R2HTML::HTML(warn.VS,file=stdout())
+          if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
+          if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
+          if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file=stdout())
+          
+          ## Results
+          R2HTML::HTML(R2HTML::as.title("Results of Weighted Linear Regression"),HR=2,file=stdout())
+          
+          # Coefficient Estimate
+          R2HTML::HTML(R2HTML::as.title("Coefficient Estimates"),HR=3,file=stdout())
+          CE <- as.data.frame(summary(res_LM_1)$coef)
+          colnames(CE) <- c('Estimate','SE','T-value','P-value')
+          if(CI){
+            tmp <- merge(CE,confint(res_LM_1, level=confint.level),by="row.names",all=TRUE,sort=F)
+            rownames(tmp) <- tmp[,1]
+            CE <- tmp[,-1]
+            colnames(CE)[(ncol(CE)-1):ncol(CE)] <- paste0(c('Lower','Upper'),' bound of<br>',confint.level*100,'% CI')
+          }
+          if(VIF)	{
+            if(is.null(vars)){
+              warn.VIF <- '<li> Warning : VIF is not supported for intercept only model.'
+            } else {
+              VIF.1 <- rms::vif(res_LM_1)
+              if(!noint) {
+                VIF.1 <- c(NA,VIF.1)
+                names(VIF.1)[1] <- "(Intercept)"
+              }
+              
+              tmp <- merge(CE,VIF.1,by='row.names',all=TRUE)
+              rownames(tmp) <- tmp[,1]
+              colnames(tmp)[ncol(tmp)] <- "VIF"
+              CE <- tmp[,-1]
+            }
+          }
+          if(VIP){
+            if(!is.null(vars)){
+              vip <- caret::varImp(res_LM_1)
+              if(!noint) {
+                vip <- rbind(NA,vip)
+                rownames(vip)[1] <- "(Intercept)"
+              }
+              
+              tmp <- merge(CE,vip,by='row.names',all=TRUE)
+              rownames(tmp) <- tmp[,1]
+              colnames(tmp)[ncol(tmp)] <- "VIP"
+              CE <- tmp[,-1]
+            } else {
+              warn.VIP <- "<li> Warning : Variable importance table is not supported for intercept only model."
+            }
+          }
+          R2HTML::HTML(Digits(CE),file=stdout(),align="left",digits=15)
+          if(exists('warn.VIF')) R2HTML::HTML(warn.VIF,file=stdout())
+          if(exists('warn.VIP')) R2HTML::HTML(warn.VIP,file=stdout())
+          
+          # Anova table and R-squared
+          # Anova table and R-squared
+          if(ANOVA){
+            R2HTML::HTML(R2HTML::as.title("Analysis-of-Variance Table"),HR=3,file=stdout())
+            if(length(vars)==0){
+              warn.AT1 <- "<li> Warning : ANOVA table is not supported for intercept only model."
+              R2HTML::HTML(warn.AT1,file=stdout())
+            } else if(noint){
+              warn.AT2 <- "<li> Warning : ANOVA table is not supported for the model without intercept."
+              R2HTML::HTML(warn.AT2,file=stdout())
+            } else {
+              R2HTML::HTML(R2HTML::as.title("Model Effect (Goodness of Fit Test)"),HR=4,file=stdout())
+              Anova <- as.matrix(anova(lm(formula(paste(dep_var,'~1',sep='')),x=TRUE,data=temp.dat,weight=WTS),res_LM_1))
+              A1 <- rbind(Anova[2,4:3], Anova[2:1,c(2,1)])
+              MS <- c(A1[1:2,1]/A1[1:2,2],NA)
+              A2 <- data.frame(A1,MS=MS,Fvalue=c(Anova[2,5],NA,NA),Pvalue=c(Anova[2,6],NA,NA),R2=c(summary(res_LM_1)$r.squared,NA,NA),adj.R2=c(summary(res_LM_1)$adj.r.squared,NA,NA))
+              colnames(A2) <- c('SS','DF','MS','F-value','P-value','R2','adj.R2')
+              rownames(A2) <- c('Regression','Residual','Total')
+              R2HTML::HTML(Digits(A2),file=stdout(),align="left",digits=15)
+              
+              R2HTML::HTML(R2HTML::as.title(paste0("Variable Effect with Type ",ss," SS")),HR=4,file=stdout())
+              warn.desc <- ifelse(ss=='I',"<li> Note : In type I test, terms are added sequentially (first to last).",
+                                  ifelse(ss=='II',"<li> Note : In type II test, each row is the testing result for each main effect after the other main effect.",
+                                         "<li> Note : In type III test, each row is the testing result for each effect after the other effect."))
+              
+              if(ss=='I'){
+                AT <- try(anova(res_LM_1,test="Chisq"),s=T)
+                rowNames <- rownames(AT)
+                if(class(AT)[1]!='try-error'){
+                  AT <- data.frame(AT)
+                  AT <- AT[,c(2,1,3,4,5)]
+                  rownames(AT) <- rowNames
+                  colnames(AT) <- c('SS','DF','MS','F-value','P-value')
+                  R2HTML::HTML(Digits(AT),file=stdout(),align="left",digits=15)
+                  R2HTML::HTML(warn.desc,file=stdout())
+                } else {
+                  warn.AT3 <- "<li> Error : Fail to fit the Model."
+                  R2HTML::HTML(warn.AT3,file=stdout())
+                }
+              }
+              
+              if(ss %in% c('II','III')){
+                # II type : ignore interaction term
+                # III type : calculate SS including interaction term
+                RN <- vars
+                if(ss=='II' & length(grep(':',RN))>0) {
+                  RN <- RN[-grep(':',RN)]
+                  warn.AT4 <- '<li> Warning : Test for interaction effects is not provided in type II test. Use type III test for interaction effects.'
+                }
+                # warn.AT5 <- '<li> Note : If there is indeed no interaction, then type II is statistically more powerful than type III.'
+                
+                AT.form.full <- paste(dep_var,'~',paste(RN,collapse=' + '))
+                full.fit <- lm(formula(AT.form.full),data=temp.dat)
+                
+                options(contrasts=c("contr.sum", "contr.poly"))
+                res <- try(car::Anova(full.fit,type='III'))
+                options(contrasts=c('contr.treatment','contr.poly'))
+                
+                if(class(res)[1]!='try-error'){
+                  res <- data.frame(res)
+                  MS <- res[,1]/res[,2]
+                  AT <- data.frame(res[,c(1:2)],MS,res[,c(3,4)])
+                  colnames(AT) <- c('SS','DF','MS','F-value','P-value')
+                  
+                  R2HTML::HTML(Digits(AT[-nrow(AT),]),file=stdout(),align="left",digits=15)
+                  R2HTML::HTML(warn.desc,file=stdout())
+                  if(exists('warn.AT4')) R2HTML::HTML(warn.AT4,file=stdout())
+                } else {
+                  warn.AT6 <- "<li> Error : Fail to fit the Model."
+                  R2HTML::HTML(warn.AT6,file=stdout())
+                }
+              }
+            }
+          }
+          
+          R2HTML::HTML(R2HTML::as.title("Model Fitness Measurements"),HR=3,file=stdout())
+          fitness_print	<- data.frame(numeric(0), numeric(0)) ;
+          fitness_print	<- rbind(fitness_print, c(sum(residuals(res_LM_1, type="deviance")^2), res_LM_1$df.residual)) ;
+          fitness_print	<- rbind(fitness_print, c(sum(residuals(res_LM_1, type="pearson")^2), res_LM_1$df.residual)) ;
+          LL <- logLik(res_LM_1)
+          fitness_print	<- rbind(fitness_print, c(-2*LL[1], attr(LL,'df'))) ;
+          fitness_print	<- rbind(fitness_print, c(AIC(res_LM_1), NA)) ;
+          fitness_print	<- rbind(fitness_print, c(BIC(res_LM_1), NA)) ;
+          names(fitness_print)	<- c("Value", "DF") ;
+          row.names(fitness_print)	<- c("Deviance", "Pearson's chi-square", "-2*log-likelihood", "AIC", "BIC") ;
+          R2HTML::HTML(Digits(fitness_print), file=stdout(), align="left",digits=15,caption="<div style='text-align:left'> <li> A model with a smaller value is better.") ;
+          
+          # Goodness of fit test
+          if(GOF){
+            R2HTML::HTML(R2HTML::as.title("Goodness of Fit Test (Likelihood Ratio Test)"),HR=3,file=stdout())
+            if(length(vars)!=0){
+              ## log-liklehood ratio
+              if(!noint){
+                null.model <- lm(formula(paste(dep_var,"~1")),data=temp.dat,weight=WTS)
+                GOF1 <- anova(null.model, res_LM_1, test ="Chisq")
+                A3 <- as.data.frame(GOF1)[,c(2,1,4,3,5)]
+                rownames(A3) <- c("Null Model","Proposed Model")
+                colnames(A3) <- c('RSS','DF(RSS)','Chisq','DF(Chisq)','P-value')
+                R2HTML::HTML(Digits(A3),file=stdout(),align="left",digits=15)
+              } else {
+                R2HTML::HTML('<li> Warning : Likelihood Ratio Test is not supported for the model without intercept.',file=stdout())
+              }
+            } else {
+              warn.GOF <- "<li> Warning : Goodness of fit test is not supported for intercept only model."
+              R2HTML::HTML(warn.GOF,file=stdout())
+            }
+          }
+          
+          ### Diagnostic residual plot
+          if(Plot) {
+            R2HTML::HTML(R2HTML::as.title("Graphs for Regression Diagnostics"),HR=3,file=stdout(),append=TRUE)
+            load.pkg("ggfortify")
+            REx_ANA_PLOT(800,1200)
+            print(autoplot(res_LM_1, which=1:6) + theme_bw() + 
+                    theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank(), plot.title = element_text(hjust = 0.5)))
+            REx_ANA_PLOT_OFF("")
+          }
+          
+          #### validataion ####
+          if(Valid.method=='Partition'){
+            R2HTML::HTML(R2HTML::as.title(VM),HR=3,file=stdout())
+          } else {
+            if(Cross.method=='LOOCV'){
+              R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file=stdout())
+            } else {
+              if(k>nrow(temp.dat)) {
+                warn.valid <- paste0('<li> Warning : The number of folds cannot be greater than the number of non-missing observations. (# of non-missing observations: ',nrow(temp.dat),', # of folds specified by user: ',k,', readjusted # of folds: ',nrow(temp.dat),')')  
+                k <- nrow(temp.dat)
+                R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file=stdout())
+              } else {
+                R2HTML::HTML(R2HTML::as.title(paste0(k,"-Fold Cross Validation")),HR=3,file=stdout())
+              }
+            }
+            
+          }
+          if(length(vars)!=0){
+            # Function that returns Root Mean Squared Error
+            rmse <- function(error){
+              sqrt(mean(error^2,na.rm=T))
+            }
+            # Function that returns MAE
+            mae <- function(error){
+              mean(abs(error),na.rm=T)
+            }
+            # Function that returns R-squared (correlation)
+            rsq <- function(pred,obs){
+              cor(pred,obs,use='complete.obs')
+            }
+            
+            if(Valid.method=='Partition'){
+              if(exists('test.dataset')){
+                test.Predicted <- predict(res_LM_1,newdata=test.dataset,type='response')
+                test.Observed <- test.dataset[,dep_var]
+                test.Resid <- test.Predicted-test.Observed
+                
+                test.RMSE <- rmse(test.Resid)
+                test.MAE <- mae(test.Resid)
+                test.Rsq <- rsq(test.Predicted,test.Observed)
+                test.n <- sum(!is.na(test.Resid))
+              } else {
+                train.Perc <- 100
+              }
+              train.Observed <- temp.dat[,dep_var]
+              train.Predicted <- predict(res_LM_1,type='response')
+              train.Resid <- train.Predicted-train.Observed
+              
+              train.RMSE <- rmse(train.Resid)
+              train.MAE <- mae(train.Resid)
+              train.Rsq <- rsq(train.Predicted,train.Observed)
+              train.n <- sum(!is.na(train.Resid))
+              
+              train.Perc <- ifelse(exists('test.dataset'),train.n/(train.n+test.n)*100,100)
+              
+              vali <- data.frame(N.observed=train.n,Percent=train.Perc,RMSE=train.RMSE,MAE=train.MAE,Rsquared=train.Rsq)
+              rownames(vali) <- 'Training'
+              if(exists('test.dataset')){
+                vali <- rbind(vali,data.frame(N.observed=test.n,Percent=(100-train.Perc),RMSE=test.RMSE,MAE=test.MAE,Rsquared=test.Rsq))
+                rownames(vali)[2] <- 'Testing'
+              }
+              colnames(vali)[1] <- 'N.non-missing<br>observations'
+              R2HTML::HTML(Digits(vali),file=stdout(),align="left",digits=15)
+              R2HTML::HTML("<li> Note : Be careful of overfitting in interpreting the result of the training dataset",file=stdout())
+              if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
+              if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
+              if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file=stdout())
+            } else {
+              ctrl <- caret::trainControl(method = ifelse(k==nrow(temp.dat)|Cross.method=='LOOCV',"LOOCV","cv"), number = k)
+              newdat <- temp.dat[,c(dep_var,indep_numeric_var,indep_cat_var),drop=F]
+              mod_fit <- caret::train(form.1,  data=newdat, method='glm',family=gaussian,trControl = ctrl, tuneLength = 5, weights=WTS)
+              A8 <- mod_fit$results
+              if(k==nrow(temp.dat)|Cross.method=='LOOCV'){
+                res.acc.II <- A8[,c('RMSE','Rsquared')]
+              } else {
+                res.acc.II <- A8[,c('RMSE','RMSESD','Rsquared','RsquaredSD')]
+                colnames(res.acc.II)[c(2,4)] <- c('SD(RMSE)','SD(Rsquared)')
+              }
+              R2HTML::HTML(Digits(res.acc.II),file=stdout(),align="left",digits=15,row.names=F)
+              if(exists('warn.valid')) R2HTML::HTML(warn.valid,file=stdout())
+            } 
+          } else {
+            warn.msg10 <- "<li> Warning : Validation is not supported for intercept only model."
+            R2HTML::HTML(warn.msg10,file=stdout())
+          }
+          
+          ## Variable selection
+          if(Select) stepAIC.wj(object=res_LM_1,dataset=dataset,dep_var=dep_var,type='wlm',noint=noint,direct=direct,keep_var=keep_var,hr=3,vars=vars,WTS=WTS,CI=CI,confint.level=confint.level,VIP=VIP,VIF=VIF)
+          
+          if(exists('warn.res1')|exists('warn.res2')){
+            R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+            if(exists('warn.res1')) R2HTML::HTML(warn.res1,file=stdout())
+            if(exists('warn.res2')) R2HTML::HTML(warn.res2,file=stdout())
+          }
+        }
+      }
+      
+      # Used R packages
+      R2HTML::HTML(R2HTML::as.title("Used R Packages"),HR=2,file=stdout())
+      pkg.list <- list(list("Weighted linear regression","lm","stats"),
+                       list("Confidence interval for regression coefficients","confint","stats"),
+                       list("Variance inflation factor (VIF)","vif","rms"),
+                       list("ANOVA table",c("anova","Anova"),c("stats","car")),
+                       list("Model fitness measurements","residuals, logLik, AIC, BIC","stats"),
+                       list("Goodness of fit test","anova","stats"),
+                       list("Cross validation","trainControl, train","caret"),
+                       list("Fitted value","fitted","stats"),
+                       list("Predicted value","predict","stats"),
+                       list("Confidence & Prediction interval for fitted & predicted value","predict","stats"),
+                       list("Unstandardized residual","residuals","stats"),
+                       list("Standardized residual","stdres","MASS"),
+                       list("Studentized residual","studres","MASS"),
+                       list("Cook's distance","cooks.distance","stats"),
+                       list("Diagonals of hat matrix","hatvalues","stats"))
+      R2HTML::HTML(used.pkg(pkg.list), file=stdout())
+      
+      # Analysis end time
+      R2HTML::HTMLhr(file=stdout())
+      R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". Rex : Weighted Linear Regression.",sep=""),file=stdout())
+      R2HTML::HTMLhr(file=stdout())
+    })
+    if(exists('O')){
+      if (length(Dep_var) > 1) stop("Multiple dependent variables with outputs are now allowed")
+      FIN.RESULT <- list(html=html.output,Output=O)
+    } else {
+      FIN.RESULT[which(Dep_var%in%dep_var)] <- paste(html.output,collapse="\n")
+    }
+  }
+  
+  return(FIN.RESULT)
 }
-
