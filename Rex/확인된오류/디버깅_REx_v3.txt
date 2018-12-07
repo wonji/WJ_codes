@@ -50,6 +50,9 @@ a <- REx_LGM(dataset=birth, dep_var='hyp', dep_ref='0', indep_numeric_var=c('bwe
 			Predict_prob_test=FALSE, Predict_CI_test=FALSE, 
 			Predict_CI_pred=FALSE, 
 			Part_index=TRUE, Predict_g_train=FALSE, Predict_g_test=FALSE);
+
+a <- REx_LGM(dataset=birth, dep_var='lowbw', dep_ref='0', indep_cat_var='sex', indep_numeric_var='matage', vars=c('sex','matage'), noint=FALSE, link='logit', CI=TRUE, confint.level=0.95, odds=FALSE, VIF=FALSE, ANOVA=TRUE, ss='III', GOF=FALSE, ROCcurve=FALSE, classtab=FALSE, Resid=FALSE, stdResid=FALSE, studResid=FALSE, linear_pred=FALSE, hat_value=FALSE, cook_distance=FALSE, select=FALSE, direct='forward', Valid.method='Partition', Part.method='all', Predict_prob_train=FALSE, Predict_CI_train=FALSE, Predict_prob_test=FALSE, Predict_CI_test=FALSE, Predict_CI_pred=FALSE, Part_index=FALSE, Predict_g_train=FALSE, Predict_g_test=FALSE);
+dataset=birth; dep_var='lowbw'; dep_ref='0'; indep_cat_var='sex'; indep_numeric_var='matage'; vars=c('sex','matage'); noint=FALSE; link='logit'; CI=TRUE; confint.level=0.95; odds=FALSE; VIF=FALSE; ANOVA=TRUE; ss='III'; GOF=FALSE; ROCcurve=FALSE; classtab=FALSE; Resid=FALSE; stdResid=FALSE; studResid=FALSE; linear_pred=FALSE; hat_value=FALSE; cook_distance=FALSE; select=FALSE; direct='forward'; Valid.method='Partition'; Part.method='all'; Predict_prob_train=FALSE; Predict_CI_train=FALSE; Predict_prob_test=FALSE; Predict_CI_test=FALSE; Predict_CI_pred=FALSE; Part_index=FALSE; Predict_g_train=FALSE; Predict_g_test=FALSE
 			
 ## Multiple dependent variables
 a <- REx_LGM(dataset=birth,dep_var= c('hyp','preterm'),dep_ref='0',indep_cat_var='sex',indep_numeric_var=c('bweight','gestwks'),vars=c('sex','gestwks','bweight'),noint=FALSE,link='logit',

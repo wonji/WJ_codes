@@ -14,16 +14,16 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 		Predict_prob_train <- Predict_CI_train <- Predict_g_train <- Resid <- stdResid <- studResid <- cook_distance <- linear_pred <- hat_value <- Predict_prob_test <- Predict_CI_test <- Predict_g_test <- Predict_CI_pred <- Part_index <- FALSE
 
 	Dep_var <- dep_var
-	FIN.RESULT <- list()
+	FIN.RESULT <- rep(NA, length(Dep_var))
 	
 	for(dep_var in Dep_var){
 		dataset <- orig.dataset
 		if(length(Dep_var) > 1) 
 			dep_ref <- NULL
-			
+
 		html.output <- capture.output({
 			# Title
-			R2HTML::HTML(R2HTML::as.title("Generalized Linear Regression for Binomial Data"),HR=1,file=stdout(),append=FALSE)
+			R2HTML::HTML(R2HTML::as.title("Generalized Linear Regression for Binomial Data"),HR=1,file="./test.html",append=FALSE)
 
 			## Warnings
 			# Response variable type
@@ -156,15 +156,15 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 
 			# warnings
 			if(exists('warn.msg1')|exists('warn.msg4')|exists('warn.DP1')|exists('warn.DP5')|exists('warn.DP6')){
-				R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
-				if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file=stdout())
+				R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
+				if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file="./test.html")
 				if(exists('warn.msg4')){
-					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
-					R2HTML::HTML(warn.msg4,file=stdout())
+					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file="./test.html")
+					R2HTML::HTML(warn.msg4,file="./test.html")
 				}
-				if(exists('warn.DP1')) R2HTML::HTML(warn.DP1,file=stdout())
-				if(exists('warn.DP5')) R2HTML::HTML(warn.DP5,file=stdout())
-				if(exists('warn.DP6')) R2HTML::HTML(warn.DP6,file=stdout())
+				if(exists('warn.DP1')) R2HTML::HTML(warn.DP1,file="./test.html")
+				if(exists('warn.DP5')) R2HTML::HTML(warn.DP5,file="./test.html")
+				if(exists('warn.DP6')) R2HTML::HTML(warn.DP6,file="./test.html")
 			} else {
 				## Data Processing
 				var_info <- c(dep_var,indep_numeric_var, indep_cat_var)
@@ -186,12 +186,12 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 				res_LGM <- res_LGM_1
 				res_LGM <<- res_LGM
 				if('try-error'%in%class(res_LGM)){
-					R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
-					R2HTML::HTML("<li> Warning : Generalized linear regression for binomial data was failed to fit. Analysis has been stopped.",file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
+					R2HTML::HTML("<li> Warning : Generalized linear regression for binomial data was failed to fit. Analysis has been stopped.",file="./test.html")
 				} else if(!res_LGM$conv) {
-					R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
 					warn.msg.conv <- "<li> Warning : Generalized linear regression for binomial data did not converge. Analysis has been stopped."
-					R2HTML::HTML(warn.msg.conv,file=stdout())
+					R2HTML::HTML(warn.msg.conv,file="./test.html")
 				} else {
 					## confidence & prediction interval
 					getIntervals <- function(LGM_obj,newdat,con.level){
@@ -414,7 +414,7 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 
 					### Default output
 					# Data Structure
-					R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file="./test.html")
 					total.var <- ncol(original.dataset)
 					used.var <- ifelse(is.null(vars),0,length(unique(unlist(strsplit(vars,":")))))+length(c(Part.var,Pred.var))
 					none.n <- nrow(original.dataset)-nrow(dataset)-ifelse(exists("test.dataset"),nrow(test.dataset),0)-ifelse(exists("pred.dataset"),nrow(pred.dataset),0)
@@ -422,16 +422,16 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 					total.n <- paste0(nrow(original.dataset)," (Missing: ",sum(!complete.cases(original.dataset[,c(var_info,Part.var,Pred.var),drop=F])),")")
 					
 					DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',total.n,total.var,used.var+1),ncol=2)
-					R2HTML::HTML(DS,file=stdout(),align="left")
-					if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
-					if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
-					if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file=stdout())
-					if(exists('warn.DP9')) R2HTML::HTML(warn.DP9,file=stdout())
-					if(exists('warn.DP2')) R2HTML::HTML(warn.DP2,file=stdout())
-					if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file=stdout())
+					R2HTML::HTML(DS,file="./test.html",align="left")
+					if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file="./test.html")
+					if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
+					if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file="./test.html")
+					if(exists('warn.DP9')) R2HTML::HTML(warn.DP9,file="./test.html")
+					if(exists('warn.DP2')) R2HTML::HTML(warn.DP2,file="./test.html")
+					if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file="./test.html")
 
 					# Varibale list
-					R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Variable List"),HR=2,file="./test.html")
 					if(is.null(vars)) {
 						Vars <- c()
 					} else {
@@ -447,12 +447,12 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 						varlist.quan <- NULL
 					}
 					varlist <- rbind(varlist.quan,varlist.qual)
-					R2HTML::HTML(varlist,file=stdout(),align="left")
-					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file=stdout())
-					if(exists('warn.msg3')) R2HTML::HTML(warn.msg3,file=stdout())
+					R2HTML::HTML(varlist,file="./test.html",align="left")
+					if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file="./test.html")
+					if(exists('warn.msg3')) R2HTML::HTML(warn.msg3,file="./test.html")
 
 					# Analysis Description
-					R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file="./test.html")
 					Alllevel <- levels(temp.dat[,dep_var])
 					Alllevel[Alllevel==dep_ref] <- paste0(dep_ref,"(baseline)")
 					AD <- matrix(c('Dependent variable',dep_var,'Levels of dependent variable',paste0(Alllevel,collapse=', ')),ncol=2,byrow=T)
@@ -482,16 +482,16 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 					} else {
 						AD <- rbind(AD,matrix(c('Prediction using new dataset','FALSE'),ncol=2,byrow=T))
 					}
-					R2HTML::HTML(AD,file=stdout(),align="left")
-					if(exists('warn.VS')) R2HTML::HTML(warn.VS,file=stdout())
-					if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
-					if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
-					if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file=stdout())
+					R2HTML::HTML(AD,file="./test.html",align="left")
+					if(exists('warn.VS')) R2HTML::HTML(warn.VS,file="./test.html")
+					if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file="./test.html")
+					if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
+					if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file="./test.html")
 
 					#### Results
-					R2HTML::HTML(R2HTML::as.title("Results of Generalized Linear Regression for Binomial Data"),HR=2,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Results of Generalized Linear Regression for Binomial Data"),HR=2,file="./test.html")
 					# Coefficient Estimate
-					R2HTML::HTML(R2HTML::as.title("Coefficient Estimates"),HR=3,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Coefficient Estimates"),HR=3,file="./test.html")
 					VS1 <- capture.output(summary(res_LGM))
 					blank1 <- which(VS1=="")
 					IF1 <- paste(VS1[blank1[length(blank1)]-1],collapse="")
@@ -562,23 +562,23 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 							warn.msg9 <- "<li> Warning : Variable importance table is not supported for intercept only model."
 						}
 					}
-					R2HTML::HTML(Digits(CE),file=stdout(),align="left",digits=15)
-					if(exists('warn.msg9')) R2HTML::HTML(warn.msg9,file=stdout())
-					if(exists('warn.vif')) R2HTML::HTML(warn.vif,file=stdout())
-					R2HTML::HTML(IF,file=stdout(), align="left",digits=15)
+					R2HTML::HTML(Digits(CE),file="./test.html",align="left",digits=15)
+					if(exists('warn.msg9')) R2HTML::HTML(warn.msg9,file="./test.html")
+					if(exists('warn.vif')) R2HTML::HTML(warn.vif,file="./test.html")
+					R2HTML::HTML(IF,file="./test.html", align="left",digits=15)
 				
 					#### Anova table, Goodness of fit, R-squared and classfication table
 					# ANOVA=TRUE;GOF=TRUE;ng=10;R2=TRUE;classtab=TRUE;cutpoint=.5
 					if(ANOVA){
-						R2HTML::HTML(R2HTML::as.title("Analysis-of-Deviance Table"),HR=3,file=stdout())
+						R2HTML::HTML(R2HTML::as.title("Analysis-of-Deviance Table"),HR=3,file="./test.html")
 						if(length(vars)==0){
 							warn.msg8 <- "<li> Warning : ANOVA table is not supported for intercept only model."
-							R2HTML::HTML(warn.msg8,file=stdout())
+							R2HTML::HTML(warn.msg8,file="./test.html")
 						} else if(noint){
 							warn.AT1 <- "<li> Warning : ANOVA table is not supported for the model without intercept."
-							R2HTML::HTML(warn.AT1,file=stdout())
+							R2HTML::HTML(warn.AT1,file="./test.html")
 						} else {
-							R2HTML::HTML(R2HTML::as.title("Model Effect (Goodness of Fit Test)"),HR=4,file=stdout())
+							R2HTML::HTML(R2HTML::as.title("Model Effect (Goodness of Fit Test)"),HR=4,file="./test.html")
 							command_str<- paste0("null.fit<- try(glm(formula(gsub('~.+','~ 1',form.0)), data=temp.dat, family=binomial(",link,")))")
 							eval(parse(text=command_str)) ;
 							model.fit <- data.frame(anova(null.fit,res_LGM))
@@ -586,11 +586,11 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 							model.fit <- cbind(model.fit,c(pchisq(model.fit[1,3],model.fit[1,4],lower.tail=F),NA))
 							rownames(model.fit) <- c('Proposed model','Null model')
 							colnames(model.fit) <- c('Deviance','DF(Deviacne)','Chisq','DF(Chisq)','P-value')
-							R2HTML::HTML(Digits(model.fit),file=stdout(),align="left",digits=15)
+							R2HTML::HTML(Digits(model.fit),file="./test.html",align="left",digits=15)
 							anova.msg <- "<li> Note : 'Null model' means the model including only intercept and 'Proposed model' means the model including all explanatory variables including interaction effect."
-							R2HTML::HTML(anova.msg,file=stdout())
+							R2HTML::HTML(anova.msg,file="./test.html")
 
-							R2HTML::HTML(R2HTML::as.title(paste0("Variable Effect with Type ",ss," SS")),HR=4,file=stdout())
+							R2HTML::HTML(R2HTML::as.title(paste0("Variable Effect with Type ",ss," SS")),HR=4,file="./test.html")
 							warn.desc <- ifelse(ss=='I',"<li> Note : In type I test, 'Null model' means the model including only intercept. Terms are added sequentially (first to last).",
 									ifelse(ss=='II',"<li> Note : In type II test, 'Proposed model' means the model including all explanatory variables except interaction effect. The other rows are the testing results for each main effect after the other main effect.",
 									"<li> Note : In type III test, 'Proposed model' means the model including all explanatory variables including interaction effect. The other rows are the testing results for each effect after the other effect."))
@@ -603,11 +603,11 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 									AT <- AT[,c(4,3,2,1,5)]
 									rownames(AT) <- rowNames; rownames(AT)[1] <- 'Null model'
 									colnames(AT) <- c('Deviance','DF(Deviacne)','Chisq','DF(Chisq)','P-value')
-									R2HTML::HTML(Digits(AT),file=stdout(),align="left",digits=15)
-									R2HTML::HTML(warn.desc,file=stdout())
+									R2HTML::HTML(Digits(AT),file="./test.html",align="left",digits=15)
+									R2HTML::HTML(warn.desc,file="./test.html")
 								} else {
 									warn.msg6 <- "<li> Error : Fail to fit the Model."
-									R2HTML::HTML(warn.msg6,file=stdout())
+									R2HTML::HTML(warn.msg6,file="./test.html")
 								}
 							}
 
@@ -638,19 +638,19 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 									colnames(AT) <- c('Deviance','DF(Deviacne)','Chisq','DF(Chisq)','P-value')
 									rownames(AT) <- c('Proposed model',RN)
 
-									R2HTML::HTML(Digits(AT),file=stdout(),align="left",digits=15)
-									R2HTML::HTML(warn.desc,file=stdout())
-									if(exists('warn.AT2')) R2HTML::HTML(warn.AT2,file=stdout())
+									R2HTML::HTML(Digits(AT),file="./test.html",align="left",digits=15)
+									R2HTML::HTML(warn.desc,file="./test.html")
+									if(exists('warn.AT2')) R2HTML::HTML(warn.AT2,file="./test.html")
 								} else {
 									warn.msg7 <- "<li> Error : Fail to fit the Model."
-									R2HTML::HTML(warn.msg7,file=stdout())
+									R2HTML::HTML(warn.msg7,file="./test.html")
 								}
 							}
 						}
 					}
 
 					## Goodness of fit
-					R2HTML::HTML(R2HTML::as.title("Model Fitness Measurements"), HR=3, file=stdout()) ;
+					R2HTML::HTML(R2HTML::as.title("Model Fitness Measurements"), HR=3, file="./test.html") ;
 					fitness_print	<- data.frame(numeric(0), numeric(0)) ;
 					fitness_print	<- rbind(fitness_print, c(sum(residuals(res_LGM, type="deviance")^2), res_LGM$df.residual)) ;
 					fitness_print	<- rbind(fitness_print, c(sum(residuals(res_LGM, type="pearson")^2), res_LGM$df.residual)) ;
@@ -660,19 +660,19 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 					fitness_print	<- rbind(fitness_print, c(BIC(res_LGM), NA)) ;
 					names(fitness_print)	<- c("Value", "DF") ;
 					row.names(fitness_print)	<- c("Deviance", "Pearson's chi-square", "-2*log-likelihood", "AIC", "BIC") ;
-					R2HTML::HTML(Digits(fitness_print), file=stdout(), digits=15, align="left",caption="<div style='text-align:left'> <li> A model with a smaller value is better.") ;
+					R2HTML::HTML(Digits(fitness_print), file="./test.html", digits=15, align="left",caption="<div style='text-align:left'> <li> A model with a smaller value is better.") ;
 
-					R2HTML::HTML(R2HTML::as.title("Pseudo R-squared Measures"),HR=4,file=stdout())
+					R2HTML::HTML(R2HTML::as.title("Pseudo R-squared Measures"),HR=4,file="./test.html")
 					temp.dat <<- temp.dat
 					A6 <- as.data.frame(t(pscl::pR2(res_LGM)[-c(1:2)]))
 					rm(temp.dat,envir=parent.env(environment()))
-					R2HTML::HTML(Digits(A6),file=stdout(),align="left",row.names=F,digits=15)
+					R2HTML::HTML(Digits(A6),file="./test.html",align="left",row.names=F,digits=15)
 
 					if(GOF){
-						R2HTML::HTML(R2HTML::as.title("Goodness of Fit Test"),HR=3,file=stdout())
+						R2HTML::HTML(R2HTML::as.title("Goodness of Fit Test"),HR=3,file="./test.html")
 						if(length(vars)!=0){
 							## log-liklehood ratio
-							R2HTML::HTML(R2HTML::as.title("Analysis-of-Deviance Table (Likelihood Ratio Test)"),HR=4,file=stdout())
+							R2HTML::HTML(R2HTML::as.title("Analysis-of-Deviance Table (Likelihood Ratio Test)"),HR=4,file="./test.html")
 							if(!noint){
 								command_str<- paste0("null.fit<- try(glm(formula(gsub('~.+','~ 1',form.0)), data=temp.dat, family=binomial(",link,")))")
 								eval(parse(text=command_str)) ;
@@ -681,30 +681,30 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 								model.fit <- cbind(model.fit,c(pchisq(model.fit[1,3],model.fit[1,4],lower.tail=F),NA))
 								rownames(model.fit) <- c('Proposed model','Null model')
 								colnames(model.fit) <- c('Deviance','DF(Deviacne)','Chisq','DF(Chisq)','P-value')
-								R2HTML::HTML(Digits(model.fit),file=stdout(),align="left",digits=15)
+								R2HTML::HTML(Digits(model.fit),file="./test.html",align="left",digits=15)
 								anova.msg <- "<li> Note : 'Null model' means the model including only intercept and 'Proposed model' means the model including all explanatory variables including interaction effect."
-								R2HTML::HTML(anova.msg,file=stdout())
+								R2HTML::HTML(anova.msg,file="./test.html")
 							} else {
-								R2HTML::HTML('<li> Warning : Likelihood Ratio Test is not supported for the model without intercept.',file=stdout())
+								R2HTML::HTML('<li> Warning : Likelihood Ratio Test is not supported for the model without intercept.',file="./test.html")
 							}
 							##Hosmer-Lemeshow Test
 							GOF2 <- ResourceSelection::hoslem.test(res_LGM$y,fitted(res_LGM))
 							A4 <- data.frame(GOF2$statistic,GOF2$parameter,GOF2$p.value)
 							colnames(A4) <- c("X-squared","df","p-value")
 							rownames(A4) <- ""
-							R2HTML::HTML(R2HTML::as.title("Hosmer-Lemeshow test"),HR=4,file=stdout())
-							R2HTML::HTML(Digits(A4),file=stdout(), align="left",row.names=F,digits=15)
+							R2HTML::HTML(R2HTML::as.title("Hosmer-Lemeshow test"),HR=4,file="./test.html")
+							R2HTML::HTML(Digits(A4),file="./test.html", align="left",row.names=F,digits=15)
 						} else {
 							warn.msg12 <- "<li> Warning : Goodness of fit test is not supported for intercept only model."
-							R2HTML::HTML(warn.msg12,file=stdout())
+							R2HTML::HTML(warn.msg12,file="./test.html")
 						}
 					}
 
 					# classification table
 					# classtab=TRUE;cutpoint=.5
 					if(classtab){
-						R2HTML::HTML(R2HTML::as.title(paste0("Classification Table - cut point : ",Cutoff)),HR=3,file=stdout())		
-						R2HTML::HTML(R2HTML::as.title("Training dataset"),HR=4,file=stdout())		
+						R2HTML::HTML(R2HTML::as.title(paste0("Classification Table - cut point : ",Cutoff)),HR=3,file="./test.html")		
+						R2HTML::HTML(R2HTML::as.title("Training dataset"),HR=4,file="./test.html")		
 						Observed <- temp.dat[,dep_var]
 						level <- levels(temp.dat[,dep_var])
 						Predicted <- as.factor(ifelse(fitted(res_LGM)<Cutoff,level[1],level[2]))
@@ -717,9 +717,9 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 						A7 <- cbind(A7,Total)						
 						colnames(A7) <- paste("Fitted_",colnames(A7),sep="")
 						rownames(A7) <- paste("Observed_",rownames(A7),sep="")
-						R2HTML::HTML(A7,file=stdout(),align="left",digits=4)
+						R2HTML::HTML(A7,file="./test.html",align="left",digits=4)
 						
-						R2HTML::HTML(R2HTML::as.title("Diagnostic Accuracy Measure"),HR=5,file=stdout())		
+						R2HTML::HTML(R2HTML::as.title("Diagnostic Accuracy Measure"),HR=5,file="./test.html")		
 						aucs <- unlist(ROCR::performance(ROCR::prediction(res_LGM$fitted,res_LGM$y),'auc')@y.values)
 						AM.1 <- data.frame(Measure=c('True positive (TP)','True negative (TN)','False positive (FP)','False negative (FN)'),
 											Description=c(rep('',4)),
@@ -738,10 +738,10 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 											Value=c(AM.4[1,3]/AM.4[2,3],2/(1/AM.2[4,3]+1/AM.3[1,3])))
 						AM <- rbind(AM.1,AM.2,AM.3,AM.4,AM.5)
 						AM[,3] <- Digits(AM[,3])
-						R2HTML::HTML(AM,file=stdout(),align="left",digits=15,row.names=F)
+						R2HTML::HTML(AM,file="./test.html",align="left",digits=15,row.names=F)
 
 						if(exists('test.dataset')){
-							R2HTML::HTML(R2HTML::as.title("Testing dataset"),HR=4,file=stdout())		
+							R2HTML::HTML(R2HTML::as.title("Testing dataset"),HR=4,file="./test.html")		
 							Observed <- test.dataset[,dep_var]
 							level <- levels(temp.dat[,dep_var])
 
@@ -756,9 +756,9 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 							A7 <- cbind(A7,Total)						
 							colnames(A7) <- paste("Predicted_",colnames(A7),sep="")
 							rownames(A7) <- paste("Observed_",rownames(A7),sep="")
-							R2HTML::HTML(A7,file=stdout(),align="left",digits=4)
+							R2HTML::HTML(A7,file="./test.html",align="left",digits=4)
 							
-							R2HTML::HTML(R2HTML::as.title("Measures of Diagnostic Accuracy"),HR=5,file=stdout())		
+							R2HTML::HTML(R2HTML::as.title("Measures of Diagnostic Accuracy"),HR=5,file="./test.html")		
 							test.res <- na.omit(cbind(predict(res_LGM,newdata=test.dataset,type='response'),test.dataset[,dep_var]))
 							aucs <- unlist(ROCR::performance(ROCR::prediction(test.res[,1],test.res[,2]),'auc')@y.values)
 							AM.1 <- data.frame(Measure=c('True positive (TP)','True negative (TN)','False positive (FP)','False negative (FN)'),
@@ -778,14 +778,14 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 												Value=c(AM.4[1,3]/AM.4[2,3],2/(1/AM.2[4,3]+1/AM.3[1,3])))
 							AM <- rbind(AM.1,AM.2,AM.3,AM.4,AM.5)
 							AM[,3] <- Digits(AM[,3])
-							R2HTML::HTML(AM,file=stdout(),align="left",digits=15,row.names=F)
+							R2HTML::HTML(AM,file="./test.html",align="left",digits=15,row.names=F)
 						}
 					}
 
 					#### Figures - jhan : ggplot style로 수정
 					if(ROCcurve) {
-						R2HTML::HTML(R2HTML::as.title("ROC Curve"),HR=3,file=stdout(),append=TRUE)
-						R2HTML::HTML(R2HTML::as.title("Training dataset"),HR=4,file=stdout(),append=TRUE)
+						R2HTML::HTML(R2HTML::as.title("ROC Curve"),HR=3,file="./test.html",append=TRUE)
+						R2HTML::HTML(R2HTML::as.title("Training dataset"),HR=4,file="./test.html",append=TRUE)
 						REx_ANA_PLOT()
 						train.aucs <- unlist(ROCR::performance(ROCR::prediction(res_LGM$fitted,res_LGM$y),'auc')@y.values)
 						train.ROCdat <- fortify(ROCR::performance(ROCR::prediction(res_LGM$fitted,res_LGM$y),'tpr','fpr'))
@@ -797,7 +797,7 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 						REx_ANA_PLOT_OFF("")
 						
 						if(exists('test.dataset')){
-							R2HTML::HTML(R2HTML::as.title("Testing dataset"),HR=4,file=stdout(),append=TRUE)
+							R2HTML::HTML(R2HTML::as.title("Testing dataset"),HR=4,file="./test.html",append=TRUE)
 							REx_ANA_PLOT()
 							test.res <- na.omit(cbind(predict(res_LGM,newdata=test.dataset,type='response'),test.dataset[,dep_var]))
 							test.aucs <- unlist(ROCR::performance(ROCR::prediction(test.res[,1],test.res[,2]),'auc')@y.values)
@@ -810,7 +810,7 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 							REx_ANA_PLOT_OFF("")
 							
 							## Combined
-							R2HTML::HTML(R2HTML::as.title("Training & Testing dataset"),HR=4,file=stdout(),append=TRUE)
+							R2HTML::HTML(R2HTML::as.title("Training & Testing dataset"),HR=4,file="./test.html",append=TRUE)
 							REx_ANA_PLOT(h=500,w=575)
 							combined.dat <- rbind(train.ROCdat,test.ROCdat)
 							combined.dat$dataset <- factor(c(rep('Training',nrow(train.ROCdat)),rep('Testing',nrow(test.ROCdat))),levels=c('Training','Testing'))
@@ -825,17 +825,17 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 
 					#### validataion ####
 					if(Valid.method=='Partition'){
-						R2HTML::HTML(R2HTML::as.title(VM),HR=3,file=stdout())
+						R2HTML::HTML(R2HTML::as.title(VM),HR=3,file="./test.html")
 					} else {
 						if(Cross.method=='LOOCV'){
-							R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file=stdout())
+							R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file="./test.html")
 						} else {
 							if(k>nrow(temp.dat)) {
 								warn.valid <- paste0('<li> Warning : The number of folds cannot be greater than the number of non-missing observations. (# of non-missing observations: ',nrow(temp.dat),', # of folds specified by user: ',k,', readjusted # of folds: ',nrow(temp.dat),')')  
 								k <- nrow(temp.dat)
-								R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file=stdout())
+								R2HTML::HTML(R2HTML::as.title("Leave-One-Out Cross Validation"),HR=3,file="./test.html")
 							} else {
-								R2HTML::HTML(R2HTML::as.title(paste0(k,"-Fold Cross Validation")),HR=3,file=stdout())
+								R2HTML::HTML(R2HTML::as.title(paste0(k,"-Fold Cross Validation")),HR=3,file="./test.html")
 							}
 						}
 					}
@@ -856,7 +856,7 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 								train.Perc <- 100
 							}
 							train.Observed <- temp.dat[,dep_var]
-							train.Predicted <- as.factor(ifelse(fitted(res_LGM)<Cutoff,level[1],level[2]))
+							train.Predicted <- factor(ifelse(fitted(res_LGM)<Cutoff,level[1],level[2]),levels=level)
 							train.res <- train.Predicted==train.Observed
 							train.trueness <- sum(train.res,na.rm=T)
 							train.n <- sum(!is.na(train.res))
@@ -872,12 +872,12 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 								rownames(vali)[2] <- 'Testing'
 							}
 							colnames(vali)[1] <- 'N.non-missing<br>observations'
-							R2HTML::HTML(Digits(vali),file=stdout(),align="left",digits=15)
-							R2HTML::HTML("<li> Note : Be careful of overfitting in interpreting the result of the training dataset",file=stdout())
-							if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file=stdout())
-							if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file=stdout())
-							if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file=stdout())
-							R2HTML::HTML("<li> Note : For more measures of diagnostic accuracy, please use classification table option.",file=stdout())
+							R2HTML::HTML(Digits(vali),file="./test.html",align="left",digits=15)
+							R2HTML::HTML("<li> Note : Be careful of overfitting in interpreting the result of the training dataset",file="./test.html")
+							if(exists('warn.DP4')) R2HTML::HTML(warn.DP4,file="./test.html")
+							if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
+							if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file="./test.html")
+							R2HTML::HTML("<li> Note : For more measures of diagnostic accuracy, please use classification table option.",file="./test.html")
 						} else {
 							levs <- levels(temp.dat[,dep_var])
 							levels(temp.dat[,dep_var]) <- make.names(levs)
@@ -910,25 +910,25 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 								colnames(res.acc.II)[c(2,4,6)] <- c('SD(Accuracy)','SD(Kappa)','SD(AUC)')
 							}
 							levels(temp.dat[,dep_var]) <- levs
-							R2HTML::HTML(Digits(res.acc.II),file=stdout(),align="left",digits=15,row.names=F)
-							if(exists('warn.valid')) R2HTML::HTML(warn.valid,file=stdout())
+							R2HTML::HTML(Digits(res.acc.II),file="./test.html",align="left",digits=15,row.names=F)
+							if(exists('warn.valid')) R2HTML::HTML(warn.valid,file="./test.html")
 						} 
 					} else {
 						warn.msg10 <- "<li> Warning : Validation is not supported for intercept only model."
-						R2HTML::HTML(warn.msg10,file=stdout())
+						R2HTML::HTML(warn.msg10,file="./test.html")
 					}
 
 					## Variable selection
 					if(select) stepAIC.wj(object=res_LGM_1,temp.dat,dep_var,type='binom',noint,direct,keep_var,hr=3,vars,link=link,odds=odds,CI=CI,confint.level=confint.level,VIP=VIP,VIF=VIF)
 					if(exists('warn.res1')|exists('warn.res2')){
-						R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file=stdout())
-						if(exists('warn.res1')) R2HTML::HTML(warn.res1,file=stdout())
-						if(exists('warn.res2')) R2HTML::HTML(warn.res2,file=stdout())
+						R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
+						if(exists('warn.res1')) R2HTML::HTML(warn.res1,file="./test.html")
+						if(exists('warn.res2')) R2HTML::HTML(warn.res2,file="./test.html")
 					}
 				}
 			}
 			# Used R packages
-			R2HTML::HTML(R2HTML::as.title("Used R Packages"),HR=2,file=stdout())
+			R2HTML::HTML(R2HTML::as.title("Used R Packages"),HR=2,file="./test.html")
 			pkg.list <- list(list("Generalized linear regression for binomial data","glm","stats"),
 					 list("Confidence interval for regression coefficients","confint","stats"),
 					 list("Variance inflation factor (VIF)","vif","rms"),
@@ -946,23 +946,20 @@ REx_LGM <- function(dataset,dep_var,dep_ref=NULL,indep_cat_var=NULL,indep_numeri
 					 list("Cook's distance","cooks.distance","stats"),
 					 list("Linear predictor","predict","stats"),
 					 list("Diagonals of hat matrix","hatvalues","stats"))
-			R2HTML::HTML(used.pkg(pkg.list), file=stdout())
+			R2HTML::HTML(used.pkg(pkg.list), file="./test.html")
 
 			# Analysis end time
-			R2HTML::HTMLhr(file=stdout())
-			R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". Rex : Generalized Linear Regression for Binomial Data",sep=""),file=stdout())
-			R2HTML::HTMLhr(file=stdout())
+			R2HTML::HTMLhr(file="./test.html")
+			R2HTML::HTML(paste("Analysis is finished at ",Sys.time(),". Rex : Generalized Linear Regression for Binomial Data",sep=""),file="./test.html")
+			R2HTML::HTMLhr(file="./test.html")
 		})
 		if(exists('O')){
-			RESULT <- list(html=html.output,Output=O)
+			if (length(Dep_var) > 1) stop("Multiple dependent variables with outputs are now allowed")
+			FIN.RESULT <- list(html=html.output,Output=O)
 		} else {
-			RESULT <- html.output
+			FIN.RESULT[which(Dep_var%in%dep_var)] <- paste(html.output,collapse="\n")
 		}
-		FIN.RESULT[[which(Dep_var%in%dep_var)]] <- RESULT
 	}
-	
-	if(length(Dep_var)==1)
-		FIN.RESULT <- FIN.RESULT[[1]]
-		
+
 	return(FIN.RESULT)
 }
