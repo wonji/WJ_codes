@@ -471,4 +471,31 @@ legend("topright", inset=c(-0.3,0.07), legend=paste0(0:3), lty=1:4, title="Numbe
 dev.off()
 
 
+#### Figure 5
+setwd('/home2/wjkim/paper/heritability/ML_ver2/variousFam/CEST/3.realdata/1.LAM/2.Whole_CHR/')
+a <- sapply(1:22,function(chr) return(ifelse('GRM_181024.txt'%in%system(paste0('ls chr',chr),intern=T),chr,'')))
+aa <- a[a!='']
+dat <- c()
+for(i in aa){
+	bb <- read.table(paste0('chr',i,'/GRM_181024.txt'),head=T)
+	dat <- rbind(dat,bb)
+	print(paste0('chr',i,', ',nrow(bb),' SNPs'))
+}
+plotdat <- dat[,c('CHR','SNP','Pvalue')]
+colnames(plotdat) <- c('CHR','GENE','p.val')
+write.table(plotdat,'LAM_plotdata.txt',row.names=F,quote=F)
+system('Rscript ~/Output_plot.r LAM_plotdata.txt LAM_GWAS')
+
+library("GenABEL")
+lambda <- estlambda(plotdat$p.val,method="median")	#1.075946
+
+library(gap)
+p.val.gc <- pchisq(gcontrol2(plotdat$p.val)$y/lambda$estimate,df=1,lower.tail=F)
+lambda.gc <- estlambda(p.val.gc,method="median")
+plotdat.gc <- plotdat
+plotdat.gc$p.val <- p.val.gc
+write.table(plotdat.gc,'LAM_plotdata_gc.txt',row.names=F,quote=F)
+setwd('/home2/wjkim/paper/heritability/ML_ver2/variousFam/')
+system('Rscript ~/Output_plot.r CEST/3.realdata/1.LAM/2.Whole_CHR/LAM_plotdata_gc.txt figure_and_table/LAM_GWAS_gc')
+
 
