@@ -117,3 +117,45 @@ for(i in 1:3){
 
 dev.off()
 
+
+# Figure 3.7
+#Horizontally - paper#
+setwd("~/paper/famhis/prob/realdata/permutation")
+png(paste("/home2/wjkim/paper/famhis/prob/realdata/permutation/new_kare_all_QQ_horizontal.png",sep=""), width=1400, height=500, units = "px", bg = "white", res = 200)
+par(mfrow=c(1,3))
+
+path <- c("plotdata_case_1000_cont_4000_All.txt","plotdata_case_1000_cont_4000_rs.txt","plotdata_case_1000_cont_4000_rp.txt")
+title <- c("GWAS using all subjects","GWAS using S1","GWAS using S3")
+
+for(i in 1:3){
+  print(i)
+  
+  resultII <- read.table(path[i],head=T)
+  
+  p.val <- resultII[,3]
+  
+  y <- -log(p.val,10)
+  v <- -log10(0.05/sum(is.finite(y)))
+  
+  # QQ plot
+  o.y <- sort(y[is.finite(y)],decreasing=T)
+  xx<- (1:length(o.y))/length(o.y)
+  x <- -log(xx,10)
+  ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
+  
+  plot(YY, YY, main=title[i],type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
+  N=length(o.y)
+  c95 <- rep(0,N)
+  c05 <- rep(0,N)
+  for(ii in 1:N){
+    c95[ii] <- qbeta(0.95,ii,N-ii+1)
+    c05[ii] <- qbeta(0.05,ii,N-ii+1)
+  }
+  #abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
+  polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
+  abline(a=0,b=1,col="black", lty=1)
+  points(x, o.y, cex = .5, col = "dark red")
+  
+}
+
+dev.off()
