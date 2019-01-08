@@ -1,0 +1,215 @@
+##### new bim with snp ID of CHR:POS #####
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data/")
+map <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+map[,2] <- paste(map[,1],map[,4],sep=":")
+write.table(map,"new_ID.bim",row.names=F,col.names=F,quote=F)
+
+##### convert plink to vcf :  #####
+## script /home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/make_input.sh
+for chr in `seq 22`
+do
+  cd /home2/wjkim/project/LAM/final_analysis
+  plink --bed 0.data/final_clean_withage.bed --bim 0.data/new_ID.bim --fam 0.data/final_clean_withage.fam --chr $chr --recode vcf --out 4.impute_web/whole/0.data/chr$chr
+
+  ##### check and fix the REF allele  #####
+  cd /home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/
+  export BCFTOOLS_PLUGINS=/data/bin/plugins
+  bcftools +fixref chr$chr.vcf -Ov -o matched_chr$chr.vcf -- -f /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/human_g1k_v37.fasta -m flip
+  bcftools norm --check-ref x -f /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/human_g1k_v37.fasta matched_chr$chr.vcf -Ov -o new_matched_chr$chr.vcf
+  bgzip -c new_matched_chr$chr.vcf > input_chr$chr.vcf.gz
+  rm chr$chr*
+  rm matched_chr$chr.vcf
+  rm new_*
+done
+
+## Run script
+cd /home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/
+sh make_input.sh
+
+###### Extract imputed snp +/- 100k of position of LD block ######
+cd  /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/
+vcftools --gzvcf 2.shapeit/15.pbwt_reference_impute.vcf.gz --chr 15 --from-bp 95843229 --to-bp 97043229 --recode --out 2.shapeit/shapeit_impute
+
+##### Association analysis #####
+# shapeit
+cd /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/
+plink --vcf 2.shapeit/shapeit_impute.recode.vcf --maf 0.05 --geno 0.05 --hwe 0.00001 --out 2.shapeit/clean_snp --make-bed
+plink --bfile 2.shapeit/clean_snp --mind 0.05 --out ../1.logit/0.data/final_clean_shapeit --make-bed
+
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit/0.data")
+impute.fam <- read.table("final_clean_shapeit.fam",head=F,stringsAsFactor=F)
+fam <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/final_clean_withage.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[match(impute.fam[,1],fam[,1]),]
+write.table(new.fam,'final_clean_shapeit.fam',row.names=F,col.names=F,quote=F)
+
+bim <- read.table("final_clean_shapeit.bim",head=F,stringsAsFactor=F)
+bim$V2[bim$V2=='.'] <- paste0('15:',bim$V4[bim$V2=='.'])
+write.table(bim,'final_clean_shapeit.bim',row.names=F,col.names=F,quote=F)
+
+plink --bfile ../1.logit/0.data/final_clean_shapeit --recodeA --out ../2.clogit/0.data/shapeit_impute
+plink --bfile ../1.logit/0.data/final_clean_shapeit --freq --out ../2.clogit/0.data/MAF_shapeit
+rm 2.shapeit/clean_snp*
+
+
+################# logistic regression
+cd /home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit
+plink --bfile 0.data/final_clean_shapeit --logistic --pheno /home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt --pheno-name pheno12 --covar /home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt --covar-name PC1-PC10,Age,Age_sq --out logit_171103  --hide-covar --threads 10 # 421 case, 1260 controls 553234 snps#
+
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit")
+logit <- read.table("logit_171103.assoc.logistic",head=T)
+logit <- logit[,c(1,2,9)]
+colnames(logit)<-c("CHR","GENE","p.val")
+write.table(logit,"plotdata_logit_171103.txt",row.names=F,quote=F,sep="\t")
+system("Rscript ~/Output_plot.r plotdata_logit_171103.txt logit_171103_impute")
+
+
+################# conditional logistic regression
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/2.clogit")
+library(survival)
+raw <- read.table("0.data/shapeit_impute.raw",head=T,stringsAsFactor=F)
+phe <- read.table("../../3.clogit/npc/phenofile_withage_2PCs.txt",head=T)
+maf <- read.table("0.data/MAF_shapeit.frq",head=T,stringsAsFactor=F)
+bim <- read.table("../1.logit/0.data/final_clean_shapeit.bim",head=F,stringsAsFactor=F)
+
+n.snp <- ncol(raw)-6
+name.snp <- colnames(raw)[-c(1:6)]
+name.snp <- gsub("_[ATGC]","",name.snp)
+
+pair.data <- phe[which(!is.na(phe$pair)),]
+pair.raw <- raw[which(!is.na(phe$pair)),]
+
+con.logit <- function(ii){
+	if(ii%%100==0) print(ii)
+	snp <- pair.raw[,6+ii]
+	dat <- cbind(pair.data,snp)
+	fit.lam <- clogit(pheno01 ~ snp + strata(pair), method="exact", data=dat)
+	res.coef <- summary(fit.lam)$coef
+	res <- c(15,name.snp[ii],res.coef)
+	return(res)
+}
+outI <- lapply(1:n.snp,con.logit)
+outII <- do.call(rbind,outI)
+colnames(outII) <- c("chr","snp","beta","OR","se_OR","z","p_value")
+outIII <- data.frame(maf[,1:4],Position=bim[,4],MAF=maf[,5],outII[,-c(1,2)])
+write.csv(outIII,"clogit_shapeit.csv",row.names=F,quote=F)
+
+plotdata <- outIII[,c('CHR','SNP','p_value')]
+colnames(plotdata) <- c('CHR','GENE','p.val')
+write.table(plotdata,'plotdata_clogit_171103.txt',row.names=F,quote=F)
+system("Rscript ~/Output_plot.r plotdata_clogit_171103.txt clogit_171103_impute")
+
+
+
+
+
+
+##### Enhancer of NR2F2 ######
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+GE <- read.csv("genehancer.csv",head=T,stringsAsFactor=F)	# gene enhancer - position information
+# chromosome 15
+chr15 <- GE[GE$chrom=="chr15",]
+enhancers <- gsub(".+=","",gsub(";.+","",chr15[,9]))
+chr15 <- data.frame(Enhancer=enhancers,chr15)
+
+# NR2F2
+NR2F2 <- GE[grep("NR2F2[^-]",GE[,9]),]
+enhancers <- gsub(".+=","",gsub(";.+","",NR2F2[,9]))
+NR2F2 <- data.frame(Enhancer=enhancers,NR2F2)
+
+write.csv(chr15,"chr15_enhancers.csv",row.names=F,quote=F)
+write.csv(NR2F2,"NR2F2_enhancers.csv",row.names=F,quote=F)
+
+## mapping significant SNPs to enhancers 
+setwd("/home2/wjkim/project/LAM/final_analysis/0.data")
+chr15 <- read.csv("chr15_enhancers.csv",head=T,stringsAsFactor=F)
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/2.clogit")
+clogit <- read.csv("clogit_shapeit.csv",head=T,stringsAsFactor=F)
+sig <- clogit[clogit$p_value<9.097e-8,]
+# update position from hg19 to hg38
+converter <- read.table(gzfile("../../0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+sig$Position <- converter[match(sig[,2],converter[,5]),"V4"]
+
+getEH <- function(i){
+	aa <- which(sig[i,"Position"]>chr15$start&sig[i,"Position"]<chr15$end)
+	return(ifelse(length(aa)==0,NA,chr15[aa,1]))
+}
+
+sig$Enhancer <- sapply(1:nrow(sig),getEH)
+write.csv(sig,"sig_clogit_enhancer.csv",row.names=F,quote=F)
+
+
+
+
+################# Promoters ########################
+
+###### Extract imputed snp +/- 100k of position of LD block : /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/######
+vcftools --vcf  ~/project/LAM/impute_web/15.pbwt_reference_impute.vcf --chr 15 --from-bp 96324800 --to-bp 96328201 --recode --out promoters
+
+
+##### Association analysis : /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/#####
+plink --vcf promoters.recode.vcf --maf 0.05 --geno 0.05 --hwe 0.00001 --out clean_snp_promoters --make-bed
+plink --bfile clean_snp_promoters --mind 0.05 --out ../1.logit/0.data/final_clean_promoters --make-bed
+plink --bfile ../1.logit/0.data/final_clean_promoters --recodeA --out ../2.clogit/0.data/pbwt_impute_promoters
+plink --bfile ../1.logit/0.data/final_clean_promoters --freq --out ../2.clogit/0.data/MAF_promoters
+rm clean_snp*
+
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit/0.data")
+impute.fam <- read.table("final_clean_promoters.fam",head=F,stringsAsFactor=F)
+fam <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/final_clean_withage.fam",head=F,stringsAsFactor=F)
+new.fam <- fam[match(impute.fam[,1],fam[,1]),]
+write.table(new.fam,'final_clean_promoters.fam',row.names=F,col.names=F,quote=F)
+
+################# logistic regression : /home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit
+plink --bfile 0.data/final_clean_promoters --logistic --pheno /home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt --pheno-name pheno12 --covar /home2/wjkim/project/LAM/final_analysis/0.data/phenofile_withage.txt --covar-name PC1-PC10,Age,Age_sq --out logit_171027_promoters  --hide-covar --threads 10 # 421 case, 1260 controls 553234 snps#
+
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit")
+logit <- read.table("logit_171027_promoters.assoc.logistic",head=T)
+logit <- logit[,c(1,2,9)]
+colnames(logit)<-c("CHR","GENE","p.val")
+write.table(logit,"plotdata_logit_171027_promoters.txt",row.names=F,quote=F,sep="\t")
+system("Rscript ~/Output_plot.r plotdata_logit_171027_promoters.txt logit_171027_promoters")
+
+
+################# conditional logistic regression
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/2.clogit")
+library(survival)
+raw <- read.table("0.data/pbwt_impute_promoters.raw",head=T,stringsAsFactor=F)
+phe <- read.table("~/project/LAM/lam_final/phenofile_withage.txt",head=T)
+maf <- read.table("0.data/MAF_promoters.frq",head=T,stringsAsFactor=F)
+bim <- read.table("../1.logit/0.data/final_clean_promoters.bim",head=F,stringsAsFactor=F)
+
+n.snp <- ncol(raw)-6
+name.snp <- colnames(raw)[-c(1:6)]
+name.snp <- gsub("_[ATGC]","",name.snp)
+
+pair.data <- phe[which(!is.na(phe$pair)),]
+pair.raw <- raw[which(!is.na(phe$pair)),]
+
+con.logit <- function(ii){
+	if(ii%%100==0) print(ii)
+	snp <- pair.raw[,6+ii]
+	dat <- cbind(pair.data,snp)
+	fit.lam <- clogit(pheno01 ~ snp + strata(pair), method="exact", data=dat)
+	res.coef <- summary(fit.lam)$coef
+	res <- c(15,name.snp[ii],res.coef)
+	return(res)
+}
+outI <- lapply(1:n.snp,con.logit)
+outII <- do.call(rbind,outI)
+colnames(outII) <- c("chr","snp","beta","OR","se_OR","z","p_value")
+outIII <- data.frame(maf[,1:4],Position=bim[,4],MAF=maf[,5],outII[,-c(1,2)])
+write.csv(outIII,"clogit_pbwt_promoters.csv",row.names=F,quote=F)
+
+plotdata <- outIII[,c('CHR','SNP','p_value')]
+colnames(plotdata) <- c('CHR','GENE','p.val')
+write.table(plotdata,'plotdata_clogit_171027_promoters.txt',row.names=F,quote=F)
+system("Rscript ~/Output_plot.r plotdata_clogit_171027_promoters.txt clogit_171027_promoters")
+
+
+
+
+
+
