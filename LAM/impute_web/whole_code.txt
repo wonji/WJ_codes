@@ -17,7 +17,7 @@ do
   export BCFTOOLS_PLUGINS=/data/bin/plugins
   bcftools +fixref chr$chr.vcf -Ov -o matched_chr$chr.vcf -- -f /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/human_g1k_v37.fasta -m flip
   bcftools norm --check-ref x -f /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/human_g1k_v37.fasta matched_chr$chr.vcf -Ov -o new_matched_chr$chr.vcf
-  bgzip -c new_matched_chr$chr.vcf > input_chr$chr.vcf.gz
+  bgzip -c new_matched_chr$chr.vcf > 1.input/input_chr$chr.vcf.gz
   rm chr$chr*
   rm matched_chr$chr.vcf
   rm new_*
@@ -27,15 +27,17 @@ done
 cd /home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/
 sh make_input.sh
 
-###### Extract imputed snp +/- 100k of position of LD block ######
-cd  /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/
-vcftools --gzvcf 2.shapeit/15.pbwt_reference_impute.vcf.gz --chr 15 --from-bp 95843229 --to-bp 97043229 --recode --out 2.shapeit/shapeit_impute
-
 ##### Association analysis #####
-# shapeit
-cd /home2/wjkim/project/LAM/final_analysis/4.impute_web/0.data/
-plink --vcf 2.shapeit/shapeit_impute.recode.vcf --maf 0.05 --geno 0.05 --hwe 0.00001 --out 2.shapeit/clean_snp --make-bed
-plink --bfile 2.shapeit/clean_snp --mind 0.05 --out ../1.logit/0.data/final_clean_shapeit --make-bed
+## QC
+<R>
+doQC <- function(i){
+  setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/2.imputed")
+  system(paste0("plink --vcf chr",i,"/",i,".vcf.gz --maf 0.05 --geno 0.05 --hwe 0.00001 --out chr",i,"/clean_snp_chr",i," --make-bed"))
+  system(paste0("plink --bfile chr",i,"/clean_snp_chr",i," --mind 0.05 --out chr",i,"/final_clean_chr",i," --make-bed"))
+}
+
+library(parallel)
+a <- mclapply(1:21,doQC,mc.cores=21)
 
 <R>
 setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/1.logit/0.data")
