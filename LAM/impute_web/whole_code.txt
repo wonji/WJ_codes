@@ -98,26 +98,21 @@ do.clogit <- function(i){
 
 aa <- lapply(1:22,do.clogit)
 
+#### result summary
+get_plotdat <- function(i){
+	setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/2.clogit/")
+	a <- read.table(paste0("clogit_method2_chr",i,".txt"),head=T,stringsAsFactor=F)
+	return(a)
+}
 
+aa <- lapply(1:22,get_plotdat)
+bb <- do.call(rbind,aa)
+plotdata <- bb[,c('CHR','SNP','p_value')]
+colnames(plotdata) <- c('CHR','GENE','p.val')
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/2.clogit/")
+write.table(plotdata,'plotdata_clogit_190111_method2.txt',row.names=F,quote=F)
+system("Rscript ~/Output_plot.r plotdata_clogit_190111_method2.txt clogit_impute_190111_method2")
 
-
-
-
-
-
-	plotdata <- outIII[,c('CHR','SNP','p_value')]
-	colnames(plotdata) <- c('CHR','GENE','p.val')
-	write.table(plotdata,'plotdata_clogit_181013_method2.txt',row.names=F,quote=F)
-	system("Rscript ~/Output_plot.r plotdata_clogit_181013_method2.txt clogit_impute_181013_method2")
-
-	#### Significant SNPs
-	setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/2.clogit")
-	outIII <- read.csv("clogit_shapeit_method2.csv",head=T,stringsAsFactor=F)
-	sigs <- outIII[outIII$p_value < 5e-8,]
-	write.csv(sigs,'sigs_181013_method2.csv',row.names=F,quote=F)
-
-
-
-
-
+sigs <- bb[bb$p_value < 5e-8,]
+write.csv(sigs,'sigs_190111_method2.csv',row.names=F,quote=F)
 
