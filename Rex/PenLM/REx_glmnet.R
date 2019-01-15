@@ -1,3 +1,4 @@
+options("scipen"=999,"digits"=4)
 #library("R2HTML")
 #library("car")
 #library("lme4")
@@ -41,7 +42,7 @@ Digits <- function(x) {
   }
   
   if(length(x)!=0){
-    x[abs(x)>=0.0001&!is.na(x)] <- round(x[abs(x)>0.0001&!is.na(x)],4)
+    x[abs(x)>=0.0001&!is.na(x)] <- round(x[abs(x)>=0.0001&!is.na(x)],4)
     xx = x[abs(x)<0.0001&!is.na(x)&x!=0]
     if(length(xx)>0){
       x[abs(x)<0.0001&!is.na(x)&x!=0] <- paste0(gsub('e','x10<sup>',format(x[abs(x)<0.0001&!is.na(x)&x!=0],scientific=T,digits=4)),'</sup>')

@@ -1,9 +1,9 @@
 # penalized linear regression
 
 REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
-  vars=NULL,intercept=FALSE,standardize=TRUE,
+  vars=NULL,noint=FALSE,standardize=TRUE,
   Penalty=c('Ridge','Lasso','EN'),alpha=0.5,
-  TuningPara=c('Grid','Custom'),Grid.Num=100,Custom.List=NULL,
+  TuningPara=c('Grid','Custom'),Grid.Num=NULL,Custom.List=NULL,
   Cross.method=c('KFOLD','LOOCV'),k=10,
   AccMS=c('MSE','MAE'),
   Part.method=c('all','percent','variable'),
@@ -15,7 +15,7 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
   stdResid=FALSE,studResid=FALSE,cook_distance=FALSE,hat_value=FALSE,
   Predict_test=FALSE,Predict_CI_test=FALSE,Predict_PI_test=FALSE,confint.level_test=0.95,Part_index=FALSE){
 
-  load.pkg(c("R2HTML", "rms", "MASS"))
+  load.pkg(c("R2HTML", "rms", "MASS","glmnet","plotmo"))
   
   #
   # "./test.html" => stdout() 
@@ -66,12 +66,10 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
     if(length(indep_cat_var)==0) indep_cat_var <- NULL
     indep_numeric_var <- indep_numeric_var[indep_numeric_var%in%Vars]
     if(length(indep_numeric_var)==0) indep_numeric_var <- NULL
-
+    
     # no intercept & no explanatory variable : error
-    if(intercept & is.null(vars)) 
-      warn.msg4 <- '<li> Error : With no intercept, 
-    at least 1 independent variable should be selected. 
-    Analysis has been stopped.'
+    if(noint & is.null(vars)) 
+      warn.msg4 <- '<li> Error : With no intercept, at least 1 independent variable should be selected. Analysis has been stopped.'
 
     ## Data processing
     original.dataset <- dataset
@@ -119,14 +117,21 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
     }
     #### Then, original.dataset : original dataset, dataset : training dataset, test.dataset : test dataset.
 
+    # independent variables should be a matrix with 2 or more columns 
+    temp.form <- paste0(dep_var,' ~ ', paste(vars, collapse=' + '))
+    if(noint) temp.form <- paste0(temp.form,-1)
+    mm <- model.matrix(as.formula(temp.form),data=dataset)
+    if(ncol(mm)<2) warn.msg5 <- '<li> Error : Independent variables should be 2 or more.Analysis has been stopped.'
+
     # warnings
-    if(exists('warn.msg1')|exists('warn.msg4')|exists('warn.DP1')|exists('warn.DP6')){
+    if(exists('warn.msg1')|exists('warn.msg4')|exists('warn.msg5')|exists('warn.DP1')|exists('warn.DP6')){
       R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
       if(exists('warn.msg1')) R2HTML::HTML(warn.msg1,file="./test.html")
       if(exists('warn.msg4')){
         if(exists('warn.msg2')) R2HTML::HTML(warn.msg2,file="./test.html")
         R2HTML::HTML(warn.msg4,file="./test.html")
       }
+      if(exists('warn.msg5')) R2HTML::HTML(warn.msg5,file="./test.html")
       if(exists('warn.DP1')) R2HTML::HTML(warn.DP1,file="./test.html")
       if(exists('warn.DP6')) R2HTML::HTML(warn.DP6,file="./test.html")
     } else {
@@ -135,54 +140,48 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
       temp.dat <- dataset[complete.cases(dataset[,var_info,drop=F]),,drop=F]
 
       ## Model formula
-      fe <- paste(var_info, collapse=' + ')
-      if(fe=="")
-        fe <- NULL
-      
-      form.0 <- paste0(dep_var,' ~ ', paste(fe, collapse=' + '))
-      
-      if(!intercept){
-        form.0 <- paste(form.0, -1)
-      }
+      form.0 <- paste0(dep_var,' ~ ', paste(vars, collapse=' + '))
+      if(noint) form.0 <- paste(form.0, -1)
       form.1 <- as.formula(form.0)
       
+      ## Penalty & alpha
+      if(Penalty=='Ridge') alpha=0
+      if(Penalty=='Lasso') alpha=1
+
       ###
       ## first Model fitting : res_PLM_0
       ## inference => res_PLM
       #res_PLM <- suppressWarnings(try(cv_glmnet_wrapper(form.1, data=dataset, 
       #  family="gaussian", alpha=alpha, nlambda=Grid.Num, lambda=Custom.List, 
       #  standardize=standardize, intercept=intercept)))
+      if(TuningPara=='Custom'){
+        Grid.Num <- NULL
+      } else {
+        Custom.List <- NULL
+      }
       res_PLM_0 <- cv_glmnet_wrapper(form.1, data=temp.dat, lambda=Custom.List, 
         type.measure=ifelse(AccMS=='MSE',"mse",'mae'), nfolds=k, 
         family="gaussian", alpha=alpha, nlambda=Grid.Num, 
-        standardize=standardize, intercept=intercept, opt.lambda="lambda.min")
+        standardize=standardize, intercept=!noint, opt.lambda="lambda.min")
       res_PLM <- res_PLM_0  
 
       ## p>n case
-      if(p>n){
-        warn.largerp <- '<li> Warning : Since the number of parameters 
-        of the final model is larger than the number of observations, 
-        results of linear regression are not provided.'
+      if(length(vars)>nrow(temp.dat) & Best_model_print & Best_model_save){
+        warn.largerp <- '<li> Warning : Since the number of parameters of the final model is larger than the number of observations, results of linear regression are not provided.'
 		    Best_model_print <- Best_model_save <- FALSE
       }
 
-      ## Assume that the 'res_PLM' store the results of final model
-	  
-	  if(class(res_PLM_0)=='try-error'){
+      if(class(res_PLM_0)=='try-error'){
         R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
         warn.msg.conv <- "<li> Warning : Penalized Linear regression was not fitted. Analysis has been stopped."
         R2HTML::HTML(warn.msg.conv,file="./test.html")
       } else {
-	  # Data Structure
+        # Data Structure
         R2HTML::HTML(R2HTML::as.title("Data Structure"),HR=2,file="./test.html")
-        total.var <- ncol(dataset)
+        total.var <- ncol(original.dataset)
         used.var <- ifelse(is.null(vars),0,length(c(unique(unlist(strsplit(vars,":"))),Part.var)))
         none.n <- nrow(original.dataset)-nrow(dataset)-ifelse(exists("test.dataset"),nrow(test.dataset),0)
-        total.n <- paste0(nrow(original.dataset),
-                          " (Training: ",nrow(dataset),
-                          ifelse(exists("test.dataset"),paste0(", Test: ",nrow(test.dataset)),""),
-                          ifelse(none.n!=0,paste0(", None: ",none.n),""),")")
-
+        total.n <- paste0(nrow(original.dataset)," (Number of missings: ",sum(!complete.cases(original.dataset[,c(var_info,Part.var),drop=F])),")")
         DS <- matrix(c('Number of observations','Number of total variables','Number of used variables',total.n,total.var,used.var+1),ncol=2)
         R2HTML::HTML(DS,file="./test.html",align="left")
         if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
@@ -196,7 +195,6 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
         } else {
           Vars <-  vars
         }
-
         qual <- c(indep_cat_var[indep_cat_var%in%Vars],Part.var)
         quan <- c(indep_numeric_var[indep_numeric_var%in%Vars],dep_var)
         varlist <- matrix(c('Quantitative variable',paste(quan,collapse=', ')),ncol=2,byrow=T)
@@ -209,12 +207,13 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
         R2HTML::HTML(R2HTML::as.title("Analysis Description"),HR=2,file="./test.html")
         AD <- matrix(c('Dependent variable',dep_var),ncol=2,byrow=T)
         if(!is.null(vars)) AD <- rbind(AD,c('Explanatory variable',paste(vars,collapse=', ')))
-        AD <- rbind(AD,matrix(c('Intercept included',!intercept,'Standardization for explanatory variables',standardize,'Penalty method',Penalty),ncol=2,byrow=T))
-        if(Penalty=='EN') AD <- rbind(AD,c('Alpha for Elastic net',alpha))
-        AD <- rbind(AD,matrix(c('Tuning parameter',TuningPara,'Accuracy measure',
-                                switch(AccMS,MSE='Mean squared error',MAE='Mean absolute error')),ncol=2,byrow=T))
-		# validation method
-        VM <- ifelse(!exists('test.dataset'),"Internal validation using training dataset","Internal validation using training/test dataset")
+        AD <- rbind(AD,matrix(c('Intercept included',!noint,'Standardization for explanatory variables',standardize,'Penalty method',switch(Penalty,Lasso='Lasso',Ridge='Ridge',EN='Elastic net')),ncol=2,byrow=T))
+        if(Penalty=='EN') AD <- rbind(AD,c('- Alpha for Elastic net',alpha))
+        AD <- rbind(AD,matrix(c('Candidate tuning parameter',switch(TuningPara,Custom='User-defined list',Grid=paste0('Grid search (Number of grids : ',Grid.Num,')')),
+                                '- Cross validation method',switch(Cross.method,KFOLD=paste0(k,'-fold cross validation'),LOOCV='Leave-One-Out cross validation'),
+                                '- Accuracy measure',switch(AccMS,MSE='Mean squared error',MAE='Mean absolute error')),ncol=2,byrow=T))
+        # validation method
+        VM <- ifelse(!exists('test.dataset'),"Validation using training dataset","Validation using training/test dataset")
         if(exists('test.dataset')){
           if(Part.method=='percent'){
             PM <- paste0("Randomly split by percent (training: ",train.perc,"%, test: ",100-train.perc,"%)")
@@ -223,7 +222,7 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
           }
         }
         AD <- rbind(AD,matrix(c('Validation method',VM),ncol=2,byrow=T))
-        if(exists('PM')) AD <- rbind(AD,matrix(c('Data splitting method for validataion',PM),ncol=2,byrow=T))
+        if(exists('PM')) AD <- rbind(AD,matrix(c('- Data splitting method for validataion',PM),ncol=2,byrow=T))
         R2HTML::HTML(AD,file="./test.html",align="left")
         if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
         if(exists('warn.DP3')) R2HTML::HTML(warn.DP3,file="./test.html")
@@ -233,19 +232,98 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
         
         if(Profile){
           # solution path according to tuning parameter lambda
-          R2HTML::HTML(R2HTML::as.title("Solution Path & Cross-Validation Plot"),HR=3,file="./test.html")
+          R2HTML::HTML(R2HTML::as.title("Solution Path for the Best model"),HR=3,file="./test.html")
           REx_ANA_PLOT()
-          par(mfrow=c(2,2))
-          glmnet::plot.glmnet(res_PLM_0$glmnet, xvar="norm", label=TRUE)
-          glmnet::plot.glmnet(res_PLM_0$glmnet, xvar="lambda", label=TRUE)
-          glmnet::plot.glmnet(res_PLM_0$glmnet, xvar="dev", label=TRUE)
+          plotmo::plot_glmnet(res_PLM_0$glmnet, xvar="norm", col=rainbow(length(vars),v=0.85),label=TRUE)
+          REx_ANA_PLOT_OFF('')
+
+          REx_ANA_PLOT()
+          plotmo::plot_glmnet(res_PLM_0$glmnet, xvar="lambda", col=rainbow(length(vars),v=0.85), label=TRUE)
+          REx_ANA_PLOT_OFF('')
+          
+          REx_ANA_PLOT()
+          plotmo::plot_glmnet(res_PLM_0$glmnet, xvar="dev", col=rainbow(length(vars),v=0.85), label=TRUE)
+          REx_ANA_PLOT_OFF('')
+          
+          R2HTML::HTML(R2HTML::as.title("Cross-Validation Plot"),HR=3,file="./test.html")
+          REx_ANA_PLOT()
           glmnet::plot.cv.glmnet(res_PLM_0)
           REx_ANA_PLOT_OFF('')
         } 
-		
+        
+        #### validataion ####
+        R2HTML::HTML(R2HTML::as.title(VM),HR=3,file="./test.html")
+        if(length(vars)!=0){
+          # Function that returns Root Mean Squared Error
+          rmse <- function(error){
+            sqrt(mean(error^2,na.rm=T))
+          }
+          # Function that returns MAE
+          mae <- function(error){
+            mean(abs(error),na.rm=T)
+          }
+          # Function that returns R-squared (correlation)
+          rsq <- function(pred,obs){
+            cor(pred,obs,use='complete.obs')
+          }
+          
+          if(exists('test.dataset')){
+            #
+            # should check the standarization !!!
+            #
+            test.newx <- model.matrix(form.1,data=test.dataset)
+            test.Predicted <- predict_glmnet_wrapper(res_PLM_0$glmnet, 
+                                                     newx=test.newx, s=res_PLM_0$lambda.min, type='response')
+            #R2HTML::HTML(R2HTML::as.title(test.Predicted),HR=3,file="./test.html")
+            test.Observed <- test.dataset[,dep_var]
+            test.Resid <- test.Predicted-test.Observed
+            
+            test.RMSE <- rmse(test.Resid)
+            test.MAE <- mae(test.Resid)
+            test.Rsq <- rsq(test.Predicted,test.Observed)
+            test.n <- sum(!is.na(test.Resid))
+          } else {
+            train.Perc <- 100
+          }
+          train.Observed <- temp.dat[,dep_var]
+          
+          train.newx <- model.matrix(form.1,data=temp.dat)
+          train.Predicted <- predict_glmnet_wrapper(res_PLM_0$glmnet, 
+                                                    newx=train.newx, s=res_PLM_0$lambda.min, type='response')
+          # train.Predicted : n by nlambda
+          train.Resid <- train.Predicted-train.Observed
+          train.RMSE <- rmse(train.Resid)
+          train.MAE <- mae(train.Resid)
+          train.Rsq <- rsq(train.Predicted,train.Observed)
+          train.n <- sum(!is.na(train.Resid))
+          
+          train.Perc <- ifelse(exists('test.dataset'),train.n/(train.n+test.n)*100,100)
+          
+          vali <- data.frame(N.observed=train.n,Percent=train.Perc,RMSE=train.RMSE,
+                             MAE=train.MAE,Rsquared=train.Rsq)
+          rownames(vali) <- 'Training'
+          if(exists('test.dataset')){
+            vali <- rbind(vali,data.frame(N.observed=test.n,Percent=(100-train.Perc),
+                                          RMSE=test.RMSE,MAE=test.MAE,Rsquared=test.Rsq))
+            rownames(vali)[2] <- 'Test'
+          }
+          colnames(vali)[1] <- 'N.non-missing<br>observations'
+          R2HTML::HTML(Digits(vali),file="./test.html",align="left",digits=15)
+          if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
+          if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file="./test.html")
+        } else {
+          warn.msg10 <- "<li> Warning : Validation is not supported for intercept only model."
+          R2HTML::HTML(warn.msg10,file="./test.html")
+        }
+
         #### Regression Results
         ## res_PLM: final model
         #!!! R2HTML::HTML(R2HTML::as.title(Best_model_print),HR=3,file="./test.html")
+        
+        if(exists('warn.largerp')){
+          R2HTML::HTML(R2HTML::as.title("Warnings"),HR=2,file="./test.html")
+          R2HTML::HTML(warn.largerp,file="./test.html")
+        }
         
         if(Best_model_print){
           # Coefficient Estimate
@@ -256,23 +334,18 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
           coef <- predict_glmnet_wrapper(res_PLM_0$glmnet.fit, newx=temp.dat[, -ypos], 
                     s=res_PLM_0$lambda.min, type="coefficients")
           
-          var_info_ols <- colnames(temp.dat)[which(coef[-1] !=0)]
-          temp.dat0 <- temp.dat
-          temp.dat <- temp.dat[,var_info_ols]
-          
+          vars_ols <- coef@Dimnames[[1]][which(coef!=0)]
+          vars_ols <- vars_ols[!vars_ols%in%'(Intercept)']
+          if(length(vars_ols)==0) vars_ols <- NULL
+
           ## Model formula
-          fe <- paste(var_info_ols, collapse=' + ')
-          if(fe=="")
-            fe <- NULL
+          form.0.ols <- paste0(dep_var,' ~ ', ifelse(is.null(vars_ols),1,paste(vars_ols, collapse=' + ')))
           
-          form.0.ols <- paste0(dep_var,' ~ ', paste(fe, collapse=' + '))
-          
-          if(!intercept){
-            form.0.ols <- paste(form.0.ols, -1)
-          }
+          if(noint) form.0.ols <- paste(form.0.ols, -1)
           form.1.ols <- as.formula(form.0.ols)
           res_PLM <- lm(form.1.ols, data=temp.dat)
-          ###
+
+          R2HTML::HTML(R2HTML::as.title("Coefficient Estimates"),HR=3,file=stdout())
           CE <- as.data.frame(summary(res_PLM)$coef)
           colnames(CE) <- c('Estimate','SE','T-value','P-value')
           if(CI){
@@ -282,11 +355,11 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
             colnames(CE)[(ncol(CE)-1):ncol(CE)] <- paste0(c('Lower','Upper'),' bound of<br>',confint.level*100,'% CI')
           }
           if(VIF)	{
-            if(is.null(vars)){
+            if(is.null(vars_ols)){
               warn.VIF <- '<li> Warning : VIF is not supported for intercept-only model.'
             } else {
               VIF.1 <- rms::vif(res_PLM)
-              if(!intercept) {
+              if(!noint) {
                 VIF.1 <- c(NA,VIF.1)
                 names(VIF.1)[1] <- "(Intercept)"
               }
@@ -304,10 +377,10 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
           # Anova table and R-squared
           if(ANOVA){
             R2HTML::HTML(R2HTML::as.title("Analysis-of-Variance Table"),HR=3,file="./test.html")
-            if(length(vars)==0){
+            if(length(vars_ols)==0){
               warn.AT1 <- "<li> Warning : ANOVA table is not supported for intercept only model."
               R2HTML::HTML(warn.AT1,file="./test.html")
-            } else if(intercept){
+            } else if(noint){
               warn.AT2 <- "<li> Warning : ANOVA table is not supported for the model without intercept."
               R2HTML::HTML(warn.AT2,file="./test.html")
             } else {
@@ -344,7 +417,7 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
               if(ss %in% c('II','III')){
                 # II type : ignore interaction term
                 # III type : calculate SS including interaction term
-                RN <- var_info_ols
+                RN <- vars_ols
                 if(ss=='II' & length(grep(':',RN))>0) {
                   RN <- RN[-grep(':',RN)]
                   warn.AT4 <- '<li> Warning : Test for interaction effects is not provided in type II test. Use type III test for interaction effects.'
@@ -389,9 +462,9 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
           
           if(GOF){
             R2HTML::HTML(R2HTML::as.title("Goodness of Fit Test (Likelihood Ratio Test)"),HR=3,file="./test.html")
-            if(length(vars)!=0){
+            if(length(vars_ols)!=0){
               ## log-liklehood ratio
-              if(!intercept){
+              if(!noint){
                 null.model <- lm(formula(paste(dep_var,"~1")),data=temp.dat)
                 GOF1 <- anova(null.model, res_PLM, test ="Chisq")
                 A3 <- as.data.frame(GOF1)[,c(2,1,4,3,5)]
@@ -418,72 +491,6 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
             REx_ANA_PLOT_OFF("")
           }
         } ###Best_model_end
-        
-        #### validataion ####
-        R2HTML::HTML(R2HTML::as.title(VM),HR=3,file="./test.html")
-        if(length(vars)!=0){
-          # Function that returns Root Mean Squared Error
-          rmse <- function(error){
-            sqrt(mean(error^2,na.rm=T))
-          }
-          # Function that returns MAE
-          mae <- function(error){
-            mean(abs(error),na.rm=T)
-          }
-          # Function that returns R-squared (correlation)
-          rsq <- function(pred,obs){
-            cor(pred,obs,use='complete.obs')
-          }
-          
-          if(exists('test.dataset')){
-            #
-            # should check the standarization !!!
-            #
-            ypos <- match(dep_var, colnames(test.dataset))
-            
-            test.Predicted <- predict_glmnet_wrapper(res_PLM_0$glmnet, 
-              newx=test.dataset[,-ypos], s=res_PLM_0$lambda.min, type='response')
-            #R2HTML::HTML(R2HTML::as.title(test.Predicted),HR=3,file="./test.html")
-            test.Observed <- test.dataset[,dep_var]
-            test.Resid <- test.Predicted-test.Observed
-              
-            test.RMSE <- rmse(test.Resid)
-            test.MAE <- mae(test.Resid)
-            test.Rsq <- rsq(test.Predicted,test.Observed)
-            test.n <- sum(!is.na(test.Resid))
-          } else {
-            train.Perc <- 100
-          }
-          train.Observed <- temp.dat0[,dep_var]
-          ypos <- match(dep_var, colnames(temp.dat0))
-
-          train.Predicted <- predict_glmnet_wrapper(res_PLM_0$glmnet, 
-            newx=temp.dat0[,-ypos], s=res_PLM_0$lambda.min, type='response')
-          # train.Predicted : n by nlambda
-          train.Resid <- train.Predicted-train.Observed
-          train.RMSE <- rmse(train.Resid)
-          train.MAE <- mae(train.Resid)
-          train.Rsq <- rsq(train.Predicted,train.Observed)
-          train.n <- sum(!is.na(train.Resid))
-            
-          train.Perc <- ifelse(exists('test.dataset'),train.n/(train.n+test.n)*100,100)
-
-          vali <- data.frame(N.observed=train.n,Percent=train.Perc,RMSE=train.RMSE,
-                             MAE=train.MAE,Rsquared=train.Rsq)
-          rownames(vali) <- 'Training'
-          if(exists('test.dataset')){
-            vali <- rbind(vali,data.frame(N.observed=test.n,Percent=(100-train.Perc),
-                                          RMSE=test.RMSE,MAE=test.MAE,Rsquared=test.Rsq))
-            rownames(vali)[2] <- 'Test'
-          }
-          colnames(vali)[1] <- 'N.non-missing<br>observations'
-          R2HTML::HTML(Digits(vali),file="./test.html",align="left",digits=15)
-          if(exists('warn.DP7')) R2HTML::HTML(warn.DP7,file="./test.html")
-          if(exists('warn.DP8')) R2HTML::HTML(warn.DP8,file="./test.html")
-        } else {
-          warn.msg10 <- "<li> Warning : Validation is not supported for intercept only model."
-          R2HTML::HTML(warn.msg10,file="./test.html")
-        }
 
         ### Save results in the Excel spread sheet 
         if(Best_model_save){
@@ -625,7 +632,6 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
             temp <- rep('None',nrow(original.dataset))
             temp[rownames(original.dataset)%in%rownames(dataset)] <- 'Training'
             if(exists('test.dataset')) temp[rownames(original.dataset)%in%rownames(test.dataset)] <- 'Test'
-            if(exists('vali.dataset')) temp[rownames(original.dataset)%in%rownames(vali.dataset)] <- 'validataion'
             if(exists('O')) {
               O <- cbind(O,Partition_idx_PLM=temp,stringsAsFactors=F)
             } else {
@@ -645,21 +651,23 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
 
     # Used R packages
     R2HTML::HTML(R2HTML::as.title("Used R Packages"),HR=2,file="./test.html")
-    pkg.list <- list(list("Linear regression","lm","stats"),
-         list("Confidence interval for regression coefficients","confint","stats"),
-         list("Variance inflation factor (VIF)","vif","rms"),
-         list("ANOVA table",c("anova","Anova"),c("stats","car")),
-         list("Model fitness measurements","residuals, logLik, AIC, BIC","stats"),
-         list("Goodness of fit test","anova","stats"),
-         list("Cross validation","trainControl, train","caret"),
-         list("Fitted value","fitted","stats"),
-         list("Predicted value","predict","stats"),
-         list("Confidence & Prediction interval for fitted & predicted value","predict","stats"),
-         list("Unstandardized residual","residuals","stats"),
-         list("Standardized residual","stdres","MASS"),
-         list("Studentized residual","studres","MASS"),
-         list("Cook's distance","cooks.distance","stats"),
-         list("Diagonals of hat matrix","hatvalues","stats"))
+    pkg.list <- list(list("Penalized linear regression","cv.glmnet","glmnet"),
+                     list("Solution path","plot_glmnet","plotmo"),
+                     list("Cross-validation plot","plot.cv.glmnet","glmnet"),
+                     list("Linear regression","lm","stats"),
+                     list("Confidence interval for regression coefficients","confint","stats"),
+                     list("Variance inflation factor (VIF)","vif","rms"),
+                     list("ANOVA table",c("anova","Anova"),c("stats","car")),
+                     list("Model fitness measurements","residuals, logLik, AIC, BIC","stats"),
+                     list("Goodness of fit test","anova","stats"),
+                     list("Fitted value","fitted","stats"),
+                     list("Predicted value","predict","stats"),
+                     list("Confidence & Prediction interval for fitted & predicted value","predict","stats"),
+                     list("Unstandardized residual","residuals","stats"),
+                     list("Standardized residual","stdres","MASS"),
+                     list("Studentized residual","studres","MASS"),
+                     list("Cook's distance","cooks.distance","stats"),
+                     list("Diagonals of hat matrix","hatvalues","stats"))
     R2HTML::HTML(used.pkg(pkg.list), file="./test.html")
 
     # Analysis end time
@@ -675,6 +683,7 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
     return(html.output)
   }
 }
+
 library("R2HTML")
 library("glmnet")
 REx_ANA_PLOT <- function(w=500,h=500) {

@@ -1,4 +1,4 @@
-setwd('C://Users//rewki//Documents//WJ_codes//Rex//PenLM')
+#setwd('C://Users//rewki//Documents//WJ_codes//Rex//PenLM')
 source('./REx_glmnet.R', encoding = 'UTF-8')
 source('./REx_PenLM_new.R')
 source('./glmnet.wrapper.1.0.R')
@@ -20,10 +20,29 @@ ex0 <- REx_PenLM(temp,dep_var='y',
                  indep_cat_var=NULL,
                  indep_numeric_var=xname,vars=xname,
                  Penalty='Lasso', 
-                 TuningPara='Custom',Grid.Num=100,
+                 TuningPara='Grid',Grid.Num=100,
                  Cross.method='KFOLD',k=10,
                  AccMS='MSE',Part.method='percent', train.perc=70, Profile=TRUE,
                  Best_model_print=TRUE, ss="III")
+
+ex1 <- REx_PenLM(temp,dep_var='y',
+                 indep_cat_var=NULL,
+                 indep_numeric_var=xname,vars=xname,
+                 Penalty='EN',alpha=0.6, 
+                 TuningPara='Grid',Grid.Num=200,
+                 Cross.method='KFOLD',k=10,
+                 AccMS='MSE',Part.method='percent', train.perc=70, Profile=TRUE,
+                 Best_model_print=TRUE, ss="III")
+
+ex2 <- REx_PenLM(temp,dep_var='y',
+                 indep_cat_var=NULL,
+                 indep_numeric_var=c('x3','x4'),vars=c('x3','x4'),noint=F,
+                 Penalty='Lasso', 
+                 TuningPara='Grid',Grid.Num=100,
+                 Cross.method='LOOCV',
+                 AccMS='MSE',Part.method='percent', train.perc=70, Profile=TRUE,
+                 Best_model_print=TRUE, ss="III")
+
 
 #REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
 #                      vars=NULL,intercept=FALSE,standardize=TRUE,
