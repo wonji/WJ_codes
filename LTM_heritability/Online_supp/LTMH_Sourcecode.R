@@ -197,6 +197,7 @@ LTMH <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max
         epsilon <- abs(h2.old-h2.new)
         print(data.frame(h2.new,epsilon,n.iter))
         if(epsilon<1e-5){
+          logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=rep(0,nn),sig=h2.new*Vi+(1-h2.new)*diag(nn))[[1]]))))))
           return(list(h2=h2.new,n_iter=n.iter))
         } else {
           h2.old <- h2.new
@@ -230,7 +231,8 @@ LTMH <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max
           } else {
             beta.unstd <- beta.std
           }
-          return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter))
+          logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%matrix(as.matrix(beta.std))),sig=h2.new*Vi+(1-h2.new)*diag(nn))[[1]]))))))
+          return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter,logL=logL))
         } else {
           h2.old <- h2.new
           beta.old <- beta.hat
@@ -273,7 +275,8 @@ LTMH <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max
           epsilon <- abs(h2.old-h2.new)
           print(data.frame(h2.new,epsilon,n.iter))
           if(epsilon<1e-5){
-            return(list(h2=h2.new,n_iter=n.iter))
+            logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=rep(0,nn),sig=h2.new*Vi+(1-h2.new)*diag(nn))[[1]]))))))
+            return(list(h2=h2.new,n_iter=n.iter,logL=logL))
           } else {
             h2.old <- h2.new
           }
@@ -306,7 +309,8 @@ LTMH <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max
             } else {
               beta.unstd <- beta.std
             }
-            return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter)) 
+            logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%matrix(as.matrix(beta.std))),sig=h2.new*Vi+(1-h2.new)*diag(nn))[[1]]))))))
+            return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter,logL=logL)) 
           } else {
             h2.old <- h2.new
             beta.old <- beta.hat
@@ -387,7 +391,8 @@ LTMH <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max
             } else {
               beta.unstd <- beta.std
             }
-            return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter))
+            logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=as.vector(Xi%*%matrix(as.matrix(beta.std))),sig=h2.new*Vi+(1-h2.new)*diag(nn))[[1]]))))))
+            return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter,logL=logL))
           } else {
             beta.old <- beta.new
           }
@@ -395,7 +400,8 @@ LTMH <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100,max
           epsilon <- abs(h2.OLD-h2.new)
           print(data.frame(h2.new,epsilon,n.iter))
           if(epsilon<1e-5){
-            return(list(h2=h2.new,n_iter=n.iter))
+            logL <- Reduce('+',lapply(1:length(unique(famid)),function(i) with(resAB[[i]],sum(log((pmvnorm(lower=a,upper=b,mean=rep(0,nn),sig=h2.new*Vi+(1-h2.new)*diag(nn))[[1]]))))))
+            return(list(h2=h2.new,n_iter=n.iter,logL=logL))
           } else {
             h2.old <- h2.OLD <- h2.new
           }
@@ -684,8 +690,9 @@ LTMH.asc <- function(model,data,init_beta=NULL,init_h2,V,famid,prev,max.iter=100
       } else {
         beta.unstd <- beta.std
       }
-      return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter))
-      break
+	  output <- LTMH(model=model,data=dataset,init_beta=NULL,init_h2=0.2,V=V,famid=famid,prev=prev,n.cores=20)
+    return(list(beta_std=beta.std,beta_unstd=beta.unstd,h2=h2.new,n_iter=n.iter,logL=logL))
+    break
     }
   }
 }
@@ -1025,5 +1032,42 @@ CEST.beta <- function(model,data,init_h2,V,famid,prev,test.beta,max.iter=100,n.c
   return(data.frame(Score=S.beta,var_Score=ifelse(!is.na(varS.beta.1),varS.beta.1,varS.beta.2),Chisq=T.beta,DF=length(test.beta),length(test.beta.idx),Pvalue=pval))
 }			
 
+########## H0 : beta=0
+LRT.beta <- function(model,data,init_h2,V,famid,prev,test.beta,max.iter=100,n.cores=1,proband=NULL){
 
-
+  model.comp <- as.character(model)
+  model.comp[3] <- gsub(test.beta,'',model.comp[3])
+  model.comp[3] <- gsub('\\+\\s+\\+','\\+',model.comp[3])
+  if(model.comp[3]=='') model.comp[3] <- 1
+  
+  new.model <- as.formula(paste0(model.comp[2],'~',model.comp[3]))
+  
+  # Under H0
+  if(model.comp[3]=='-1'){
+    new.init_beta <- NULL
+  } else {
+    new.init_beta <- glm(new.model,data=data,family=binomial(link=probit))$coef
+  }
+  if(is.null(proband)){
+    MLE.H0 <- LTMH(model=new.model,init_beta=new.init_beta,init_h2=init_h2,V=V,famid=famid,prev=prev,data=data,n.cores=n.cores)
+  } else {
+    MLE.H0 <- LTMH.asc(model=new.model,init_beta=new.init_beta,init_h2=init_h2,V=V,famid=famid,prev=prev,data=data,n.cores=n.cores,proband=proband)
+  }
+  
+  # Under H0 U H1
+  if(as.character(model)[3]=='-1'){
+    init_beta <- NULL
+  } else {
+    init_beta <- glm(model,data=data,family=binomial(link=probit))$coef
+  }
+  if(is.null(proband)){
+    MLE.H01 <- LTMH(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=prev,data=data,n.cores=n.cores)
+  } else {
+    MLE.H01 <- LTMH.asc(model=model,init_beta=init_beta,init_h2=init_h2,V=V,famid=famid,prev=prev,data=data,n.cores=n.cores,proband=proband)
+  }
+  
+  Chisq <- -2*(MLE.H0$logL - MLE.H01$logL)
+  Pvalue <- pchisq(Chisq,df=length(test.beta),lower.tail=F)
+  Testing.res <- list(MLE_beta_std=MLE.H01$beta_std,MLE_beta_unstd=MLE.H01$beta_unstd,MLE_h2=MLE.H01$h2,Test.beta=test.beta,Chisq=Chisq,DF=length(test.beta),Pvalue=Pvalue)
+  return(Testing.res)
+}
