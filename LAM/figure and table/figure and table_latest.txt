@@ -709,7 +709,7 @@ dev.off()
 
 ############################ LR VS CLR with 2 PCs 
 cd /home2/wjkim/project/LAM/final_analysis/
-plink --bfile 0.data/final_clean_withage --logistic --pheno 0.data/phenofile_withage.txt --pheno-name pheno12 --covar 0.data/phenofile_withage.txt --covar-name PC1,PC2,Age,Age_sq --out 2.logit/logit_2PCs  --hide-covar --threads 20 # 428 case, 1261 controls 549599 snps#
+plink --bfile 0.data/final_clean_withage --logistic --pheno 0.data/phenofile_withage.txt --pheno-name pheno12 --covar 0.data/phenofile_withage.txt --covar-name PC1,PC2,Age --out 2.logit/logit_2PCs  --hide-covar --threads 20 # 428 case, 1261 controls 549599 snps#
 
 setwd("/home2/wjkim/project/LAM/final_analysis/")
 logit <- read.table("2.logit/logit_2PCs.assoc.logistic",head=T)
@@ -774,4 +774,42 @@ points(x, o.y, cex = .5, col = "dark red")
 legend("bottomright",paste0("Lambda : ",round(estlambda(clogit[,3])$estimate,2)))
 
 dev.off()
+
+
+
+######################################################
+########### Supp figure 4 ############################
+##################### 10^-4~10^-6 dense graph ########
+library(parallel)
+dense_prev <- seq(10^-6,10^-4,length.out=400)
+getVG <- function(n){
+	setwd("/home2/wjkim/project/LAM/final_analysis/10.gcta/2.output")
+	aa <- readLines(paste0('gcta_res_',n,'.hsq'))
+	bb <- strsplit(aa[8],'')[[1]]
+	cc <- which(bb=='\t')
+	VG <- as.numeric(paste(bb[(cc[1]+1):(cc[2]-1)],collapse=''))
+	return(data.frame(prev=dense_prev[n],VG=VG))
+}
+res <- mclapply(1:400,getVG,mc.cores=10)
+res.I <- do.call(rbind,res)
+res.II <- res.I[order(res.I[,1]),]
+setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
+write.table(res.II,"gcta_smooth_plotdata.txt",row.names=F,quote=F)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
+png(paste("Supp4_heritability.png",sep=""), width=1400, height=1400, units = "px", bg = "white", res = 200)
+par(mar=c(5,5,5,5))
+res.II <- read.table("gcta_smooth_plotdata.txt",head=T)
+lo <- with(res.II,loess(VG~prev))
+with(res.II,plot(prev,VG,type='n',xaxt='n',xlab='Prevalence',ylab=expression(paste(italic('h')[italic('SNP')]^2))))
+lines(res.II$prev,predict(lo))
+g <- seq(1e-6,1e-4,length.out=5)
+gg <- as.character(seq(1e-6,1e-4,length.out=5))
+labelsX=parse(text=gsub('e-0','%*%10^-',gg))
+axis(1,at=g,label=labelsX)
+abline(v=1e-5,col='gray',lty=2)
+text(1e-5,0.0076,pos=4,labels=expression('0.76% at 10'^-5))
+points(1e-5,predict(lo,1e-5),pch=20)
+dev.off()
+
 

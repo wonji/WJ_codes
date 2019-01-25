@@ -999,3 +999,76 @@ country.info <- as.matrix(country.info[order(country.info,decreasing=T)])
 colnames(country.info) <- 'Discovery'
 write.csv(country.info,"9.tables/Country_info.csv",quote=F)
 
+
+
+
+##########################################################
+################## GCTA 2019.1.16 ########################
+##########################################################
+
+################ Proportion of variance explained by all SNPs  ##################
+#### Using discovery dataset (1278 samples = 426 cases + 852 controls)
+setwd('/home2/wjkim/project/LAM/final_analysis/')
+phe <- read.table("3.clogit/npc/phenofile_withage_2PCs.txt",head=T)
+rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+phe$CLR_in <- NA
+phe$CLR_in[!is.na(phe$pair_age)] <- 'inclusion'
+phe$CLR_in[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+write.table(phe,"3.clogit/npc/phenofile_withage_2PCs.txt",row.names=F,quote=F)
+
+
+## input files
+cd /home2/wjkim/project/LAM/final_analysis/
+cat 3.clogit/npc/phenofile_withage_2PCs.txt | sed '1d' | awk '{if($21=="inclusion") {print $1,$2,$16}}' > 10.gcta/1.input/pheno_gcta_method2.txt
+cat 3.clogit/npc/phenofile_withage_2PCs.txt | sed '1d' | awk '{if($21=="inclusion") {print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$14,$17}}' > 10.gcta/1.input/qcovar_gcta_method2.txt
+
+#### run gcta - whole SNPs
+cd /home2/wjkim/project/LAM/final_analysis/10.gcta/
+# gcta64 --bfile ../0.data/final_clean_withage --make-grm --autosome --out 1.input/LAM_GRM --thread-num 20
+gcta64 --grm 1.input/LAM_GRM --reml --pheno 1.input/pheno_gcta_method2.txt --keep 1.input/qcovar_gcta_method2.txt --qcovar 1.input/qcovar_gcta_method2.txt --out 2.output/gcta_res_method2 --prevalence 1e-05
+
+################ Proportion of variance explained by all SNPs except LD region ##################
+cd /home2/wjkim/project/LAM/final_analysis/
+awk '{if($1==15 && $4>=96144966 && $4<=96179390) {print $2}}' 0.data/final_clean_withage.bim > 10.gcta/1.input/sigSNPs_LD.list
+# Make GRM
+gcta64 --bfile 0.data/final_clean_withage --make-grm --exclude 10.gcta/1.input/sigSNPs_LD.list --autosome --out 10.gcta/1.input/woLD_GRM --thread-num 20
+# Run GCTA
+gcta64 --grm 10.gcta/1.input/woLD_GRM --reml --pheno 10.gcta/1.input/pheno_gcta_method2.txt --keep 10.gcta/1.input/qcovar_gcta_method2.txt --qcovar 10.gcta/1.input/qcovar_gcta_method2.txt --out 10.gcta/2.output/gcta_res_woLD_method2 --prevalence 1e-05
+
+################ Proportion of variance explained by SNPs within LD region ##################
+cd /home2/wjkim/project/LAM/final_analysis/
+# Make GRM
+gcta64 --bfile 0.data/final_clean_withage --make-grm --extract 10.gcta/1.input/sigSNPs_LD.list --autosome --out 10.gcta/1.input/wLD_GRM --thread-num 20
+# Run GCTA
+gcta64 --grm 10.gcta/1.input/wLD_GRM --reml --pheno 10.gcta/1.input/pheno_gcta_method2.txt --keep 10.gcta/1.input/qcovar_gcta_method2.txt --qcovar 10.gcta/1.input/qcovar_gcta_method2.txt --out 10.gcta/2.output/gcta_res_wLD_method2 --prevalence 1e-05
+
+#### rs4544201
+cd /home2/wjkim/project/LAM/final_analysis/10.gcta/
+gcta64 --bfile ../0.data/final_clean_withage --make-grm --extract 1.input/rs4544201.txt --autosome --out 1.input/rs4544201_GRM --thread-num 20
+gcta64 --grm 1.input/rs4544201_GRM --reml --pheno 1.input/pheno_gcta_method2.txt --keep 1.input/qcovar_gcta_method2.txt --qcovar 1.input/qcovar_gcta_method2.txt --out 2.output/gcta_res_rs4544201_method2 --prevalence 1e-05
+
+#### rs2006950
+cd /home2/wjkim/project/LAM/final_analysis/10.gcta/
+gcta64 --bfile ../0.data/final_clean_withage --make-grm --extract 1.input/rs2006950.txt --autosome --out 1.input/rs2006950_GRM --thread-num 20
+gcta64 --grm 1.input/rs2006950_GRM --reml --pheno 1.input/pheno_gcta_method2.txt --keep 1.input/qcovar_gcta_method2.txt --qcovar 1.input/qcovar_gcta_method2.txt --out 2.output/gcta_res_rs2006950_method2 --prevalence 1e-05
+
+############ results
+entire SNPs : 0.007853
+without LD : 0.007854
+LD : 0.000239
+rs4544201 : 0.000222 (2.83%)
+rs2006950 : 0.000270 (3.44%)
+
+
+#### 10^-4~10^-6 dense graph
+## run gcta
+library(parallel)
+setwd("/home2/wjkim/project/LAM/final_analysis/10.gcta/")
+aa <- seq(10^-6,10^-4,length.out=400)
+GCTA <- function(n) system(paste0("gcta64 --grm 1.input/LAM_GRM --reml --pheno 1.input/pheno_gcta_method2.txt --qcovar 1.input/qcovar_gcta_method2.txt --out 2.output/gcta_res_",n," --prevalence ",aa[n]))
+gg <- mclapply(1:400,GCTA,mc.cores=20)
+# next figure and table.txt
+
+
+
+

@@ -111,7 +111,7 @@ plotdata <- bb[,c('CHR','SNP','p_value')]
 colnames(plotdata) <- c('CHR','GENE','p.val')
 setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/2.clogit/")
 write.table(plotdata,'plotdata_clogit_190111_method2.txt',row.names=F,quote=F)
-system("Rscript ~/Output_plot.r plotdata_clogit_190111_method2.txt clogit_impute_190111_method2")
+system("Rscript Output_plot.r plotdata_clogit_190111_method2.txt clogit_impute_190111_method2")
 
 sigs <- bb[bb$p_value < 5e-8,]
 write.csv(sigs,'sigs_190111_method2.csv',row.names=F,quote=F)
