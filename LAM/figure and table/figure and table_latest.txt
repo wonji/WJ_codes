@@ -485,7 +485,7 @@ dev.off()
 
 ############## LAM/AML VS GTEx boxplot
 #setwd('C:\\Users\\±è¿øÁö\\Desktop\\LAM\\figures')
-setwd('C:\\Users\\Wonji\\Dropbox\\project\\LAM\\Final_analysis\\figure and table')
+setwd('C:\\Users\\±è¿øÁö\\Downloads')
 gtex <- read.table('GTEx_NR2F2.txt',head=F,sep='\t')
 lam <- read.table('LAM_NR2F2.txt',head=T)[,3:7]
 lam_nr2f2 <- data.frame(ID=colnames(lam),NR2F2_rpkm=as.matrix(lam)[1,],Tissue='LAM/AML')
@@ -704,4 +704,74 @@ points(pc$PC2[phe==1],pc$PC3[phe==1],col=col[phe==1])
 points(pc$PC2[phe==2],pc$PC3[phe==2],col=col[phe==2])
 dev.off()
 
+
+
+
+############################ LR VS CLR with 2 PCs 
+cd /home2/wjkim/project/LAM/final_analysis/
+plink --bfile 0.data/final_clean_withage --logistic --pheno 0.data/phenofile_withage.txt --pheno-name pheno12 --covar 0.data/phenofile_withage.txt --covar-name PC1,PC2,Age,Age_sq --out 2.logit/logit_2PCs  --hide-covar --threads 20 # 428 case, 1261 controls 549599 snps#
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+logit <- read.table("2.logit/logit_2PCs.assoc.logistic",head=T)
+logit <- logit[,c(1,2,9)]
+colnames(logit)<-c("CHR","GENE","p.val")
+write.table(logit,"2.logit/plotdata_logit_2PCs.txt",row.names=F,quote=F,sep="\t")
+
+
+library(GenABEL)
+setwd('/home2/wjkim/project/LAM/final_analysis')
+logit <- read.table("2.logit/plotdata_logit_2PCs.txt",head=T,stringsAsFactor=F,sep="\t")
+clogit <- read.table("3.clogit/1.revision/plotdata_clogit_181012_method2.txt",head=T,stringsAsFactor=F,sep="\t")
+
+#### separate - horizontal
+png(paste("8.figures/fig3_QQplots_2PCs_190122.png",sep=""), width=1800, height=1000, units = "px", bg = "white", res = 200)
+par(mfrow=c(1,2))
+
+## logit
+p.val <- logit[,3]
+y <- -log(p.val,10)
+v <- -log10(0.05/sum(is.finite(y)))
+o.y <- sort(y[is.finite(y)],decreasing=T)
+xx<- (1:length(o.y))/length(o.y)
+x <- -log(xx,10)
+ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
+
+plot(YY, YY, main='LR',type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
+N=length(o.y)
+c95 <- rep(0,N)
+c05 <- rep(0,N)
+for(i in 1:N){
+	c95[i] <- qbeta(0.95,i,N-i+1)
+	c05[i] <- qbeta(0.05,i,N-i+1)
+}
+abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
+polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
+abline(a=0,b=1,col="black", lty=1)
+points(x, o.y, cex = .5, col = "dark red")
+legend("bottomright",paste0("Lambda : ",round(estlambda(logit[,3])$estimate,2)))
+
+## clogit
+p.val <- clogit[,3]
+y <- -log(p.val,10)
+v <- -log10(0.05/sum(is.finite(y)))
+o.y <- sort(y[is.finite(y)],decreasing=T)
+xx<- (1:length(o.y))/length(o.y)
+x <- -log(xx,10)
+ifelse(max(o.y[is.finite(o.y)])>=x[1],YY<-o.y,YY<-x)
+
+plot(YY, YY, main='CLR',type = "n", xlab = expression(paste("Expected ",-log[10],"(p-value)")), ylab = expression(paste("Observed ",-log[10],"(p-value)")))
+N=length(o.y)
+c95 <- rep(0,N)
+c05 <- rep(0,N)
+for(i in 1:N){
+	c95[i] <- qbeta(0.95,i,N-i+1)
+	c05[i] <- qbeta(0.05,i,N-i+1)
+}
+abline(h = c(0:max(max(x),max(o.y[is.finite(o.y)]))), v =c(0:max(max(x),max(o.y[is.finite(o.y)]))), col = "darkgray", lty=3)
+polygon(c(x,sort(x)),c(-log(c95,10),sort(-log(c05,10))),col=c("gray"),border=NA)
+abline(a=0,b=1,col="black", lty=1)
+points(x, o.y, cex = .5, col = "dark red")
+legend("bottomright",paste0("Lambda : ",round(estlambda(clogit[,3])$estimate,2)))
+
+dev.off()
 
