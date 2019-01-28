@@ -1071,4 +1071,11 @@ gg <- mclapply(1:400,GCTA,mc.cores=20)
 
 
 
+1. GCTA : use only entire SNPs
+0-1 scale, liabiltiy scale
+2. x axis log scale
+3. inflation factor (LR VS CLR delete)
+4. supp figure 1 need to be modified
+5. LR (VIF, OR, P-value) ?????? ??????
+6. 
 
