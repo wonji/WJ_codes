@@ -304,9 +304,24 @@ plink --bfile 0.data/2.MESA/indiv_snp_qc --logistic hide-covar --out 1.logit/log
 ################### 1/25/2019 replication study with UK Biobank ###################
 ###################################################################################
 ##### Channing server
+#### 0. Britich White
+# phenotype
+# Age 21003
+# Ethnic background 21000
+library(data.table)
+ukbPheno <- fread(paste0('/proj/regeps/regep00/studies/COPDGene/',
+                         'analyses/Remhc/UkBiobank/ukb9639.csv'),
+                  na.strings=c(""," ","NA"))
+phe <- ukbPheno[,names(ukbPheno)[grepl('^eid|21003-0|21000-0', names(ukbPheno))],with=F]
+colnames(phe) <- c('ID','Ethnicity','Age')
+phe <- as.data.frame(phe)
+british <- phe[phe[,'Ethnicity']==1001,c(1,1)]
+setwd('/proj/regeps/regep00/studies/COPDGene/analyses/rewki/LAM/1.replication/1.UKBiobank/0.data/1.UKB')
+write.table(british,'British_white.list',row.names=F,col.names=F,quote=F)
+
 #### 1. Only Female 
 cd /proj/regeps/regep00/studies/COPDGene/analyses/rewki/LAM/1.replication/1.UKBiobank/0.data/1.UKB
-plink2 --bfile /proj/regeps/regep00/studies/COPDGene/analyses/reori/UKB/data/ukb_chr15_maf0.01 --snps rs4544201,rs2006950 --filter-females --make-bed --out UKB_FM_sigSNPs
+plink2 --bfile /proj/regeps/regep00/studies/COPDGene/analyses/reori/UKB/data/ukb_chr15_maf0.01 --snps rs4544201,rs2006950 --keep British_white.list --filter-females --make-bed --out UKB_FM_sigSNPs
 
 <R>
 setwd('/proj/regeps/regep00/studies/COPDGene/analyses/rewki/LAM/1.replication/1.UKBiobank/0.data/1.UKB')
@@ -316,7 +331,7 @@ write.table(fam,"UKB_FM_sigSNPs.fam",row.names=F,col.names=F,quote=F)
 
 #### 2. Merge
 cd /proj/regeps/regep00/studies/COPDGene/analyses/rewki/LAM/1.replication/1.UKBiobank/0.data/
-plink2 --bfile 2.LAM/indiv_snp_qc_lam_NHW --bmerge 1.UKB/UKB_FM_sigSNPs --make-bed --out 3.allmerge/allmerge_UKB
+  plink2 --bfile 2.LAM/indiv_snp_qc_lam_NHW --bmerge 1.UKB/UKB_FM_sigSNPs --make-bed --out 3.allmerge/allmerge_UKB
 
 #### 3. QC
 cd /proj/regeps/regep00/studies/COPDGene/analyses/rewki/LAM/1.replication/1.UKBiobank/0.data/3.allmerge
@@ -325,22 +340,9 @@ plink2 --bfile allmerge_UKB --hwe-all --hwe 0.00001 --geno 0.05 --maf 0.05 --mak
 # indiv SNPs (2 SNPs, 196 cases and 255247 controls (-9072 indivs due to missing genotype rate))
 plink2 --bfile snp_qc --mind 0.05 --out indiv_snp_qc --make-bed
 
-# phenotype
-library(data.table)
-ukbPheno <- fread(paste0('/proj/regeps/regep00/studies/COPDGene/',
-                              'analyses/Remhc/UkBiobank/ukb9639.csv'),
-                       na.strings=c(""," ","NA"))
-phe <- ukbPheno[,names(ukbPheno)[grepl('^eid|21003-0|21000-0', names(ukbPheno))],with=F]
-colnames(phe) <- c('ID','Ethnicity','Age')
-
-Age 21003
-Ethnic background 21000
-
-
-
 #### 4. association study
 cd /proj/regeps/regep00/studies/COPDGene/analyses/rewki/LAM/1.replication/1.UKBiobank/
-plink2 --bfile 0.data/3.allmerge/indiv_snp_qc --logistic hide-covar --out 1.logit/logit_UKB_FM
+  plink2 --bfile 0.data/3.allmerge/indiv_snp_qc --logistic hide-covar --out 1.logit/logit_UKB_FM
 
 
 
