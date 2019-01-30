@@ -86,7 +86,7 @@ do.clogit <- function(i){
 		dat <- cbind(pair.data,snp)
 		fit.lam <- clogit(as.formula(paste0("pheno01 ~ snp + ",paste0('PC',1:10,collapse=' + ')," + strata(pair)")), method="exact", data=dat)
 		res.coef <- summary(fit.lam)$coef
-		res <- c(i,name.snp[ii],res.coef)
+		res <- c(i,name.snp[ii],res.coef[1,])
 		return(res)
 	}
 	outI <- mclapply(1:n.snp,con.logit,mc.cores=20)
