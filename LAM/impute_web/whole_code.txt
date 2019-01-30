@@ -84,7 +84,7 @@ do.clogit <- function(i){
 		if(ii%%1000==0) print(paste0("Chromosome ",i,": ",ii,"th SNP of ",n.snp," SNPs"))
 		snp <- pair.raw[,6+ii]
 		dat <- cbind(pair.data,snp)
-		fit.lam <- clogit(pheno01 ~ snp + strata(pair), method="exact", data=dat)
+		fit.lam <- clogit(as.formula(paste0("pheno01 ~ snp + ",paste0('PC',1:10,collapse=' + ')," + strata(pair)")), method="exact", data=dat)
 		res.coef <- summary(fit.lam)$coef
 		res <- c(i,name.snp[ii],res.coef)
 		return(res)
@@ -93,7 +93,7 @@ do.clogit <- function(i){
 	outII <- do.call(rbind,outI)
 	colnames(outII) <- c("chr","snp","beta","OR","se_OR","z","p_value")
 	outIII <- data.frame(maf[,1:4],Position=bim[,4],MAF=maf[,5],outII[,-c(1,2)])
-	write.table(outIII,paste0("4.impute_web/whole/2.clogit/clogit_method2_chr",i,".txt"),row.names=F,quote=F)
+	write.table(outIII,paste0("4.impute_web/whole/2.clogit/clogit_method2_chr",i,"_withPCs.txt"),row.names=F,quote=F)
 }
 
 aa <- lapply(1:22,do.clogit)
@@ -101,7 +101,7 @@ aa <- lapply(1:22,do.clogit)
 #### result summary
 get_plotdat <- function(i){
 	setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/2.clogit/")
-	a <- read.table(paste0("clogit_method2_chr",i,".txt"),head=T,stringsAsFactor=F)
+	a <- read.table(paste0("clogit_method2_chr",i,"_withPCs.txt"),head=T,stringsAsFactor=F)
 	return(a)
 }
 
@@ -110,9 +110,9 @@ bb <- do.call(rbind,aa)
 plotdata <- bb[,c('CHR','SNP','p_value')]
 colnames(plotdata) <- c('CHR','GENE','p.val')
 setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/2.clogit/")
-write.table(plotdata,'plotdata_clogit_190111_method2.txt',row.names=F,quote=F)
-system("Rscript Output_plot.r plotdata_clogit_190111_method2.txt clogit_impute_190111_method2")
+write.table(plotdata,'plotdata_clogit_190129_method2.txt',row.names=F,quote=F)
+system("Rscript Output_plot.r plotdata_clogit_190129_method2_withPCs.txt clogit_impute_190129_method2_withPCs")
 
 sigs <- bb[bb$p_value < 5e-8,]
-write.csv(sigs,'sigs_190111_method2.csv',row.names=F,quote=F)
+write.csv(sigs,'sigs_190129_method2_withPCs.csv',row.names=F,quote=F)
 

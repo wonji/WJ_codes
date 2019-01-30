@@ -780,36 +780,102 @@ dev.off()
 ######################################################
 ########### Supp figure 4 ############################
 ##################### 10^-4~10^-6 dense graph ########
-library(parallel)
-dense_prev <- seq(10^-6,10^-4,length.out=400)
-getVG <- function(n){
-	setwd("/home2/wjkim/project/LAM/final_analysis/10.gcta/2.output")
-	aa <- readLines(paste0('gcta_res_',n,'.hsq'))
-	bb <- strsplit(aa[8],'')[[1]]
-	cc <- which(bb=='\t')
-	VG <- as.numeric(paste(bb[(cc[1]+1):(cc[2]-1)],collapse=''))
-	return(data.frame(prev=dense_prev[n],VG=VG))
+get_h2 <- function(h2,K,P){
+	b <- h2*(K*(1-K))^2/(P*(1-P)*dnorm(qnorm(K,lower.tail=F))^2)
+	return(c(K,b))
 }
-res <- mclapply(1:400,getVG,mc.cores=10)
+res <- lapply(seq(10^-6,10^-4,length.out=400),get_h2,h2=0.667711,P=0.332288)
 res.I <- do.call(rbind,res)
-res.II <- res.I[order(res.I[,1]),]
+colnames(res.I) <- c('prev','VG')
 setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
-write.table(res.II,"gcta_smooth_plotdata.txt",row.names=F,quote=F)
+write.table(res.I,"gcta_smooth_plotdata.txt",row.names=F,quote=F)
 
 setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
 png(paste("Supp4_heritability.png",sep=""), width=1400, height=1400, units = "px", bg = "white", res = 200)
 par(mar=c(5,5,5,5))
 res.II <- read.table("gcta_smooth_plotdata.txt",head=T)
-lo <- with(res.II,loess(VG~prev))
-with(res.II,plot(prev,VG,type='n',xaxt='n',xlab='Prevalence',ylab=expression(paste(italic('h')[italic('SNP')]^2))))
-lines(res.II$prev,predict(lo))
-g <- seq(1e-6,1e-4,length.out=5)
-gg <- as.character(seq(1e-6,1e-4,length.out=5))
-labelsX=parse(text=gsub('e-0','%*%10^-',gg))
-axis(1,at=g,label=labelsX)
-abline(v=1e-5,col='gray',lty=2)
-text(1e-5,0.0076,pos=4,labels=expression('0.76% at 10'^-5))
-points(1e-5,predict(lo,1e-5),pch=20)
+res.II$log_prev <- log10(res.II$prev)
+with(res.II,plot(log_prev,VG,type='n',xaxt='n',xlab='Log of prevalence',ylab=expression(paste(italic('h')[italic('SNP')]^2))))
+lines(res.II$log_prev,res.II$VG)
+g <- seq(log10(1e-6),log10(1e-4),length.out=5)
+gg <- as.character(seq(log10(1e-6),log10(1e-4),length.out=5))
+axis(1,at=g)
+abline(v=log10(1e-5),col='gray',lty=2)
+text(log10(1e-5),0.15,pos=4,labels=expression('15% at 10'^-5))
+points(log10(1e-5),0.15,pch=20)
 dev.off()
 
+## heritability on observed scale adjusted by ascertainment
+get_adjho2 <- function(ho2,K,P){
+	b <- ho2*K*(1-K)/(P*(1-P))
+	return(b)
+}
+get_adjho2(0.667711,0.00001,0.332288)
+
+
+
+######################################################
+########### Supp figure 1 ############################
+##################### number of PC scores ############
+get_lambda <- function(npc,out){
+	library(GenABEL)
+	library(survival)
+	library(parallel)
+
+	setwd("/home2/wjkim/project/LAM/final_analysis/")
+	bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+	phe <- read.table(paste0("3.clogit/npc/phenofile_withage_",npc,"PCs.txt"),head=T)
+	rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+	phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+
+	for(i in 1:22){
+	  print(paste("chromosome ",i,sep=""))
+	  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+	  raw <- read.table(paste("chr",i,"/lam_chr",i,".raw",sep=""),head=T)
+	  n.snp <- ncol(raw)-6
+	  name.snp <- colnames(raw)[-c(1:6)]
+	  name.snp <- gsub("_[ATGC]","",name.snp)
+	  
+	  pair.data <- phe[which(!is.na(phe$pair_age)),]
+	  pair.raw <- raw[which(!is.na(phe$pair_age)),]
+	  
+	  con.logit <- function(ii){
+		if(ii%%100==0) print(ii)
+		snp <- pair.raw[,6+ii]
+		dat <- cbind(pair.data,snp)
+		fit.lam <- clogit(as.formula(paste0("pheno01 ~ snp + ",paste0('PC',1:10,collapse=' + ')," + strata(pair)")), method="exact", data=dat)
+		res.coef <- summary(fit.lam)$coef
+		res <- c(i,name.snp[ii],res.coef[1,])
+		
+		return(res)
+	  }
+	  outI <- mclapply(1:n.snp,con.logit,mc.cores=20)
+	  outII <- do.call(rbind,outI)
+	  colnames(outII) <- c("chr","snp","beta","exp(beta)","se(beta)","z","p_value")
+	  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
+	  write.table(outII,paste0("chr",i,"/clogit_chr",i,"_190129_withPCs_npc",npc,".txt"),row.names=F,quote=F)
+	}
+
+	clogit <- c()
+	for(i in 1:22){
+	  print(i)
+	  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
+	  res <- read.table(paste0("chr",i,"/clogit_chr",i,"_190129_withPCs_npc",npc,".txt"),head=T)
+	  clogit <- rbind(clogit,res)
+	}
+	lambda <- estlambda(res$p_value)$estimate
+	result <- c(npc,lambda)
+	write.csv(result,out,append=T,quote=F,row.names=F)
+}
+
+
+setwd("/home2/wjkim/project/LAM/final_analysis")
+png(paste("8.figures/Supp1_npc.png",sep=""), width=1400, height=1400, units = "px", bg = "white", res = 200)
+par(mar=c(5,5,5,5))
+aa <- read.csv("3.clogit/npc/lambda_npc.csv",head=T)
+plot(a[3:11,1],a[3:11,2],type='n',xlab='Number of PC scores',ylab='Genomic inflation factor')
+grid(NULL,NULL)
+lines(a[3:11,1],a[3:11,2],col='red')
+points(a[3:11,1],a[3:11,2],pch=20)
+dev.off()
 

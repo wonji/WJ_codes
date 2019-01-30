@@ -1059,16 +1059,10 @@ LD : 0.000239
 rs4544201 : 0.000222 (2.83%)
 rs2006950 : 0.000270 (3.44%)
 
-
-#### 10^-4~10^-6 dense graph
-## run gcta
-library(parallel)
-setwd("/home2/wjkim/project/LAM/final_analysis/10.gcta/")
-aa <- seq(10^-6,10^-4,length.out=400)
-GCTA <- function(n) system(paste0("gcta64 --grm 1.input/LAM_GRM --reml --pheno 1.input/pheno_gcta_method2.txt --qcovar 1.input/qcovar_gcta_method2.txt --out 2.output/gcta_res_",n," --prevalence ",aa[n]))
-gg <- mclapply(1:400,GCTA,mc.cores=20)
-# next figure and table.txt
-
+####### Test : prev=0.1 ########
+#### run gcta - whole SNPs
+cd /home2/wjkim/project/LAM/final_analysis/10.gcta/
+gcta64 --grm 1.input/LAM_GRM --reml --pheno 1.input/pheno_gcta_method2.txt --keep 1.input/qcovar_gcta_method2.txt --qcovar 1.input/qcovar_gcta_method2.txt --out 2.output/test --prevalence 0.1
 
 
 1. GCTA : use only entire SNPs
@@ -1078,4 +1072,67 @@ gg <- mclapply(1:400,GCTA,mc.cores=20)
 4. supp figure 1 need to be modified
 5. LR (VIF, OR, P-value) ?????? ??????
 6. 
+
+
+###########################################################################
+################# CLR with 10 PC scores as covariate ######################
+###########################################################################
+##conditional logit##
+library(survival)
+library(parallel)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+phe <- read.table("0.data/phenofile_withage.txt",head=T)
+rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+
+
+for(i in 1:22){
+  print(paste("chromosome ",i,sep=""))
+  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+  raw <- read.table(paste("chr",i,"/lam_chr",i,".raw",sep=""),head=T)
+  n.snp <- ncol(raw)-6
+  name.snp <- colnames(raw)[-c(1:6)]
+  name.snp <- gsub("_[ATGC]","",name.snp)
+  
+  pair.data <- phe[which(!is.na(phe$pair_age)),]
+  pair.raw <- raw[which(!is.na(phe$pair_age)),]
+  
+  con.logit <- function(ii){
+    if(ii%%100==0) print(ii)
+    snp <- pair.raw[,6+ii]
+    dat <- cbind(pair.data,snp)
+    fit.lam <- clogit(as.formula(paste0("pheno01 ~ snp + ",paste0('PC',1:10,collapse=' + ')," + strata(pair)")), method="exact", data=dat)
+    res.coef <- summary(fit.lam)$coef
+    res <- c(i,name.snp[ii],res.coef[1,])
+    
+    return(res)
+  }
+  outI <- mclapply(1:n.snp,con.logit,mc.cores=20)
+  outII <- do.call(rbind,outI)
+  colnames(outII) <- c("chr","snp","beta","exp(beta)","se(beta)","z","p_value")
+  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
+  write.table(outII,paste("chr",i,"/clogit_chr",i,"_190129_method2_withPCs.txt",sep=""),row.names=F,quote=F)
+}
+
+clogit <- c()
+for(i in 1:22){
+  print(i)
+  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
+  res <- read.table(paste("chr",i,"/clogit_chr",i,"_190129_method2_withPCs.txt",sep=""),head=T)
+  dat <- res[,c(1,2,7)]
+  clogit <- rbind(clogit,dat)
+}
+colnames(clogit) <- c("CHR","GENE","p.val")
+setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
+write.table(clogit,"plotdata_clogit_190129_method2_withPCs.txt",row.names=F,quote=F,sep="\t")
+
+system("Rscript ~/Output_plot.r plotdata_clogit_190129_method2_withPCs.txt clogit_190129_method2_withPCs")
+
+
+######### winner's curse
+cd /home2/wjkim/project/LAM/final_analysis/0.data/
+br2 --file sigSNPs --alpha 5e-8 --test LOGISTIC --estimate LOGISTIC --covar br2_covar.txt --B1 1394 --out ../2.logit/adjOR_br2
+rm temp.br2*
 
