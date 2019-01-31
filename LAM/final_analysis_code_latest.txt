@@ -1136,3 +1136,4 @@ cd /home2/wjkim/project/LAM/final_analysis/0.data/
 br2 --file sigSNPs --alpha 5e-8 --test LOGISTIC --estimate LOGISTIC --covar br2_covar.txt --B1 1394 --out ../2.logit/adjOR_br2
 rm temp.br2*
 
+

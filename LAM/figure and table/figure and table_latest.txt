@@ -823,6 +823,7 @@ get_lambda <- function(npc,out){
 	library(parallel)
 
 	setwd("/home2/wjkim/project/LAM/final_analysis/")
+	system(paste0('mkdir 3.clogit/npc/pc',npc))
 	bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
 	phe <- read.table(paste0("3.clogit/npc/phenofile_withage_",npc,"PCs.txt"),head=T)
 	rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
@@ -852,15 +853,15 @@ get_lambda <- function(npc,out){
 	  outI <- mclapply(1:n.snp,con.logit,mc.cores=20)
 	  outII <- do.call(rbind,outI)
 	  colnames(outII) <- c("chr","snp","beta","exp(beta)","se(beta)","z","p_value")
-	  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
-	  write.table(outII,paste0("chr",i,"/clogit_chr",i,"_190129_withPCs_npc",npc,".txt"),row.names=F,quote=F)
+	  setwd(paste0("/home2/wjkim/project/LAM/final_analysis/3.clogit/npc/pc",npc))
+	  write.table(outII,paste0("clogit_chr",i,"_190131_withPCs_npc",npc,".txt"),row.names=F,quote=F)
 	}
 
 	clogit <- c()
 	for(i in 1:22){
 	  print(i)
-	  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
-	  res <- read.table(paste0("chr",i,"/clogit_chr",i,"_190129_withPCs_npc",npc,".txt"),head=T)
+	  setwd(paste0("/home2/wjkim/project/LAM/final_analysis/3.clogit/npc/pc",npc))
+	  res <- read.table(paste0("clogit_chr",i,"_190131_withPCs_npc",npc,".txt"),head=T)
 	  clogit <- rbind(clogit,res)
 	}
 	lambda <- estlambda(res$p_value)$estimate
@@ -868,11 +869,15 @@ get_lambda <- function(npc,out){
 	write.csv(result,out,append=T,quote=F,row.names=F)
 }
 
+out <- '/home2/wjkim/project/LAM/final_analysis/3.clogit/npc/lambda_npc_withPCs.csv'
+write.csv(c('npc','lambda'),out,quote=F,row.names=F)
+
+get_lambda(2,out)
 
 setwd("/home2/wjkim/project/LAM/final_analysis")
 png(paste("8.figures/Supp1_npc.png",sep=""), width=1400, height=1400, units = "px", bg = "white", res = 200)
 par(mar=c(5,5,5,5))
-aa <- read.csv("3.clogit/npc/lambda_npc.csv",head=T)
+a <- read.csv("3.clogit/npc/lambda_npc.csv",head=T)
 plot(a[3:11,1],a[3:11,2],type='n',xlab='Number of PC scores',ylab='Genomic inflation factor')
 grid(NULL,NULL)
 lines(a[3:11,1],a[3:11,2],col='red')
