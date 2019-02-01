@@ -484,8 +484,8 @@ dev.off()
 
 
 ############## LAM/AML VS GTEx boxplot
-#setwd('C:\\Users\\±è¿øÁö\\Desktop\\LAM\\figures')
-setwd('C:\\Users\\±è¿øÁö\\Downloads')
+#setwd('C:\\Users\\Â±Ã‹Ã¸Â¯Â¡Ë†\\Desktop\\LAM\\figures')
+setwd('C:\\Users\\Â±Ã‹Ã¸Â¯Â¡Ë†\\Downloads')
 gtex <- read.table('GTEx_NR2F2.txt',head=F,sep='\t')
 lam <- read.table('LAM_NR2F2.txt',head=T)[,3:7]
 lam_nr2f2 <- data.frame(ID=colnames(lam),NR2F2_rpkm=as.matrix(lam)[1,],Tissue='LAM/AML')
@@ -780,37 +780,87 @@ dev.off()
 ######################################################
 ########### Supp figure 4 ############################
 ##################### 10^-4~10^-6 dense graph ########
-get_h2 <- function(h2,K,P){
+get_h2 <- function(h2,Vo,K,P){
 	b <- h2*(K*(1-K))^2/(P*(1-P)*dnorm(qnorm(K,lower.tail=F))^2)
-	return(c(K,b))
+	Vl <- ((K*(1-K))^2/(P*(1-P)*dnorm(qnorm(K,lower.tail=F))^2))^2*Vo
+	SEl <- sqrt(Vl)
+	LB <- b-SEl*qnorm(0.025,lower.tail=F)
+	if(LB<0) LB=0
+	UB <- b+SEl*qnorm(0.025,lower.tail=F)
+	if(UB>1) UB=1
+	return(c(K,b,SEl,LB,UB))
 }
-res <- lapply(seq(10^-6,10^-4,length.out=400),get_h2,h2=0.667711,P=0.332288)
+
+res <- lapply(seq(10^-6,10^-4,length.out=400),get_h2,h2=0.667711,P=0.332288,Vo=0.259023^2)
 res.I <- do.call(rbind,res)
-colnames(res.I) <- c('prev','VG')
+colnames(res.I) <- c('prev','VG','SE','Lower95','Upper95')
 setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
-write.table(res.I,"gcta_smooth_plotdata.txt",row.names=F,quote=F)
+write.table(res.I,"gcta_smooth_plotdata_liabilityscale.txt",row.names=F,quote=F)
+
+###### heritability on observed scale adjusted by ascertainment
+get_adjho2 <- function(ho2,Vo,K,P){
+	b <- ho2*K*(1-K)/(P*(1-P))
+	adj_Vo <- ((K*(1-K))/(P*(1-P)))^2*Vo
+	adj_SEo <- sqrt(adj_Vo)
+	LB <- b-adj_SEo*qnorm(0.025,lower.tail=F)
+	if(LB<0) LB=0
+	UB <- b+adj_SEo*qnorm(0.025,lower.tail=F)
+	if(UB>1) UB=1
+	return(c(K,b,adj_SEo,LB,UB))
+}
+
+res <- lapply(seq(10^-6,10^-4,length.out=401),get_adjho2,ho2=0.667711,P=0.332288,Vo=0.259023^2)
+res.I <- do.call(rbind,res)
+colnames(res.I) <- c('prev','VG','SE','Lower95','Upper95')
+setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
+write.table(res.I,"gcta_smooth_plotdata_01scale.txt",row.names=F,quote=F)
+
 
 setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
-png(paste("Supp4_heritability.png",sep=""), width=1400, height=1400, units = "px", bg = "white", res = 200)
+png(paste("Supp4_heritability_bothscale.png",sep=""), width=2800, height=1400, units = "px", bg = "white", res = 200)
 par(mar=c(5,5,5,5))
-res.II <- read.table("gcta_smooth_plotdata.txt",head=T)
+par(mfrow=c(1,2))
+
+## liability scale
+res.II <- read.table("gcta_smooth_plotdata_liabilityscale.txt",head=T)
 res.II$log_prev <- log10(res.II$prev)
-with(res.II,plot(log_prev,VG,type='n',xaxt='n',xlab='Log of prevalence',ylab=expression(paste(italic('h')[italic('SNP')]^2))))
+with(res.II,plot(log_prev,VG,type='n',xaxt='n',xlab='Prevalence',ylim=c(0,0.4),ylab=expression(paste(italic('h')[italic('SNP')]^2))))
+x <- res.II$log_prev
+polygon(c(sort(x,decreasing=T),x),c(sort(res.II$Upper95,decreasing=T),res.II$Lower95),col=c("gray"),border=NA)
 lines(res.II$log_prev,res.II$VG)
-g <- seq(log10(1e-6),log10(1e-4),length.out=5)
-gg <- as.character(seq(log10(1e-6),log10(1e-4),length.out=5))
-axis(1,at=g)
-abline(v=log10(1e-5),col='gray',lty=2)
-text(log10(1e-5),0.15,pos=4,labels=expression('15% at 10'^-5))
+g <- seq(log10(1e-6),log10(1e-4),length.out=3)
+labelsX=parse(text=paste0('10^-',c(6,5,4)))
+axis(1,at=g,label=labelsX)
+abline(v=log10(1e-5),col='red',lty=2)
+text(-5,0.13,pos=4,labels=expression('15% at 10'^-5))
 points(log10(1e-5),0.15,pch=20)
+mtext("a)",SNORTH<-3,line=2,adj=-0.15,cex=1.5)
+
+## 01 scale
+res.II <- read.table("gcta_smooth_plotdata_01scale.txt",head=T)
+res.II$log_prev <- log10(res.II$prev)
+with(res.II,plot(log_prev,VG,type='n',xaxt='n',yaxt='n',xlab='Prevalence',ylim=c(0,0.0004),ylab=NA))
+x <- res.II$log_prev
+polygon(c(sort(x,decreasing=T),x),c(sort(res.II$Upper95,decreasing=T),res.II$Lower95),col=c("gray"),border=NA)
+lines(res.II$log_prev,res.II$VG)
+g <- seq(log10(1e-6),log10(1e-4),length.out=3)
+labelsX=parse(text=paste0('10^-',c(6,5,4)))
+axis(1,at=g,label=labelsX)
+
+gg <- as.character(seq(1e-4,4e-4,length.out=4))
+labelsY=parse(text=c(0,gsub('e-0','%*%10^-',gg)))
+axis(2,at=c(0,1e-4,2e-4,3e-4,4e-4),label=labelsY)
+abline(v=log10(1e-5),col='red',lty=2)
+text(-5,2.5e-05,pos=4,labels=expression('0.003% at 10'^-5))
+points(log10(1e-5),3.009403e-5,pch=20)
+mtext("b)",SNORTH<-3,line=2,adj=-0.15,cex=1.5)
+
 dev.off()
 
-## heritability on observed scale adjusted by ascertainment
-get_adjho2 <- function(ho2,K,P){
-	b <- ho2*K*(1-K)/(P*(1-P))
-	return(b)
-}
-get_adjho2(0.667711,0.00001,0.332288)
+
+
+
+
 
 
 
