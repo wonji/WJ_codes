@@ -230,6 +230,10 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
         ##### Main Results
         R2HTML::HTML(R2HTML::as.title("Results of Penalized Linear Regression"),HR=2,file="./test.html")
         
+        R2HTML::HTML(R2HTML::as.title("Estimated values for Lambda"),HR=3,file="./test.html")
+        res <- print.glmnet(res_PLM_0$glmnet)
+        R2HTML::HTML(Digits(res),file="./test.html",align="left",digits=15)
+        
         if(Profile){
           # solution path according to tuning parameter lambda
           R2HTML::HTML(R2HTML::as.title("Solution Path for the Best model"),HR=3,file="./test.html")

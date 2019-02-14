@@ -1,4 +1,5 @@
 #setwd('C://Users//rewki//Documents//WJ_codes//Rex//PenLM')
+setwd("~/WJ_codes/Rex/PenLM/")
 source('./REx_glmnet.R', encoding = 'UTF-8')
 source('./REx_PenLM_new.R')
 source('./glmnet.wrapper.1.0.R')
