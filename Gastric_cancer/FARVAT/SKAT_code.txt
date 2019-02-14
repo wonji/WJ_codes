@@ -1,0 +1,410 @@
+############### Rare variant analysis #################
+###### generate SNP set file
+## common snp  ##
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT
+plink --bfile /data/LAM/Kwiatkowski_ANC159_GWAS_NHW --filter-females --chr 15 --from-bp 95000000 --to-bp 98000000 --out 0.data/common_NHW --make-bed  
+plink --bfile /data/LAM/lam_case/LAM_positive --keep ../0.data/white.list --chr 15 --from-bp 95000000 --to-bp 98000000 --out 0.data/common_lam --make-bed  
+
+
+##???? QC : /home2/wjkim/project/LAM/final_analysis/12.SKAT
+#NHW QC#
+#marker QC#
+Per-marker QC of GWA data consists of at least four steps, 
+1) identification of SNPs with an excessive missing genotype, 
+2) identification of SNPs demonstrating a significant deviation from Hardy-Weinberg equilibrium (HWE), 
+3) identification of SNPs with significantly different missing genotype rates between cases and controls and 
+4) the removal of all makers with a very low minor allele frequency
+
+plink --bfile 0.data/common_NHW --hwe 0.00001 --geno 0.05 --make-bed --out 0.data/snp_qc_NHW
+
+#individual QC#
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile 0.data/snp_qc_NHW --mind 0.05 --out 0.data/indiv_snp_qc_NHW --make-bed 
+
+mv 0.data/indiv_snp_qc_NHW.bed 0.data/clean_indiv_snp_qc_NHW.bed
+mv 0.data/indiv_snp_qc_NHW.bim 0.data/clean_indiv_snp_qc_NHW.bim
+mv 0.data/indiv_snp_qc_NHW.fam 0.data/clean_indiv_snp_qc_NHW.fam
+mv 0.data/indiv_snp_qc_NHW.log 0.data/clean_indiv_snp_qc_NHW.log
+
+
+##lam QC##
+# phenotype code 1 -> 2 #
+fam <- read.table("0.data/common_lam.fam",head=F)
+fam[,6] <- 2
+write.table(fam,"0.data/common_lam.fam",row.names=F,col.names=F,quote=F)
+
+#marker QC#
+Per-marker QC of GWA data consists of at least four steps, 
+1) identification of SNPs with an excessive missing genotype, 
+2) identification of SNPs demonstrating a significant deviation from Hardy-Weinberg equilibrium (HWE), 
+3) identification of SNPs with significantly different missing genotype rates between cases and controls and 
+4) the removal of all makers with a very low minor allele frequency
+
+plink --bfile 0.data/common_lam --hwe 0.00001 --geno 0.05 --make-bed --out 0.data/snp_qc_lam 
+
+#individual QC#
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile 0.data/snp_qc_lam --mind 0.05 --out 0.data/indiv_snp_qc_lam --make-bed 
+
+#Identification of individuals with elevated missing data rates or outlying heterozygosity rate#
+plink --bfile 0.data/indiv_snp_qc_lam --remove ../0.data/IBS_samplelist_lam.txt --make-bed --out 0.data/clean_indiv_snp_qc_lam  # 4 indiv removed = 429 cases#
+
+# remove temp files
+rm 0.data/common*
+rm 0.data/indiv*
+rm 0.data/snp*
+
+##after QC, common snp##
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT")
+lam <- read.table("0.data/clean_indiv_snp_qc_lam.bim",head=F)
+NHW <- read.table("0.data/clean_indiv_snp_qc_NHW.bim",head=F)
+common <- merge(NHW,lam,by="V2",all=F)
+
+# no chr, pos information in lam -> substitute by NHW
+chr.diff <- which(!common[,"V1.x"]==common[,"V1.y"]) # no snps
+pos.diff <- which(!common[,'V4.x']==common[,'V4.y'])	# no snps
+snp <- as.character(common[,1])
+write.table(snp,"0.data/afterQC_common_snp.txt",row.names=F,col.names=F,quote=F)
+
+plink --bfile 0.data/clean_indiv_snp_qc_NHW --extract 0.data/afterQC_common_snp.txt --out 0.data/final_common_NHW --make-bed  # 558124 snps#
+plink --bfile 0.data/clean_indiv_snp_qc_lam --extract 0.data/afterQC_common_snp.txt --out 0.data/final_common_lam --make-bed  # 558124 snps#
+
+##merging##
+plink --bfile 0.data/final_common_NHW --bmerge 0.data/final_common_lam.bed 0.data/final_common_lam.bim 0.data/final_common_lam.fam --make-bed --out 0.data/allmerge
+
+###QC###
+##marker QC##
+Per-marker QC of GWA data consists of at least four steps, 
+1) identification of SNPs with an excessive missing genotype, 
+2) identification of SNPs demonstrating a significant deviation from Hardy-Weinberg equilibrium (HWE), 
+3) identification of SNPs with significantly different missing genotype rates between cases and controls and 
+4) the removal of all makers with a very low minor allele frequency
+
+plink --bfile 0.data/allmerge --exclude ../0.data/test_missing_snplist.txt --geno 0.05 --make-bed --out 0.data/snp_qc
+
+##individual QC##
+Per-individual QC of GWA data consists of at least four steps, 
+1) identification of individuals with discordant sex information, 
+2) identification of individuals with outlying missing genotype or heterozygosity rate, 
+3) identification of duplicated or related individuals, and 
+4) identification of individuals of divergent ancestry.
+
+plink --bfile 0.data/snp_qc --mind 0.05 --out 0.data/indiv_snp_qc --make-bed  #1690 subjects#
+
+mv 0.data/indiv_snp_qc.bed 0.data/clean_indiv_snp_qc.bed
+mv 0.data/indiv_snp_qc.bim 0.data/clean_indiv_snp_qc.bim
+mv 0.data/indiv_snp_qc.fam 0.data/clean_indiv_snp_qc.fam
+mv 0.data/indiv_snp_qc.log 0.data/clean_indiv_snp_qc.log
+
+## remove outliers :1689 samples : 427 cases, 1261 controls ##
+plink --bfile 0.data/clean_indiv_snp_qc --remove ../0.data/outlier.txt --make-bed --out 0.data/final_clean
+
+##make pheno file##
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT")
+pheno <- read.table("../0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+fam <- read.table("0.data/final_clean.fam",head=F,stringsAsFactor=F)
+new.pheno <- pheno[pheno$IID%in%fam$V2,]
+write.table(new.pheno,"0.data/phenofile_withage.txt",col.names=T,row.names=F,quote=F)
+write.table(new.pheno[,1:2],"0.data/withage.samplist",col.names=T,row.names=F,quote=F)
+
+## final dataset : 419 case, 1261 controls#
+plink --bfile 0.data/final_clean --keep 0.data/withage.samplist --make-bed --out 0.data/final_clean_withage 
+
+## rm temp files
+rm 0.data/all*
+rm 0.data/clean*
+rm 0.data/final_common*
+rm 0.data/final_clean.*
+rm 0.data/snp*
+
+
+## update build from hg19 -> hg38
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT")
+bim_hg19 <- bim_hg38 <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+converter <- read.table(gzfile("../0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+bim_hg38$V4 <- converter[match(bim_hg38[,2],converter[,5]),"V4"]
+write.table(bim_hg19,"0.data/final_clean_withage_hg19.bim",row.names=F,col.names=F,quote=F)
+write.table(bim_hg38,"0.data/final_clean_withage.bim",row.names=F,col.names=F,quote=F)
+
+
+
+
+######### generate input files
+##### generate SNP set file
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/0.data
+plink --bfile final_clean_withage --freq --out final_clean_withage
+
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/0.data")
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+genes <- read.table("target_gene.txt",head=T,stringsAsFactor=F)
+frq <- read.table("final_clean_withage.frq",head=T,stringsAsFactor=F)
+frq <- frq[frq$MAF>0,]
+mer <- merge(frq,bim,by.x="SNP",by.y="V2",sort=F)	# minimum maf : 0.01054
+
+get_setID <- function(genes,maf){
+	# There is a problem when no SNPs were selected
+	res <- lapply(1:nrow(genes),function(i) return(data.frame(GENE=genes[i,"GENE"],mer[mer$MAF<maf & mer$V4>=genes[i,"start"] & mer$V4<=genes[i,"end"],"SNP",drop=F])))
+	res.I <- do.call(rbind,res)
+	return(res.I)
+}
+
+# no condition of MAF
+setID_1 <- SNPlist_1 <- get_setID(genes,1)
+SNPlist_1[,1] <- 15
+# SNPs with maf < 0.05 (minimum maf : 0.01054)
+setID_0.05 <- SNPlist_0.05 <- get_setID(genes[2,,drop=F],0.05)	# no genes does not have SNPs which maf<0.05
+SNPlist_0.05[,1] <- 15
+
+write.table(setID_1,"maf_1.setID",row.names=F,col.names=F,quote=F)
+#write.table(setID_0.05,"maf_05.setID",row.names=F,col.names=F,quote=F)
+write.table(SNPlist_1,"maf_1.snplist",row.names=F,col.names=F,quote=F)
+#write.table(SNPlist_0.05,"maf_05.snplist",row.names=F,col.names=F,quote=F)
+
+#### plink binary format file
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/0.data
+plink --bfile final_clean_withage --extract maf_1.snplist --make-bed --out maf_1
+#plink --bfile final_clean_withage --extract maf_05.snplist --make-bed --out maf_05
+
+
+##### Run SKAT
+
+## Create the input file
+do.SKAT <- function(maf){
+	library(SKAT)
+	setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT")
+	File.Bed <- paste0("0.data/maf_",maf,".bed")
+	File.Bim <- paste0("0.data/maf_",maf,".bim")
+	File.Fam <- paste0("0.data/maf_",maf,".fam")
+	File.SetID <- paste0("0.data/maf_",maf,".setID")
+	File.SSD <- paste0("1.input/maf_",maf,".SSD")
+	File.Info <- paste0("1.input/maf_",maf,".info")
+
+	Generate_SSD_SetID(File.Bed, File.Bim, File.Fam, File.SetID, File.SSD, File.Info)
+	SSD.INFO <- Open_SSD(File.SSD, File.Info)
+
+	# Dichotomous Trait
+	pheno <- read.table("0.data/phenofile_withage.txt",header=T,stringsAsFactor=F)
+
+	form <- as.formula(paste0('pheno01~',paste(c('Age','Age_sq',paste0("PC",1:3)),collapse="+")))
+	obj <- SKAT_Null_Model(form,data=pheno, out_type="D")
+	output <- SKAT.SSD.All(SSD.INFO, obj)
+	write.table(output$results,paste0("2.output/maf_",maf,"_SKAT_3PCs.txt"),col.names=T,row.names=F,quote=F)
+
+	obj_ori <- SKAT_Null_Model(pheno01 ~ 1,data=pheno, out_type="D")
+	output_ori <- SKAT.SSD.All(SSD.INFO, obj_ori)
+	write.table(output_ori$results,paste0("2.output/maf_",maf,"_SKAT_ori_3PCs.txt"),col.names=T,row.names=F,quote=F)
+
+	output_op <- SKAT.SSD.All(SSD.INFO, obj,method="optimal.adj")
+	write.table(output_op$results,paste0("2.output/maf_",maf,"_SKATO_3PCs.txt"),col.names=T,row.names=F,quote=F)
+					
+	output_ori_op <- SKAT.SSD.All(SSD.INFO, obj_ori,method="optimal.adj")
+	write.table(output_ori_op$results,paste0("2.output/maf_",maf,"_SKATO_ori_3PCs.txt"),col.names=T,row.names=F,quote=F)
+}
+
+do.SKAT(1)
+do.SKAT("05")
+
+
+
+
+############ eQTL SNPs for NR2F2
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/0.data")
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+frq <- read.table("final_clean_withage.frq",head=T,stringsAsFactor=F)
+frq <- frq[frq$MAF>0,]
+mer <- merge(frq,bim,by.x="SNP",by.y="V2",sort=F)	# minimum maf : 0.01054
+
+setID <- SNPlist <- data.frame(GENE="eQTL_SNPs",SNP=c('rs11854008','rs74371750','rs74918319','rs4561414'))
+SNPlist[,1] <- 15
+write.table(setID,"eQTL_SNPs.setID",row.names=F,col.names=F,quote=F)
+write.table(SNPlist,"eQTL_SNPs.snplist",row.names=F,col.names=F,quote=F)
+
+#### plink binary format file
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/0.data
+plink --bfile final_clean_withage --extract eQTL_SNPs.snplist --make-bed --out eQTL_SNPs
+
+
+##### Run SKAT
+
+## Create the input file
+library(SKAT)
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT")
+File.Bed <- paste0("0.data/eQTL_SNPs.bed")
+File.Bim <- paste0("0.data/eQTL_SNPs.bim")
+File.Fam <- paste0("0.data/eQTL_SNPs.fam")
+File.SetID <- paste0("0.data/eQTL_SNPs.setID")
+File.SSD <- paste0("1.input/eQTL_SNPs.SSD")
+File.Info <- paste0("1.input/eQTL_SNPs.info")
+
+Generate_SSD_SetID(File.Bed, File.Bim, File.Fam, File.SetID, File.SSD, File.Info)
+SSD.INFO <- Open_SSD(File.SSD, File.Info)
+
+# Dichotomous Trait
+pheno <- read.table("0.data/phenofile_withage.txt",header=T,stringsAsFactor=F)
+
+form <- as.formula(paste0('pheno01~',paste(c('Age','Age_sq',paste0("PC",1:10)),collapse="+")))
+obj <- SKAT_Null_Model(form,data=pheno, out_type="D")
+output <- SKAT.SSD.All(SSD.INFO, obj)
+write.table(output$results,paste0("2.output/eQTL_SNPs_SKAT.txt"),col.names=T,row.names=F,quote=F)
+
+obj_ori <- SKAT_Null_Model(pheno01 ~ 1,data=pheno, out_type="D")
+output_ori <- SKAT.SSD.All(SSD.INFO, obj_ori)
+write.table(output$results,paste0("2.output/eQTL_SNPs_SKAT_ori.txt"),col.names=T,row.names=F,quote=F)
+
+output_op <- SKAT.SSD.All(SSD.INFO, obj,method="optimal.adj")
+write.table(output$results,paste0("2.output/eQTL_SNPs_SKATO.txt"),col.names=T,row.names=F,quote=F)
+					
+output_ori_op <- SKAT.SSD.All(SSD.INFO, obj_ori,method="optimal.adj")
+write.table(output$results,paste0("2.output/eQTL_SNPs_SKATO_ori.txt"),col.names=T,row.names=F,quote=F)
+
+
+
+
+############################ SKAT with imputed data ###################################
+###QC###
+<R>
+doQC <- function(i){
+  setwd("/home2/wjkim/project/LAM/final_analysis/")
+  system(paste0("plink --vcf 4.impute_web/whole/0.data/2.imputed/chr",i,"/",i,".vcf.gz --geno 0.05 --hwe 0.00001 --out 12.SKAT/3.impute/0.data/clean_snp_chr",i," --make-bed"))
+  setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute/0.data/")
+  system(paste0("plink --bfile clean_snp_chr",i," --extract range extract_SNPs_target_gene.txt --mind 0.05 --out final_clean_chr",i," --make-bed"))
+}
+doQC(15)
+
+
+fambim <- function(i){
+  setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute/0.data/")
+  impute.fam <- read.table(paste0("final_clean_chr",i,".fam"),head=F,stringsAsFactor=F)
+  fam <- read.table("/home2/wjkim/project/LAM/final_analysis/0.data/final_clean_withage.fam",head=F,stringsAsFactor=F)
+  new.fam <- fam[match(impute.fam[,1],fam[,1]),]
+  write.table(new.fam,paste0("final_clean_chr",i,".fam"),row.names=F,col.names=F,quote=F)
+
+  bim <- read.table(paste0("final_clean_chr",i,".bim"),head=F,stringsAsFactor=F)
+  bim$V2[bim$V2=='.'] <- paste0(i,':',bim$V4[bim$V2=='.'])
+  write.table(bim,paste0("final_clean_chr",i,".bim"),row.names=F,col.names=F,quote=F)
+}
+fambim(15)
+
+
+##make pheno file##
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute")
+pheno <- read.table("../../0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+fam <- read.table("0.data/final_clean_chr15.fam",head=F,stringsAsFactor=F)
+new.pheno <- pheno[pheno$IID%in%fam$V2,]
+write.table(new.pheno,"0.data/phenofile_withage.txt",col.names=T,row.names=F,quote=F)
+write.table(new.pheno[,1:2],"0.data/withage.samplist",col.names=T,row.names=F,quote=F)
+
+## final dataset : 419 case, 1261 controls#
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute
+plink --bfile 0.data/final_clean_chr15 --keep 0.data/withage.samplist --make-bed --out 0.data/final_clean_withage 
+
+## rm temp files
+rm 0.data/clean*
+rm 0.data/final_clean_chr15*
+
+## update build from hg19 -> hg38
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute")
+bim_hg19 <- bim_hg38 <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+converter <- read.table(gzfile("../../0.data/hg38_ch15_90000000_100000000.txt.gz"),stringsAsFactor=F,head=F,sep="\t")
+bim_hg38$V4 <- converter[match(bim_hg38[,2],converter[,5]),"V4"]
+na.pos <- which(is.na(bim_hg38$V4))
+bim_hg38$V1[na.pos] <- 1
+bim_hg38$V4[na.pos] <- 1:length(na.pos)
+dups <- unique(bim_hg38[duplicated(bim_hg38[,2]),2])
+write.table(dups,"0.data/duplicated.list",row.names=F,col.names=F,quote=F)
+write.table(bim_hg19,"0.data/final_clean_withage_hg19.bim",row.names=F,col.names=F,quote=F)
+write.table(bim_hg38,"0.data/final_clean_withage.bim",row.names=F,col.names=F,quote=F)
+
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute/0.data
+plink --bfile final_clean_withage --chr 15 --exclude duplicated.list --make-bed --out final_clean_withage
+
+######### generate input files
+##### generate SNP set file
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute/0.data
+plink --bfile final_clean_withage --freq --out final_clean_withage
+
+<R>
+setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute/0.data")
+bim <- read.table("final_clean_withage.bim",head=F,stringsAsFactor=F)
+genes <- read.table("target_gene.txt",head=T,stringsAsFactor=F)
+frq <- read.table("final_clean_withage.frq",head=T,stringsAsFactor=F)
+frq <- frq[frq$MAF>0,]
+mer <- merge(frq,bim,by.x="SNP",by.y="V2",sort=F)	# minimum maf : 0.01054
+
+get_setID <- function(genes,maf){
+	# There is a problem when no SNPs were selected
+	res <- lapply(1:nrow(genes),function(i) return(data.frame(GENE=genes[i,"GENE"],mer[mer$MAF<maf & mer$V4>=genes[i,"start"] & mer$V4<=genes[i,"end"],"SNP",drop=F])))
+	res.I <- do.call(rbind,res)
+	return(res.I)
+}
+
+# no condition of MAF
+setID_1 <- SNPlist_1 <- get_setID(genes,1)
+SNPlist_1[,1] <- 15
+# SNPs with maf < 0.05 (minimum maf : 0.01054)
+setID_0.05 <- SNPlist_0.05 <- get_setID(genes,0.05)	# no genes does not have SNPs which maf<0.05
+SNPlist_0.05[,1] <- 15
+
+write.table(setID_1,"maf_1.setID",row.names=F,col.names=F,quote=F)
+write.table(setID_0.05,"maf_05.setID",row.names=F,col.names=F,quote=F)
+write.table(SNPlist_1,"maf_1.snplist",row.names=F,col.names=F,quote=F)
+write.table(SNPlist_0.05,"maf_05.snplist",row.names=F,col.names=F,quote=F)
+
+#### plink binary format file
+cd /home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute/0.data
+plink --bfile final_clean_withage --extract maf_1.snplist --make-bed --out maf_1
+plink --bfile final_clean_withage --extract maf_05.snplist --make-bed --out maf_05
+
+
+##### Run SKAT
+
+## Create the input file
+do.SKAT <- function(maf){
+	library(SKAT)
+	setwd("/home2/wjkim/project/LAM/final_analysis/12.SKAT/3.impute")
+	File.Bed <- paste0("0.data/maf_",maf,".bed")
+	File.Bim <- paste0("0.data/maf_",maf,".bim")
+	File.Fam <- paste0("0.data/maf_",maf,".fam")
+	File.SetID <- paste0("0.data/maf_",maf,".setID")
+	File.SSD <- paste0("1.input/maf_",maf,".SSD")
+	File.Info <- paste0("1.input/maf_",maf,".info")
+
+	Generate_SSD_SetID(File.Bed, File.Bim, File.Fam, File.SetID, File.SSD, File.Info)
+	SSD.INFO <- Open_SSD(File.SSD, File.Info)
+
+	# Dichotomous Trait
+	pheno <- read.table("0.data/phenofile_withage.txt",header=T,stringsAsFactor=F)
+
+	form <- as.formula(paste0('pheno01~',paste(c('Age','Age_sq',paste0("PC",1:10)),collapse="+")))
+	obj <- SKAT_Null_Model(form,data=pheno, out_type="D")
+	#output <- SKAT.SSD.All(SSD.INFO, obj)
+	#write.table(output$results,paste0("2.output/maf_",maf,"_SKAT_10PCs.txt"),col.names=T,row.names=F,quote=F)
+
+	#obj_ori <- SKAT_Null_Model(pheno01 ~ 1,data=pheno, out_type="D")
+	#output_ori <- SKAT.SSD.All(SSD.INFO, obj_ori)
+	#write.table(output_ori$results,paste0("2.output/maf_",maf,"_SKAT_ori_10PCs.txt"),col.names=T,row.names=F,quote=F)
+
+	output_op <- SKAT.SSD.All(SSD.INFO, obj,method="optimal.adj")
+	write.table(output_op$results,paste0("2.output/maf_",maf,"_SKATO_10PCs.txt"),col.names=T,row.names=F,quote=F)
+					
+	#output_ori_op <- SKAT.SSD.All(SSD.INFO, obj_ori,method="optimal.adj")
+	#write.table(output_ori_op$results,paste0("2.output/maf_",maf,"_SKATO_ori_10PCs.txt"),col.names=T,row.names=F,quote=F)
+}
+
+do.SKAT(1)
+do.SKAT("05")
+
+
+
