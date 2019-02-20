@@ -1,19 +1,15 @@
-###### Integrating the summary of GWAS & eQTL analysis into a plot ######
-logit <- read.table("plotdata_logit_180506.txt",head=T,stringsAsFactor=F,sep="\t")
-clogit <- read.table("plotdata_clogit_2PCs.txt",head=T,stringsAsFactor=F,sep="\t")
-
 ##### Draw GWAS plot
 ## GWAS (Linux)
 setwd("/home2/wjkim/project/LAM/final_analysis")
 logit <- read.table("2.logit/logit_180506.assoc.logistic",head=T,stringsAsFactor=F)
-clogit <- read.table("3.clogit/1.revision/plotdata_clogit_181012_method2.txt",head=T,stringsAsFactor=F)
+clogit <- read.table("3.clogit/1.revision/plotdata_clogit_190129_method2_withPCs.txt",head=T,stringsAsFactor=F)
 bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
 new.bim <- bim[bim$V1==15&bim$V4>=94500000&bim$V4<=97500000,c(2,4)]	####
 p.logit <- logit[match(new.bim$V2,logit$SNP),"P"]
 p.clogit <- clogit[match(new.bim$V2,clogit$GENE),"p.val"]
 res <- data.frame(new.bim,p.logit,p.clogit)
 colnames(res) <- c("GENE","position","p_LR","p_CLR")
-write.table(res,"8.figures/GWAS_pvalues_method2.txt",row.names=F,quote=F)
+write.table(res,"8.figures/GWAS_pvalues_method2_withPCs.txt",row.names=F,quote=F)
 
 ##### Windows
 library(extrafont)
@@ -21,9 +17,10 @@ font_import(pattern="Helvetica.ttf")
 loadfonts(device="win")
 fonts()
 
-setwd("C:\\Users\\김원지\\Documents\\WJ_codes\\LAM\\figure and table")
-in_data <- read.table("GWAS_pvalues_method2.txt",head=T)
-png("Intg_MHT_method2.png", width=2800, height=450, units = "px", bg = "white", res = 200,family="DejaVu Sans")
+#setwd("C:\\Users\\김원지\\Documents\\WJ_codes\\LAM\\figure and table")
+setwd("/home2/wjkim/project/LAM/final_analysis/8.figures")
+in_data <- read.table("GWAS_pvalues_method2_withPCs.txt",head=T)
+png("Intg_MHT_method2_withPCs.png", width=2800, height=450, units = "px", bg = "white", res = 200,family="DejaVu Sans")
 
 # clogit
 par(mar=c(2,7,0,0))
@@ -58,9 +55,9 @@ dev.off()
 
 
 ##### Draw regional plot
-setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/")
-logit <- read.table("1.logit/logit_171103.assoc.logistic",head=T,stringsAsFactor=F)[,c(1,2,3,9)]
-clogit <- read.table("2.clogit/plotdata_clogit_181013_method2.txt",head=T,stringsAsFactor=F)[,-1]
-mer <- merge(logit,clogit,by.x='SNP',by.y='GENE',all=T,sort=F)[,c(2,1,3,4,5)]
-colnames(mer)[4:5] <- c('P_logit','P_clogit')
-write.table(mer,"regional_plot_hg19_method2.txt",row.names=F,quote=F)
+## Just Use clogit results of chr15
+setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/2.clogit/")
+a <- read.table("clogit_method2_chr15_withPCs.txt",head=T,stringsAsFactor=F)
+b <- a[a$Position>94000000 & a$Position<98000000,]
+write.table(b,"/home2/wjkim/project/LAM/final_analysis/8.figures/regional_plotdata_clogit_method2_withPCs.txt",row.names=F,quote=F)
+
