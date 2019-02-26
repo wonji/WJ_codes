@@ -159,6 +159,16 @@ REx_PenLM <- function(dataset,dep_var,indep_cat_var=NULL,indep_numeric_var=NULL,
       } else {
         Custom.List <- NULL
       }
+      
+      if(Cross.method=="KFOLD") {
+        if(k >= nrow(temp.dat) +1)
+          k <- nrow(temp.dat)
+        if(k<3)
+          k <- 3
+      }
+      if(Cross.method=="LOOCV")
+        k <- nrow(temp.dat)
+      
       res_PLM_0 <- cv_glmnet_wrapper(form.1, data=temp.dat, lambda=Custom.List, 
         type.measure=ifelse(AccMS=='MSE',"mse",'mae'), nfolds=k, 
         family="gaussian", alpha=alpha, nlambda=Grid.Num, 
