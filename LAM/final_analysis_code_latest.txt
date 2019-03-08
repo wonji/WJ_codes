@@ -1137,3 +1137,30 @@ br2 --file sigSNPs --alpha 5e-8 --test LOGISTIC --estimate LOGISTIC --covar br2_
 rm temp.br2*
 
 
+###################################################
+#################### TSC genes ####################
+###################################################
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+tsc1 <- c(9,135766736,135820008)
+tsc2 <- c(16,2097466,2138713)
+bim <- read.table("0.data/final_clean_withage.bim",head=F)
+
+get.result <- function(tsc,bim){
+  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
+  
+  chr <- tsc[1]
+  tsc.bim <- bim[bim$V1==chr & bim$V4>=(tsc[2]-1000000) & bim$V4<=(tsc[3]+1000000),]
+  clogit <- read.table(paste("chr",chr,"/clogit_chr",chr,"_190129_method2_withPCs.txt",sep=""),head=T)
+  
+  mer <- merge(tsc.bim,clogit,by.x="V2",by.y="snp",all=F,sort=F)
+  new.mer <- mer[,c('chr','V2','V4','beta','exp.beta.','se.beta.','z','p_value')]
+  colnames(new.mer)[2:3] <- c('SNP','Position')
+  return(new.mer)
+}
+
+res.tsc1 <- get.result(tsc1,bim)
+write.csv(res.tsc1,"clogit_TSC1.csv",row.names=F,quote=F)
+
+res.tsc2 <- get.result(tsc2,bim)
+write.csv(res.tsc2,"clogit_TSC2.csv",row.names=F,quote=F)
