@@ -1159,8 +1159,43 @@ get.result <- function(tsc,bim){
   return(new.mer)
 }
 
+setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit/1.revision")
 res.tsc1 <- get.result(tsc1,bim)
 write.csv(res.tsc1,"clogit_TSC1.csv",row.names=F,quote=F)
 
 res.tsc2 <- get.result(tsc2,bim)
 write.csv(res.tsc2,"clogit_TSC2.csv",row.names=F,quote=F)
+
+
+
+############# GCTA ##################
+cd /home2/wjkim/project/LAM/final_analysis/
+awk -F',' '{if (NR!=1) {print $2}}' 3.clogit/1.revision/clogit_TSC1.csv > 10.gcta/1.input/TSC1.list
+awk -F',' '{if (NR!=1) {print $2}}' 3.clogit/1.revision/clogit_TSC2.csv > 10.gcta/1.input/TSC2.list
+
+# Make GRM
+gcta64 --bfile 0.data/final_clean_withage --make-grm --extract 10.gcta/1.input/TSC1.list --autosome --out 10.gcta/1.input/TSC1 --thread-num 20
+gcta64 --bfile 0.data/final_clean_withage --make-grm --extract 10.gcta/1.input/TSC2.list --autosome --out 10.gcta/1.input/TSC2 --thread-num 20
+
+# Run GCTA
+gcta64 --grm 10.gcta/1.input/TSC1 --reml --pheno 10.gcta/1.input/pheno_gcta_method2.txt --keep 10.gcta/1.input/qcovar_gcta_method2.txt --qcovar 10.gcta/1.input/qcovar_gcta_method2.txt --out 10.gcta/2.output/gcta_res_TSC1 --prevalence 1e-05
+gcta64 --grm 10.gcta/1.input/TSC2 --reml --pheno 10.gcta/1.input/pheno_gcta_method2.txt --keep 10.gcta/1.input/qcovar_gcta_method2.txt --qcovar 10.gcta/1.input/qcovar_gcta_method2.txt --out 10.gcta/2.output/gcta_res_TSC2 --prevalence 1e-05
+
+<R>
+get_h2 <- function(h2,Vo,K,P){
+	b <- h2*(K*(1-K))^2/(P*(1-P)*dnorm(qnorm(K,lower.tail=F))^2)
+	Vl <- ((K*(1-K))^2/(P*(1-P)*dnorm(qnorm(K,lower.tail=F))^2))^2*Vo
+	SEl <- sqrt(Vl)
+	LB <- b-SEl*qnorm(0.025,lower.tail=F)
+	if(LB<0) LB=0
+	UB <- b+SEl*qnorm(0.025,lower.tail=F)
+	if(UB>1) UB=1
+	return(c(K,b,SEl,LB,UB))
+}
+
+TSC1 <- get_h2(h2=0.000555,Vo=0.009888,K=0.00001,P=0.333333)
+TSC2 <- get_h2(h2=0.008489,Vo=0.010551,K=0.00001,P=0.333333)
+
+res <- lapply(seq(10^-6,10^-4,length.out=400),get_h2,h2=0.667711,P=0.332288,Vo=0.259023^2)
+
+
