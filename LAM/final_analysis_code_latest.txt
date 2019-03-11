@@ -1166,6 +1166,105 @@ write.csv(res.tsc1,"clogit_TSC1.csv",row.names=F,quote=F)
 res.tsc2 <- get.result(tsc2,bim)
 write.csv(res.tsc2,"clogit_TSC2.csv",row.names=F,quote=F)
 
+res.tsc <- rbind(res.tsc1,res.tsc2)
+sig <- res.tsc[res.tsc$p_value<1e-4,]
+
+res.tsc.1 <- res.tsc[order(res.tsc$p_value,decreasing=F),][1:10,]
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+write.table(res.tsc.1,"0.data/TSC_SNP_top10.txt",row.names=F,col.names=F,quote=F)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+system(paste0("plink --bfile 0.data/final_clean_withage --snp ",sig[,2]," --recodeA --out 0.data/TSC_sigSNP"))
+system("plink --bfile 0.data/final_clean_withage --extract 0.data/TSC_SNP_top10.txt --recodeA --out 0.data/TSC_SNP_top10")
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+phe <- read.table("0.data/phenofile_withage.txt",head=T,stringsAsFactor=F)
+tsc <- read.table("0.data/TSC_sigSNP.raw",head=T,stringsAsFactor=F)
+phe$sigTSC <- tsc[,7]
+write.table(phe,"0.data/phenofile_withage.txt",row.names=F,quote=F)
+
+
+############ clogit including significant tsc SNP
+library(survival)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+phe <- read.table("0.data/phenofile_withage.txt",head=T)
+rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+
+for(i in 15){
+  print(paste("chromosome ",i,sep=""))
+  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+  raw <- read.table(paste("chr",i,"/lam_chr",i,".raw",sep=""),head=T)
+  n.snp <- ncol(raw)-6
+  name.snp <- colnames(raw)[-c(1:6)]
+  name.snp <- gsub("_[ATGC]","",name.snp)
+  sig.idx <- which(name.snp%in%c('rs4544201','rs2006950'))
+  
+  pair.data <- phe[which(!is.na(phe$pair_age)),]
+  pair.raw <- raw[which(!is.na(phe$pair_age)),]
+  
+  con.logit <- function(ii){
+    if(ii%%100==0) print(ii)
+    snp <- pair.raw[,6+ii]
+    dat <- cbind(pair.data,snp)
+    fit.lam <- clogit(as.formula(paste0("pheno01 ~ snp + ",paste0('PC',1:10,collapse=' + ')," + sigTSC + strata(pair)")), method="exact", data=dat)
+    res.coef <- summary(fit.lam)$coef
+    res <- c(i,name.snp[ii],res.coef[1,])
+    
+    return(res)
+  }
+  outI <- lapply(sig.idx,con.logit)
+  outII <- do.call(rbind,outI)
+  colnames(outII) <- c("chr","snp","beta","exp(beta)","se(beta)","z","p_value")
+  write.table(outII,"1.revision/clogit_sigSNPs_TSC_sigSNPs.txt",row.names=F,quote=F)
+}
+
+
+############ clogit including significant tsc SNP
+library(survival)
+
+setwd("/home2/wjkim/project/LAM/final_analysis/")
+bim <- read.table("0.data/final_clean_withage.bim",head=F,stringsAsFactor=F)
+phe <- read.table("0.data/phenofile_withage.txt",head=T)
+TSC <- read.table("0.data/TSC_SNP_top10.raw",head=T,stringsAsFactor=F)
+colnames(TSC)[7:ncol(TSC)] <- paste0("TSC",1:10)
+phe <- cbind(phe,TSC[7:ncol(TSC)])
+
+rm.list <- read.table("3.clogit/1.revision/0.data/outliers.txt",head=F,stringsAsFactor=F)
+phe$pair_age[which(phe$pair_age%in%phe[phe$IID%in%rm.list$V2,'pair_age'])] <- NA
+
+
+for(i in 15){
+  print(paste("chromosome ",i,sep=""))
+  setwd("/home2/wjkim/project/LAM/final_analysis/3.clogit")
+  raw <- read.table(paste("chr",i,"/lam_chr",i,".raw",sep=""),head=T)
+  n.snp <- ncol(raw)-6
+  name.snp <- colnames(raw)[-c(1:6)]
+  name.snp <- gsub("_[ATGC]","",name.snp)
+  sig.idx <- which(name.snp%in%c('rs4544201','rs2006950'))
+  
+  pair.data <- phe[which(!is.na(phe$pair_age)),]
+  pair.raw <- raw[which(!is.na(phe$pair_age)),]
+  
+  con.logit <- function(ii){
+    if(ii%%100==0) print(ii)
+    snp <- pair.raw[,6+ii]
+    dat <- cbind(pair.data,snp)
+    fit.lam <- clogit(as.formula(paste0("pheno01 ~ snp + ",paste0('PC',1:10,collapse=' + ')," + ",paste0('TSC',1:10,collapse=' + ')," + strata(pair)")), method="exact", data=dat)
+    res.coef <- summary(fit.lam)$coef
+    res <- c(i,name.snp[ii],res.coef[1,])
+    
+    return(res)
+  }
+  outI <- lapply(sig.idx,con.logit)
+  outII <- do.call(rbind,outI)
+  colnames(outII) <- c("chr","snp","beta","exp(beta)","se(beta)","z","p_value")
+  write.table(outII,"1.revision/clogit_sigSNPs_TSC_top10SNP.txt",row.names=F,quote=F)
+}
+
+
 
 
 ############# GCTA ##################
