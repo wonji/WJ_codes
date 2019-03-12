@@ -32,18 +32,18 @@ sh make_input.sh
 <R>
 doQC <- function(i){
   setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/2.imputed")
-  system(paste0("plink --vcf chr",i,"/",i,".vcf.gz --maf 0.05 --geno 0.05 --hwe 0.00001 --out chr",i,"/clean_snp_chr",i," --make-bed"))
-  system(paste0("plink --bfile chr",i,"/clean_snp_chr",i," --mind 0.05 --out chr",i,"/final_clean_chr",i," --make-bed"))
+  system(paste0("bcftools view -e 'INFO<0.3' -Oz -o chr",i,"/highINFO.vcf.gz chr",i,"/",i,".vcf.gz"))
+  system(paste0("plink --vcf chr",i,"/highINFO.vcf.gz --maf 0.05 --geno 0.05 --hwe 0.00001 --out chr",i,"/clean_snp_chr",i,"_highINFO --make-bed"))
+  system(paste0("plink --bfile chr",i,"/clean_snp_chr",i,"_highINFO --mind 0.05 --out chr",i,"/final_clean_chr",i,"_highINFO --make-bed"))
 }
 library(parallel)
-a <- mclapply(1:22,doQC,mc.cores=22)
+a <- mclapply(1:22,doQC,mc.cores=11)
 
 
 doQC.1 <- function(i){
   setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/2.imputed")
   system(paste0("awk '{print $1,$4}' OFS='\t' chr",i,"/final_clean_chr",i,".bim > chr",i,"/SNPs.list"))
   system(paste0("bcftools view -R chr",i,"/SNPs.list -Oz -o chr",i,"/final_clean_chr",i,".vcf.gz chr",i,"/",i,".vcf.gz"))
-  system(paste0("bcftools view -e 'INFO<0.3' -Oz -o chr",i,"/highINFO.vcf.gz chr",i,"/",i,".vcf.gz"))
 
 }
 
