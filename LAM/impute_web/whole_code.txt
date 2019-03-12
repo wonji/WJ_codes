@@ -77,7 +77,34 @@ res.III <- colSums(res.II)
 write.table(res.III,"Imputed_QC.txt",row.names=F,quote=F)
 
 total SNPs : 39131578
-5427338
+final SNPs : 5427338
+
+
+getQC.highINFO <- function(i){
+  setwd("/home2/wjkim/project/LAM/final_analysis/4.impute_web/whole/0.data/2.imputed")
+  N.total <- system(paste0("grep loaded chr",i,"/clean_snp_chr",i,"_highINFO.log"),intern=T)[1]
+  n.total <- as.numeric(strsplit(N.total," ")[[1]][1])
+  
+  N.geno <- system(paste0("grep missing chr",i,"/clean_snp_chr",i,"_highINFO.log"),intern=T)
+  n.geno <- as.numeric(strsplit(N.geno," ")[[1]][1])
+  
+  N.hwe <- system(paste0("grep Hardy chr",i,"/clean_snp_chr",i,"_highINFO.log"),intern=T)
+  n.hwe <- as.numeric(strsplit(N.hwe," ")[[1]][2])
+
+  N.maf  <- system(paste0("grep minor chr",i,"/clean_snp_chr",i,"_highINFO.log"),intern=T)
+  n.maf <- as.numeric(strsplit(N.maf," ")[[1]][1])
+  
+  N.final  <- system(paste0("grep pass chr",i,"/clean_snp_chr",i,"_highINFO.log"),intern=T)
+  n.final <- as.numeric(strsplit(N.final," ")[[1]][1])
+  
+  res <- data.frame(chr=i,n.total,n.geno,n.hwe,n.maf,n.final)
+  return(res)
+}
+
+res.I <- lapply(1:22,getQC.highINFO)
+res.II <- do.call(rbind,res.I)
+res.III <- colSums(res.II)
+write.table(res.III,"Imputed_QC_highINFO.txt",row.names=F,quote=F)
 
 
 
