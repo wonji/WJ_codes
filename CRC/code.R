@@ -157,7 +157,7 @@ setwd('/home2/wjkim/project/CRC/20180426/3.coxph/')
 write.csv(res1,'2.output/sep1.csv',row.names=F,quote=F)
 write.csv(ped.proband,'1.input/CRC_coxph.csv',row.names=F,quote=F)
 
-######## coxph CRC 결과 저장
+######## coxph CRC ???? ????
 setwd('/home2/wjkim/project/CRC/20180426/3.coxph/')
 ped <- read.csv('1.input/CRC_coxph.csv',head=T,stringsAsFactor=F)
 ped$FH4 <- 0
@@ -167,10 +167,12 @@ write.csv(ped,'1.input/CRC_coxph.csv',row.names=F,quote=F)
 
 
 ####### coxph
-source("C:\\Users\\김원지\\Downloads\\prior_ft.txt")
-source("C:\\Users\\김원지\\Downloads\\REx_Coxph.R")
 
-CRC <- read.csv('C:\\Users\\김원지\\Downloads\\CRC_coxph.csv',head=T)
+source("/Users/wonjikim/WJ_codes/CRC/prior_ft.txt")
+source("/Users/wonjikim/WJ_codes/CRC/REx_Coxph.R")
+
+CRC <- read.csv('/Users/wonjikim/WJ_codes/CRC/CRC_coxph.csv',head=T)
+setwd('/Users/wonjikim/WJ_codes/CRC/coxph')
 out="./FH1.html";res.FH1 <- REx_Coxph(CRC, time1='time', event='event', cov_set2=c('SEX','FH1'), tdp_time=NULL, tdp_cov=NULL, tdp_var=NULL, vars=c('SEX','FH1'), confi=0.95, Select=FALSE, direct='forward', survival_plot=FALSE, a1_survival_plot=FALSE, CHazard_plot=FALSE, log_survival_plot=FALSE, expestim=TRUE, CI=TRUE, CI_level=0.95,out="./FH1.html");
 out="./FH2.html";res.FH2 <- REx_Coxph(CRC, time1='time', event='event', cov_set2=c('SEX','FH2'), tdp_time=NULL, tdp_cov=NULL, tdp_var=NULL, vars=c('SEX','FH2'), confi=0.95, Select=FALSE, direct='forward', survival_plot=FALSE, a1_survival_plot=FALSE, CHazard_plot=FALSE, log_survival_plot=FALSE, expestim=TRUE, CI=TRUE, CI_level=0.95,out="./FH2.html");
 out="./FH3.html";res.FH3 <- REx_Coxph(CRC, time1='time', event='event', cov_set2=c('SEX','FH3'), tdp_time=NULL, tdp_cov=NULL, tdp_var=NULL, vars=c('SEX','FH3'), confi=0.95, Select=FALSE, direct='forward', survival_plot=FALSE, a1_survival_plot=FALSE, CHazard_plot=FALSE, log_survival_plot=FALSE, expestim=TRUE, CI=TRUE, CI_level=0.95,out="./FH3.html");
@@ -208,7 +210,7 @@ tab1 <- table(crc$DummyOnsetAge,crc$FH2)
 tab2 <- do.call(rbind,lapply(0:1,function(i) data.frame(Mean=mean(crc$prop.FDR[crc$DummyOnsetAge==i]),SD=sd(crc$prop.FDR[crc$DummyOnsetAge==i]),row.names=i)))
 tab <- cbind(as.data.frame.matrix(tab1),tab2)
 
-## table 3-1 (나중에 표로)
+## table 3-1 (???傷? 표??)
 tab2 <- do.call(rbind,lapply(0:2,function(i) data.frame(Mean=mean(crc$OnsetAge[crc$FH4==i]),SD=sd(crc$OnsetAge[crc$FH4==i]),row.names=i)))
 tab <- cbind(as.data.frame.matrix(tab1),tab2)
 

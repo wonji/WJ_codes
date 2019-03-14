@@ -1,0 +1,1941 @@
+
+REx_ANA_PLOT <- function(w=500,h=500) {
+  ## save plot as temp file
+  REx.plot.tempfn <<- paste(tempdir(), "\\REx_temp.png", sep="")
+  png(filename=REx.plot.tempfn, width=w, height=h)
+}
+
+REx_ANA_PLOT_OFF <- function(caption) {
+  dev.off()
+  load.pkg("markdown")
+  ## read temp file as a binary string
+  img <- paste(markdown:::.b64EncodeFile(REx.plot.tempfn))
+  R2HTML::HTML(paste("<p align=left><img src='", img, "' /><br /><font class=caption>", caption, "</font></p>", sep=""),file=out)
+}
+
+local.install.packages <- function(pkgs, repos, type='win.binary') {
+	rversion = paste(R.version$major, strsplit(R.version$minor, '.', fixed=TRUE)[[1]][1], sep='.')
+	local.contriburl = contrib.url(paste('file:///', repos, sep=''), type=type)
+	local.pkgs = available.packages(local.contriburl)
+
+	dir = '/src/contrib/'
+	extension = '.tar.gz'
+	if(type == 'mac.binary.leopard' | type == 'mac.binary') {
+		dir = paste('/bin/macosx/leopard/contrib/', rversion, '/', sep='')
+		extension = '.tgz'
+	} else if(type == 'win.binary') {
+		dir = paste('/bin/windows/contrib/', rversion, '/', sep='')
+		extension = '.zip'
+	}
+	installed = installed.packages()
+	#package.dependencies(local.pkgs[local.pkgs[,'Package'] %in% pkgs,])
+	
+	d = c("Depends", "Imports", "LinkingTo", "Suggests", "Enhances")
+	toinstall = utils:::getDependencies(pkgs, d, local.pkgs)
+	ininstall2 = utils:::getDependencies(toinstall, d, local.pkgs)
+	while(length(toinstall) != length(ininstall2)) {
+		toinstall = ininstall2
+		ininstall2 = utils:::getDependencies(toinstall, d, local.pkgs)		
+	}
+	
+	for(i in 1:length(toinstall)) {
+		toinstall[i] = paste(repos, dir,
+				 toinstall[i], '_', 
+				 local.pkgs[local.pkgs[,'Package'] == toinstall[i],'Version'], 
+				 extension,
+				 sep='')
+	}
+	print('Install the following packages:')
+	print(toinstall)
+	install.packages(toinstall, repos=NULL, contrib.url=local.contriburl, available=local.pkgs, type=type)
+}
+
+inst.pkg <- function(pkg, repos="http://healthstat.snu.ac.kr/CRAN") {
+	if (!suppressWarnings(require(pkg, quietly=TRUE, character.only=TRUE))) {
+		ret <- try(local.install.packages(pkg, repos=repos), T)
+		if (class(ret) == 'try-error') 2
+		else 1
+	}
+	0
+}
+
+load.pkg <- function(pkgs) {
+  for (i in pkgs) {
+    ret <- inst.pkg(i)
+	if (ret != 0) {
+	  if (ret == 2) stop(1)  else if (ret == 1) {
+	    if (class(require(i, quietly=TRUE, character.only=TRUE)) == 'try-error')
+		  stop(pa1)}
+	}
+  }
+}
+
+# Function for formatting numbers
+Digits <- function(x) {
+	x1 <- x
+	if(!is.vector(x)){
+		# all NA
+		allNA <- apply(x,2,function(gg) all(is.na(gg)))
+		x <- x[,!allNA,drop=F]
+	}
+
+	if(length(x)!=0){
+		x[abs(x)>=0.0001&!is.na(x)] <- round(x[abs(x)>0.0001&!is.na(x)],4)
+		xx = x[abs(x)<0.0001&!is.na(x)&x!=0]
+		if(length(xx)>0){
+			x[abs(x)<0.0001&!is.na(x)&x!=0] <- paste0(gsub('e','x10<sup>',format(x[abs(x)<0.0001&!is.na(x)&x!=0],scientific=T,digits=4)),'</sup>')
+		}
+		x[x==0] <- '0'
+		if(!is.vector(x)) {
+			x1[,!allNA] <- x
+		} else {
+			x1 <- x
+		}
+	}
+	x1[is.na(x1)] <- ""
+	return(x1)
+}
+
+# Package List
+indiv.pkg.info <- function(pkg.info) {
+	funs <- strsplit(pkg.info[[2]],",\\s*")[[1]]
+	paste0("<li> ",pkg.info[[1]]," : ",
+	paste0(paste0(paste0("function ",
+		paste(sapply(funs,function(v)paste0("'<a href=\"https://www.rdocumentation.org/packages/", pkg.info[[3]], "/topics/", v, "\" target='_new'>", v, "</a>'")),collapse=", "),
+		" of R package '"),"<a href=\"https://www.rdocumentation.org/packages/", pkg.info[[3]], "\" target='_new'>", pkg.info[[3]],"</a>'"),collapse=", "))
+}
+used.pkg <- function(pkg.list) paste(c(sapply(pkg.list,indiv.pkg.info),"<li> All results other than those mentioned above were written with basic functions of R."),collapse=" <br> ")
+
+# Check integer
+check.integer <- function(x) x == round(x)
+
+# Variable selection
+stepAIC.wj <- function(object,dataset,dep_var=NULL,type=c('lm','wlm','binom','multinom','poisson','coxph'),
+		       noint,direct,keep_var,hr,vars,WTS=NULL,link=NULL,res_type=NULL,dist=NULL,baseline=NULL,
+		       tmp.parallel=NULL,offset=NULL,time1=NULL,event=NULL) {
+	R2HTML::HTML(R2HTML::as.title("Variable Selection"),HR=hr,file=out)
+
+	# Process of VS
+	R2HTML::HTML(R2HTML::as.title("Process of Variable Selection"),HR=hr+1,file=out,append=TRUE)
+	cap <- "<div style='text-align:left'><li> Note : Models that failed to fit are excluded from the results. <br><li> Note : AICs are omitted for the models where log-likelihood is not calculated."
+
+	#browser()
+	if(direct=="forward"){
+		predictor <- ifelse(is.null(keep_var),1,paste(keep_var,collapse='+'))
+		if(noint){
+			if(is.null(keep_var)){
+				getIM <- function(v){
+					form.temp <- paste(dep_var,'~',v,'-1')
+					if(type=='lm') fit.temp <- lm(as.formula(form.temp),data=dataset)
+					if(type=='wlm') fit.temp <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+					if(type=='binom') {
+						command_str <- paste0("fit.temp <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='multinom'){
+						if (res_type == "nominal") {
+							fit.temp <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+						} else {
+							command_str	<- paste0("try(fit.temp <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+							suppressWarnings(eval(parse(text=command_str)))
+						}
+					}
+					if(type=='poisson'){
+						command_str <- paste0("fit.temp <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='coxph') {
+						form.temp <- paste0("Surv(dataset[,time1], dataset[,event]) ~ ",v)
+						fm <- formula(form.temp)
+						fit.temp <- survival::coxph(fm, data=dataset)
+					}
+					return(data.frame(Model=form.temp,AIC=AIC(fit.temp)))
+				}
+				comp <- do.call(rbind,lapply(vars,getIM))
+				comp[,1] <- as.character(comp[,1])
+				form.temp <- comp[comp[,2]==min(comp[,2]),1]
+				if(type=='lm') fit.lower <- lm(as.formula(form.temp),data=dataset)
+				if(type=='wlm') fit.lower <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+				if(type=='binom') {
+					command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+					eval(parse(text=command_str))
+				}
+				if(type=='multinom'){
+					if (res_type == "nominal") {
+						fit.lower <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+					} else {
+						command_str	<- paste0("try(fit.lower <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+						suppressWarnings(eval(parse(text=command_str)))
+					}
+				}
+				if(type=='poisson'){
+					command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+					eval(parse(text=command_str))
+				}
+				if(type=='coxph') {
+					fm <- formula(form.temp)
+					fit.lower <- survival::coxph(fm, data=dataset)
+				}
+				predictor <- paste(vars[comp[,2]==min(comp[,2])],'-1')
+				comp[,1] <- gsub('-1','(Intercept is not included)',comp[,1])
+				comp <- comp[order(comp[,2]),]
+				comp[,-1] <- Digits(comp[,-1])
+				if(type=='coxph'){
+					comp[,1] <- gsub("Surv.*\\)","Hazard ratio",comp[,1])
+					comp[,1] <- paste0(gsub("~ ","~ exp(",comp[,1]),")")
+				}
+				R2HTML::HTML(R2HTML::as.title('Step 0 : Initial model (Smaller AIC values are better)'),HR=hr+2,file=out,append=TRUE)
+				R2HTML::HTML(comp,file=out,align="left",row.names=F,digits=15)
+			} else {
+				predictor <- paste(predictor,'-1')
+				form.temp <- paste0(dep_var,'~',predictor)
+
+				if(type=='lm') fit.lower <- lm(as.formula(form.temp),data=dataset)
+				if(type=='wlm') fit.lower <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+				if(type=='binom') {
+					command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+					eval(parse(text=command_str))
+				}
+				if(type=='multinom'){
+					if (res_type == "nominal") {
+						fit.lower <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+					} else {
+						command_str	<- paste0("try(fit.lower <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+						suppressWarnings(eval(parse(text=command_str)))
+					}
+				}
+				if(type=='poisson'){
+					command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+					eval(parse(text=command_str))
+				}
+				if(type=='coxph') {
+					form.temp <- paste0("Surv(dataset[,time1], dataset[,event]) ~ ",predictor)
+					fm <- formula(form.temp)
+					fit.lower <- survival::coxph(fm, data=dataset)
+				}
+			}
+		} else {
+			form.temp <- paste0(dep_var,'~',predictor)
+
+			if(type=='lm') fit.lower <- lm(as.formula(form.temp),data=dataset)
+			if(type=='wlm') fit.lower <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+			if(type=='binom') {
+				command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+				eval(parse(text=command_str))
+			}
+			if(type=='multinom'){
+				if (res_type == "nominal") {
+					fit.lower <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+				} else {
+					command_str	<- paste0("try(fit.lower <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+					suppressWarnings(eval(parse(text=command_str)))
+				}
+			}
+			if(type=='poisson'){
+				command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+				eval(parse(text=command_str))
+			}
+		}
+
+		AICtable <- list()
+		currAIC <- currModel <- c()
+		j=0
+		while(1){
+			j=j+1
+			add.vars <- vars[!vars%in%unlist(strsplit(as.character(predictor),"\\+| "))]
+			AIC.table <- data.frame(term='none',DF=as.numeric(NA),AIC=AIC(fit.lower))
+			currAIC <- c(currAIC,AIC(fit.lower))
+			if(type=='coxph'){
+				currModel <- c(currModel,paste0('Hazard ratio ~ exp(',ifelse(predictor==1,'(Intercept)',gsub(' -1','',predictor)),')'))
+
+			} else {
+				currModel <- c(currModel,paste(dep_var,'~',ifelse(predictor==1,'(Intercept)',predictor)))
+			}
+			jjj=1
+			all.fit <- list(fit.lower)
+			if(length(add.vars)!=0) {
+				for(jj in add.vars){
+					new.predictor <- paste(predictor,'+',jj)
+					form.temp <- paste(dep_var,'~',new.predictor)
+
+					if(type=='lm') fit.upper <- lm(as.formula(form.temp),data=dataset)
+					if(type=='wlm') fit.upper <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+					if(type=='binom') {
+						command_str <- paste0("fit.upper <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='multinom'){
+						if (res_type == "nominal") {
+							fit.upper <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+						} else {
+							command_str	<- paste0("try(fit.upper <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+							suppressWarnings(eval(parse(text=command_str)))
+						}
+					}
+					if(type=='poisson'){
+						command_str <- paste0("fit.upper <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='coxph') {
+						form.temp <- paste0("Surv(dataset[,time1], dataset[,event]) ~ ",gsub("-1","",new.predictor))
+						fm <- formula(form.temp)
+						fit.upper <- survival::coxph(fm, data=dataset)
+					}
+
+					if(!'try-error'%in%class(fit.upper)){
+						DF <- ifelse(type%in%c('lm','wlm','binom','poisson'),fit.lower$df.residual-fit.upper$df.residual,ifelse(type=='multinom',fit.lower@df.residual-fit.upper@df.residual,length(fit.upper$coef)-length(fit.lower$coef)))
+						tmp.AIC.table <- data.frame(term=paste('+',jj),DF=DF,AIC=AIC(fit.upper))
+						AIC.table <- rbind(AIC.table,tmp.AIC.table)
+						jjj=jjj+1
+						all.fit[[jjj]] <- fit.upper
+					}
+				}
+			}
+			Best <- temp.best <- which(AIC.table$AIC==min(AIC.table$AIC,na.rm=TRUE))
+			if(length(Best)>1) {
+				if(1%in%Best) {
+					Best <- 1
+				} else {
+					temp.df <- AIC.table[Best,2]
+					min.df <- Best[temp.df==min(temp.df,na.rm=T)]
+					if(length(min.df)==1){
+						Best <- min.df
+					} else {
+						Best <- sample(Best,1)
+					}
+				}
+				temp.best <- c(Best,temp.best[!temp.best==Best])
+			}
+			fit.lower <- all.fit[[Best]]
+			AIC.table <- AIC.table[order(AIC.table$AIC),]
+			AIC.table[,-1] <- Digits(AIC.table[,-1]) 
+			new.rn <- row.names(AIC.table)
+			new.rn[1:length(temp.best)] <- temp.best
+			AIC.table <- AIC.table[new.rn,]
+			AICtable[[j]] <- AIC.table
+			if(AIC.table[1,1]=='none') {
+				break
+			} else {
+				if(is.null(keep_var)&j==1) {
+					predictor <- add.vars[as.numeric(row.names(AIC.table)[1])-1]
+				} else {
+					predictor <- paste(predictor,'+',add.vars[as.numeric(row.names(AIC.table)[1])-1])
+				}
+			}
+		}
+		if(noint & type!='coxph') {currModel <- paste(gsub(' -1','',currModel),'(Intercept is not included)')}
+		for(j in seq(length(currAIC))){
+			Title <- ifelse(j==length(currAIC),paste0("Step ",j," (Final)"),paste0("Step ",j))
+			R2HTML::HTML(R2HTML::as.title(Title),HR=hr+2,file=out,append=TRUE)
+			R2HTML::HTML(paste0("AIC=",Digits(currAIC[j])),file=out,align="left")
+			R2HTML::HTML(currModel[j],file=out,align="left")
+			if(j==length(currAIC)) {
+				R2HTML::HTML(AICtable[[j]],file=out,align="left",row.names=F,digits=15,caption=cap)
+			} else {
+				R2HTML::HTML(AICtable[[j]],file=out,align="left",row.names=F,digits=15)
+			}
+		}
+	 } else if (direct=='backward') {
+		tmp.vars <- vars
+		fit.upper <- object
+		AICtable <- list()
+		currAIC <- currModel <- c()
+		j=0
+		while(1){
+			j=j+1
+			rm.vars <- tmp.vars[!tmp.vars%in%keep_var]
+			if(noint & length(tmp.vars)==1) rm.vars <- character(0)
+			AIC.table <- data.frame(term='none',DF=as.numeric(NA),AIC=AIC(fit.upper))
+			currAIC <- c(currAIC,AIC(fit.upper))
+			if(type=='coxph'){
+				currModel <- c(currModel,paste0('Hazard ratio ~ exp(',paste0(paste(tmp.vars,collapse=' + ')),')'))
+
+			} else {
+				currModel <- c(currModel,paste(dep_var,'~',paste(tmp.vars,collapse=' + '),ifelse(noint,'-1','')))
+			}
+			
+			jjj=1
+			all.fit <- list(fit.upper)
+			if(length(rm.vars)!=0){
+				for(jj in rm.vars){
+					new.predictor <- ifelse(length(tmp.vars[!tmp.vars%in%jj])==0,1,paste(tmp.vars[!tmp.vars%in%jj],collapse=' + '))
+					new.predictor <- paste(new.predictor,ifelse(noint,'-1',''))
+					form.temp <- paste(dep_var,'~',new.predictor)
+					
+					if(type=='lm') fit.lower <- lm(as.formula(form.temp),data=dataset)
+					if(type=='wlm') fit.lower <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+					if(type=='binom') {
+						command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='multinom'){
+						if (res_type == "nominal") {
+							fit.lower <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+						} else {
+							command_str	<- paste0("try(fit.lower <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+							suppressWarnings(eval(parse(text=command_str)))
+						}
+					}
+					if(type=='poisson'){
+						command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='coxph') {
+						form.temp <- paste0("Surv(dataset[,time1], dataset[,event]) ~ ",gsub("-1","",new.predictor))
+						fm <- formula(form.temp)
+						fit.lower <- survival::coxph(fm, data=dataset)
+					}
+					
+					if(!'try-error'%in%class(fit.lower)){
+						DF <- ifelse(type%in%c('lm','wlm','binom','poisson'),fit.lower$df.residual-fit.upper$df.residual,ifelse(type=='multinom',fit.lower@df.residual-fit.upper@df.residual,length(fit.upper$coef)-length(fit.lower$coef)))
+						tmp.AIC.table <- data.frame(term=paste('-',jj),DF=DF,AIC=AIC(fit.lower))
+						AIC.table <- rbind(AIC.table,tmp.AIC.table)
+						jjj=jjj+1
+						all.fit[[jjj]] <- fit.lower
+					}
+				}
+			}
+			Best <- temp.best <- which(AIC.table$AIC==min(AIC.table$AIC,na.rm=TRUE))
+			if(length(Best)>1) {
+				if(1%in%Best) {
+					Best <- 1
+				} else {
+					temp.df <- AIC.table[Best,2]
+					min.df <- Best[temp.df==min(temp.df,na.rm=T)]
+					if(length(min.df)==1){
+						Best <- min.df
+					} else {
+						Best <- sample(Best,1)
+					}
+				}
+				temp.best <- c(Best,temp.best[!temp.best==Best])
+			}
+			fit.upper <- all.fit[[Best]]
+			AIC.table <- AIC.table[order(AIC.table$AIC),]
+			AIC.table[,-1] <- Digits(AIC.table[,-1]) 
+			new.rn <- row.names(AIC.table)
+			new.rn[1:length(temp.best)] <- temp.best
+			AIC.table <- AIC.table[new.rn,]
+			AICtable[[j]] <- AIC.table
+			if(AIC.table[1,1]=='none') {
+				break
+			} else {
+				tmp.vars <- tmp.vars[!tmp.vars%in%rm.vars[as.numeric(row.names(AIC.table)[1])-1]]
+				if(length(tmp.vars)==0){
+					if(!noint){
+						j=j+1
+						currAIC <- c(currAIC,AIC(fit.upper))
+						currModel <- c(currModel,paste(dep_var,'~ (Intercept)'))
+						AIC.table <- data.frame(term='none',DF=as.numeric(NA),AIC=AIC(fit.upper))
+						AIC.table[,-1] <- Digits(AIC.table[,-1])
+						AICtable[[j]] <- AIC.table
+					}
+					break
+				}
+			}
+		}
+		if(noint & type!='coxph') {currModel <- paste(gsub(' -1','',currModel),'(Intercept is not included)')}
+		for(j in seq(length(currAIC))){
+			Title <- ifelse(j==length(currAIC),paste0("Step ",j," (Final)"),paste0("Step ",j))
+			R2HTML::HTML(R2HTML::as.title(Title),HR=hr+2,file=out,append=TRUE)
+			R2HTML::HTML(paste0("AIC=",Digits(currAIC[j])),file=out,align="left")
+			R2HTML::HTML(currModel[j],file=out,align="left")
+			if(j==length(currAIC)) {
+				R2HTML::HTML(AICtable[[j]],file=out,align="left",row.names=F,digits=15,caption=cap)
+			} else {
+				R2HTML::HTML(AICtable[[j]],file=out,align="left",row.names=F,digits=15)
+			}
+		}
+	 } else {
+		tmp.vars <- vars
+		fit.model <- object
+		AICtable <- list()
+		currAIC <- currModel <- c()
+		j=0
+		while(1){
+			j=j+1
+			rm.vars <- tmp.vars[!tmp.vars%in%keep_var]
+			if(noint & length(tmp.vars)==1) rm.vars <- character(0)
+			add.vars <- vars[!vars%in%tmp.vars]
+			AIC.table <- data.frame(term='none',DF=as.numeric(NA),AIC=AIC(fit.model))
+			currAIC <- c(currAIC,AIC(fit.model))
+			if(type=='coxph'){
+				currModel <- c(currModel,paste0('Hazard ratio ~ exp(',ifelse(length(tmp.vars)==0,'(Intercept)',paste0(paste(tmp.vars,collapse=' + '))),')'))
+
+			} else {
+				currModel <- c(currModel,paste(dep_var,'~',ifelse(length(tmp.vars)==0,'(Intercept)',paste0(paste(tmp.vars,collapse=' + '),ifelse(noint,' -1','')))))
+			}
+
+			jjj=1
+			all.fit <- list(fit.model)
+			if(length(rm.vars)!=0){
+				for(jj in rm.vars){
+					new.predictor <- ifelse(length(tmp.vars[!tmp.vars%in%jj])==0,1,paste0(paste(tmp.vars[!tmp.vars%in%jj],collapse=' + '),ifelse(noint,' -1','')))
+					form.temp <- paste(dep_var,'~',new.predictor)
+
+					if(type=='lm') fit.lower <- lm(as.formula(form.temp),data=dataset)
+					if(type=='wlm') fit.lower <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+					if(type=='binom') {
+						command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='multinom'){
+						if (res_type == "nominal") {
+							fit.lower <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+						} else {
+							command_str	<- paste0("try(fit.lower <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+							suppressWarnings(eval(parse(text=command_str)))
+						}
+					}
+					if(type=='poisson'){
+						command_str <- paste0("fit.lower <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='coxph') {
+						form.temp <- paste0("Surv(dataset[,time1], dataset[,event]) ~ ",gsub("-1","",new.predictor))
+						fm <- formula(form.temp)
+						fit.lower <- survival::coxph(fm, data=dataset)
+					}
+
+					if(!'try-error'%in%class(fit.lower)){
+						DF <- ifelse(type%in%c('lm','wlm','binom','poisson'),fit.lower$df.residual-fit.model$df.residual,ifelse(type=='multinom',fit.lower@df.residual-fit.model@df.residual,length(fit.model$coef)-length(fit.lower$coef)))
+						tmp.AIC.table <- data.frame(term=paste('-',jj),DF=DF,AIC=AIC(fit.lower))
+						AIC.table <- rbind(AIC.table,tmp.AIC.table)
+						jjj=jjj+1
+						all.fit[[jjj]] <- fit.lower
+					}
+				}
+			}
+			if(length(add.vars)!=0) {
+				for(jj in add.vars){
+					new.predictor <- ifelse(length(tmp.vars)==0,jj,paste(paste(tmp.vars,collapse=' + '),'+',jj,ifelse(noint,' -1','')))
+					form.temp <- paste(dep_var,'~',new.predictor)
+
+					if(type=='lm') fit.upper <- lm(as.formula(form.temp),data=dataset)
+					if(type=='wlm') fit.upper <- lm(as.formula(form.temp),data=dataset,weight=WTS)
+					if(type=='binom') {
+						command_str <- paste0("fit.upper <- glm(",form.temp,",data=dataset,family=binomial(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='multinom'){
+						if (res_type == "nominal") {
+							fit.upper <- try(suppressWarnings(VGAM::vglm(as.formula(form.temp), data=dataset, family=dist(refLevel = baseline, parallel=tmp.parallel))))
+						} else {
+							command_str	<- paste0("try(fit.upper <- VGAM::vglm(",form.temp,", data=dataset, family=dist(link=", link, ", parallel=tmp.parallel)))") ;
+							suppressWarnings(eval(parse(text=command_str)))
+						}
+					}
+					if(type=='poisson'){
+						command_str <- paste0("fit.upper <- glm(",form.temp,",data=dataset,family=dist(",link,"))")
+						eval(parse(text=command_str))
+					}
+					if(type=='coxph') {
+						form.temp <- paste0("Surv(dataset[,time1], dataset[,event]) ~ ",gsub("-1","",new.predictor))
+						fm <- formula(form.temp)
+						fit.upper <- survival::coxph(fm, data=dataset)
+					}
+
+
+					if(!'try-error'%in%class(fit.upper)){
+						DF <- ifelse(type%in%c('lm','wlm','binom','poisson'),fit.model$df.residual-fit.upper$df.residual,ifelse(type=='multinom',fit.model@df.residual-fit.upper@df.residual,length(fit.upper$coef)-length(fit.model$coef)))
+						tmp.AIC.table <- data.frame(term=paste('+',jj),DF=DF,AIC=AIC(fit.upper))
+						AIC.table <- rbind(AIC.table,tmp.AIC.table)
+						jjj=jjj+1
+						all.fit[[jjj]] <- fit.upper
+					}
+				}
+			}
+			Best <- temp.best <- which(AIC.table$AIC==min(AIC.table$AIC,na.rm=TRUE))
+			if(length(Best)>1) {
+				if(1%in%Best) {
+					Best <- 1
+				} else {
+					temp.df <- AIC.table[Best,2]
+					min.df <- Best[temp.df==min(temp.df,na.rm=T)]
+					if(length(min.df)==1){
+						Best <- min.df
+					} else {
+						Best <- sample(Best,1)
+					}
+				}
+				temp.best <- c(Best,temp.best[!temp.best==Best])
+			}
+			fit.model <- all.fit[[Best]]
+			AIC.table <- AIC.table[order(AIC.table$AIC),]
+			AIC.table[,-1] <- Digits(AIC.table[,-1]) 
+			new.rn <- row.names(AIC.table)
+			new.rn[1:length(temp.best)] <- temp.best
+			AIC.table <- AIC.table[new.rn,]
+			AICtable[[j]] <- AIC.table
+			if(AIC.table[1,1]=='none') {
+				break
+			} else {
+				tmp.res <- strsplit(as.character(AIC.table[1,1]),' ')[[1]]
+				if(tmp.res[1]=='-'){
+					tmp.vars <- tmp.vars[!tmp.vars%in%tmp.res[2]]
+				} else {
+					tmp.vars <- c(tmp.vars,tmp.res[2])
+				}
+			}
+		}
+		if(noint & type!='coxph') {currModel <- paste(gsub(' -1','',currModel),'(Intercept is not included)')}
+		for(j in seq(length(currAIC))){
+			Title <- ifelse(j==length(currAIC),paste0("Step ",j," (Final)"),paste0("Step ",j))
+			R2HTML::HTML(R2HTML::as.title(Title),HR=hr+2,file=out,append=TRUE)
+			R2HTML::HTML(paste0("AIC=",Digits(currAIC[j])),file=out,align="left")
+			R2HTML::HTML(currModel[j],file=out,align="left")
+			if(j==length(currAIC)) {
+				R2HTML::HTML(AICtable[[j]],file=out,align="left",row.names=F,digits=15,caption=cap)
+			} else {
+				R2HTML::HTML(AICtable[[j]],file=out,align="left",row.names=F,digits=15)
+			}
+		}
+	 }
+
+	 # Result of VS
+	 R2HTML::HTML(R2HTML::as.title("Result of Variable Selection"),HR=hr+1,file=out)
+	 resVS <- data.frame(Model=currModel[c(1,length(currModel))])
+	 row.names(resVS) <- c('Initial Model','Final Model')
+	 R2HTML::HTML(resVS,file=out,align="left")
+}
+
+# Plot function for distribution
+plotDistr <- function(x, p, discrete=FALSE, cdf=FALSE, regions = NULL, 
+                          col = "gray", legend = TRUE, legend.pos = "topright",
+                          main, xlab, ylab, ...){
+  library(ggplot2)
+  dat <- data.frame(x,p)
+  
+  theme_opt <- theme_bw() + 
+    theme(panel.grid.minor=element_blank(), panel.grid.major=element_blank()) + 
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  ggp <- ggplot(aes(x=x, y=p), data=dat)
+  if(discrete) ggp <- ggp + geom_point(size=2) + geom_segment(aes(xend=x, yend=0),lineend="butt")
+  else ggp <- ggp + geom_line()
+  if(cdf) ggp <- ggp + geom_hline(yintercept = 0:1, color="grey")
+  else ggp <- ggp + geom_hline(yintercept = 0, color="grey")
+  
+  ggp <- ggp + theme_opt + labs(title=main, x=xlab, y=ylab)
+  return(ggp)
+}
+
+# Plot function for distribution _ Modified in REx ver 1.1
+ggprob <- NULL
+
+
+# Index plot
+
+REx_indexplot <- function(varname, dataset, type="spike", id=TRUE, idnum=2, 
+                          title=NULL, xlab="Observation Index", ylab=varname,
+                          color="black", pch=19, lty=1, psize=1.5, pstroke=0.5, lsize=1,
+                          title.size=NULL, axis.title.size=NULL, axis.text.size=NULL, id.size=NULL){
+  load.pkg(c("ggplot2", "ggrepel"))
+  
+  suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+  if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+  dataset <- data.frame(datavar)
+  colnames(dataset) <- varname
+  
+  idn <- sort(order(datavar, decreasing = T)[1:idnum])
+  datalab <- data.frame(x=idn, y=datavar[idn])
+  
+  themeopt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size),
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  if(!is.null(id.size)) id.size <- id.size * 0.3514598
+  else id.size <- 10 * 0.3514598
+  
+  if(type=="spike"){
+    spike_index1 <- ggplot(aes(x=1:nrow(dataset), eval(parse(text=paste0("y=",varname)))), data=dataset) + 
+      geom_segment(aes(xend=1:nrow(dataset), yend=0), size=lsize, lineend="butt", color=color, linetype=lty, na.rm=T) + 
+      coord_cartesian(ylim = range(datavar, na.rm=T)) + 
+      labs(list(title=title, x=xlab, y=ylab))
+    if(id==FALSE) return(spike_index1 + themeopt)
+    if(id==TRUE) {
+      spike_index2 <- spike_index1 +
+        ggrepel::geom_text_repel(aes(x=x, y=y, label=x), data=datalab, hjust = 1.2, size=id.size) + themeopt
+      return(spike_index2)
+    }
+  }
+  if(type=="dot"){
+    dot_index1 <- ggplot(aes(x=1:nrow(dataset), eval(parse(text=paste0("y=",varname)))), data=dataset) + 
+      geom_point(color=color, shape=pch, size=psize, stroke=pstroke, na.rm=T) +
+      labs(list(title=title, x=xlab, y=ylab))
+    if(id==FALSE) return(dot_index1 + themeopt)
+    if(id==TRUE) {
+      dot_index2 <- dot_index1 +
+        ggrepel::geom_text_repel(aes(x=x, y=y, label=x), data=datalab, hjust = 1.2, size=id.size) + themeopt
+      return(dot_index2)
+    }
+  }
+}
+
+##### Dot plot
+
+REx_dotplot <- function(varname, dataset, by=NULL, bin=NULL, type="stack", lgd.pos="right", 
+                        title=NULL, xlab=varname, color="black", color.group=NULL, label=T,
+                        title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  load.pkg("ggplot2")
+  # browser()
+  suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+  if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+  dataset2 <- data.frame(datavar)
+  colnames(dataset2) <- "x"
+  
+  themeopt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos,
+          panel.grid.minor=element_blank(), panel.grid.major=element_blank(),
+          strip.background = element_blank(), strip.placement = "outside",
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  if(is.null(by)){
+    res <- ggplot(aes(x=x), data=dataset2)
+    if(is.null(bin)) res <- res + geom_dotplot(method="histodot", color=color, fill=color, na.rm=T)
+    else res <- res + geom_dotplot(method="histodot", binwidth=diff(range(datavar, na.rm=T))/bin, color=color, fill=color, na.rm=T)
+    res <- res + 
+      scale_y_continuous(NULL, breaks = NULL) +    
+      labs(list(title=title, x=xlab))
+    return(res + themeopt)
+  } else {
+    dataset2$group <- factor(dataset[,by])
+    if(sum(is.na(dataset2$group))>0) dataset2 <- dataset2[-which(is.na(dataset2$group)),]
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+    if(type=="stack"){
+      if(is.null(bin)){
+        group_dot1 <- ggplot(aes(x=x, fill=group, color=group), data=dataset2) + 
+          geom_dotplot(method="histodot", stackgroups = T, na.rm=T) + 
+          scale_y_continuous(NULL, breaks = NULL) +
+          labs(list(title=title, x=xlab)) +
+          guides(color = guide_legend(by), fill = guide_legend(by))
+        if(is.null(color.group)) return(group_dot1 + themeopt)
+        else {
+          group_dot2 <- group_dot1 + 
+            scale_fill_manual(values=color.group) + 
+            scale_colour_manual(values=color.group)
+          return(group_dot2 + themeopt)
+        }
+      } else {
+        group_dot3 <- ggplot(aes(x=x, fill=group, color=group), data=dataset2) + 
+          geom_dotplot(method="histodot", stackgroups = T, binwidth=diff(range(datavar, na.rm=T))/bin, na.rm=T) + 
+          scale_y_continuous(NULL, breaks = NULL) +
+          labs(list(title=title, x=xlab)) +
+          guides(color = guide_legend(by), fill = guide_legend(by))
+        if(is.null(color.group)) return(group_dot3 + themeopt)
+        else {
+          group_dot4 <- group_dot3 + 
+            scale_fill_manual(values=color.group) + 
+            scale_colour_manual(values=color.group)
+          return(group_dot4 + themeopt)
+        }
+      }
+    }
+    
+    if(type=="facet"){
+      labelv <- NULL
+      if(label){
+        labelv <- paste0(by," = ",levels(dataset2$group))
+        names(labelv) <- levels(dataset2$group)
+      }
+      if(is.null(color.group)){
+        if(is.null(bin)) bin <- 30
+        group_dot5 <- ggplot(aes(x=x), data=dataset2) + 
+          geom_dotplot(method="histodot", binwidth=diff(range(datavar, na.rm=T))/bin, na.rm=T) + 
+          scale_y_continuous(NULL, breaks = NULL) +
+          facet_wrap(~group, ncol=1, scales="free", strip.position = "top", labeller = labeller(group=labelv)) +
+          coord_cartesian(xlim = range(datavar, na.rm=T)) +
+          labs(list(title=title, x=xlab))
+        return(group_dot5 + themeopt)
+      } else {
+        if(is.null(bin)) bin <- 30
+        group_dot6 <- ggplot(aes(x=x, fill=group, color=group), data=dataset2) + 
+          geom_dotplot(method="histodot", binwidth=diff(range(datavar, na.rm=T))/bin, na.rm=T) + 
+          scale_y_continuous(NULL, breaks = NULL) +
+          scale_fill_manual(values=color.group) + 
+          scale_colour_manual(values=color.group) +
+          facet_wrap(~group, ncol=1, scales="free", strip.position = "top", labeller = labeller(group=labelv)) +
+          coord_cartesian(xlim = range(datavar, na.rm=T)) +
+          labs(list(title=title, x=xlab))
+        return(group_dot6 + themeopt)
+      }
+    }
+  }
+}
+
+##### Histogram
+
+REx_histogram <- function(varname, dataset, by=NULL, bin=30, scale="freq", type="stack", lgd.pos="right", 
+                          title=NULL, xlab=varname, ylab=NULL, color="grey", color.group=NULL, label=T,
+                          title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  load.pkg("ggplot2")
+  suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+  if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+  dataset2 <- data.frame(datavar)
+  colnames(dataset2) <- "x"
+
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos,
+          panel.grid.minor=element_blank(), panel.grid.major=element_blank(),
+          strip.background = element_blank(), strip.placement = "outside",
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  if(is.null(by)){
+    if(scale=="freq"){
+      if(is.null(ylab)) ylab <- "Frequency"
+      histEXR1 <- ggplot(aes(x), data=dataset2) + 
+        geom_histogram(bins=bin, color="black", fill=color, na.rm=T) + 
+        labs(list(title=title, x=xlab, y=ylab))
+      return(histEXR1 + theme_opt)
+    }
+    if(scale=="percent"){
+      if(is.null(ylab)) ylab <- "Percent"
+      histEXR2 <- ggplot(aes(x), data=dataset2) + 
+        geom_histogram(aes(y = (..count..)/sum(..count..)), bins=bin, color="black", fill=color, na.rm=T) + 
+        scale_y_continuous(labels = scales::percent) +
+        labs(list(title=title, x=xlab, y=ylab))
+      return(histEXR2 + theme_opt)
+    }
+  } else {
+    dataset2$group <- factor(dataset[,by])
+    if(sum(is.na(dataset2$group))>0) dataset2 <- dataset2[-which(is.na(dataset2$group)),]
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+    if(type=="stack"){
+      if(scale=="freq"){
+        if(is.null(ylab)) ylab <- "Frequency"
+        histEXR3 <- ggplot(aes(x, fill=group), data=dataset2) + 
+          geom_histogram(bins=bin, col="black", na.rm=T) + 
+          guides(color = guide_legend(by), fill = guide_legend(by)) +
+          labs(list(title=title, x=xlab, y=ylab))
+        if(is.null(color.group)) return(histEXR3 + theme_opt)
+        else {
+          histEXR4 <- histEXR3 + 
+            scale_fill_manual(values=color.group) + 
+            scale_colour_manual(values=color.group)
+          return(histEXR4 + theme_opt)
+        }
+      }
+      if(scale=="percent"){
+        if(is.null(ylab)) ylab <- "Percent"
+        histEXR5 <- ggplot(aes(x, fill=group), data=dataset2) + 
+          geom_histogram(aes(y = (..count..)/sum(..count..)), bins=bin, col="black", na.rm=T) + 
+          scale_y_continuous(labels = scales::percent) +
+          guides(color = guide_legend(by), fill = guide_legend(by)) +
+          labs(list(title=title, x=xlab, y=ylab))
+        if(is.null(color.group)) return(histEXR5 + theme_opt)
+        else {
+          histEXR6 <- histEXR5 + 
+            scale_fill_manual(values=color.group) + 
+            scale_colour_manual(values=color.group)
+          return(histEXR6 + theme_opt)
+        }
+      }
+    }
+    if(type=="par"){
+      if(scale=="freq"){
+        if(is.null(ylab)) ylab <- "Frequency"
+        histEXR3 <- ggplot(aes(x, fill=group), data=dataset2) + 
+          geom_histogram(bins=bin, col="black", na.rm=T, position=position_dodge()) + 
+          guides(color = guide_legend(by), fill = guide_legend(by)) +
+          labs(list(title=title, x=xlab, y=ylab))
+        if(is.null(color.group)) return(histEXR3 + theme_opt)
+        else {
+          histEXR4 <- histEXR3 + 
+            scale_fill_manual(values=color.group) + 
+            scale_colour_manual(values=color.group)
+          return(histEXR4 + theme_opt)
+        }
+      }
+      if(scale=="percent"){
+        if(is.null(ylab)) ylab <- "Percent"
+        histEXR5 <- ggplot(aes(x, fill=group), data=dataset2) + 
+          geom_histogram(aes(y = (..count..)/sum(..count..)), bins=bin, col="black", na.rm=T, position=position_dodge()) + 
+          scale_y_continuous(labels = scales::percent) +
+          guides(color = guide_legend(by), fill = guide_legend(by)) +
+          labs(list(title=title, x=xlab, y=ylab))
+        if(is.null(color.group)) return(histEXR5 + theme_opt)
+        else {
+          histEXR6 <- histEXR5 + 
+            scale_fill_manual(values=color.group) + 
+            scale_colour_manual(values=color.group)
+          return(histEXR6 + theme_opt)
+        }
+      }
+    }
+    if(type=="facet"){
+      binwid <- diff(range(datavar, na.rm=T))/bin
+      labelv <- NULL
+      if(label){
+        labelv <- paste0(by," = ",levels(dataset2$group))
+        names(labelv) <- levels(dataset2$group)
+      }	  
+      if(is.null(color.group)){
+        if(scale=="freq"){
+          if(is.null(ylab)) ylab <- "Frequency"
+          histEXR7 <- ggplot(aes(x), data=dataset2) + 
+            geom_histogram(binwidth=binwid, col="black", na.rm=T) + 
+            facet_wrap(~group, ncol=1, scales="free_x", labeller = labeller(group=labelv)) +
+            coord_cartesian(xlim = range(datavar, na.rm=T)) +
+            labs(list(title=title, x=xlab, y=ylab))
+          return(histEXR7 + theme_opt)
+        }
+        if(scale=="percent"){
+          if(is.null(ylab)) ylab <- "Percent"
+          histEXR8 <- ggplot(aes(x), data=dataset2) + 
+            geom_histogram(aes(y = (..count..)/sum(..count..)), binwidth=binwid, col="black", na.rm=T) + 
+            scale_y_continuous(labels = scales::percent) +
+            facet_wrap(~group, ncol=1, scales="free_x", labeller = labeller(group=labelv)) +
+            coord_cartesian(xlim = range(datavar, na.rm=T)) +
+            labs(list(title=title, x=xlab, y=ylab))
+          return(histEXR8 + theme_opt)
+        }
+      } else {
+        if(scale=="freq"){
+          if(is.null(ylab)) ylab <- "Frequency"
+          histEXR9 <- ggplot(aes(x, fill=group), data=dataset2) + 
+            geom_histogram(binwidth=binwid, col="black", na.rm=T) + 
+            scale_fill_manual(values=color.group) + 
+            facet_wrap(~group, ncol=1, scales="free_x", labeller = labeller(group=labelv)) +
+            coord_cartesian(xlim = range(datavar, na.rm=T)) +
+            labs(list(title=title, x=xlab, y=ylab))
+          return(histEXR9 + theme_opt)
+        }
+        if(scale=="percent"){
+          if(is.null(ylab)) ylab <- "Percent"
+          histEXR10 <- ggplot(aes(x, fill=group), data=dataset2) + 
+            geom_histogram(aes(y = (..count..)/sum(..count..)), binwidth=binwid, col="black", na.rm=T) + 
+            scale_y_continuous(labels = scales::percent) +
+            scale_fill_manual(values=color.group) + 
+            facet_wrap(~group, ncol=1, scales="free_x", labeller = labeller(group=labelv)) +
+            coord_cartesian(xlim = range(datavar, na.rm=T)) +
+            labs(list(title=title, x=xlab, y=ylab))
+          return(histEXR10 + theme_opt)
+        }
+      }
+    }
+  }
+}
+
+##### Density
+
+REx_densityplot <- function(varname, dataset, by=NULL, kernel="gaussian", binwid="nrd0", adj=1, densthres=NULL,
+                            scale="density", type="stack", lgd.pos="right", 
+                            title=NULL, xlab=varname, ylab=NULL, color="black", color.group=NULL, alpha=0,
+                            title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  load.pkg("ggplot2")
+  # browser()
+  suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+  if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+  dataset2 <- data.frame(datavar)
+  colnames(dataset2) <- varname
+  if(!is.null(by)){
+    dataset2$group <- factor(dataset[,by])
+    if(sum(is.na(dataset2$group))>0) dataset2 <- dataset2[-which(is.na(dataset2$group)),]
+    colnames(dataset2)[2] <- by
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+  }
+  
+  if(scale=="density"){
+    count <- ""
+    if(is.null(ylab)){
+      if(type=="fill") ylab <- "Proportion"
+      else ylab <- "Density"
+    }
+  }
+  if(scale=="count"){
+    count <- "..count.., "
+    if(is.null(ylab)) ylab <- "Count"
+  }
+
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos,
+          panel.grid.minor=element_blank(), 
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  densitybase <- ggplot(eval(parse(text=paste0("aes(",varname,", ",count,"fill=",by,", color=",by,")"))), data=dataset2)
+  
+  if(is.null(by)){
+    density1 <- densitybase + 
+      stat_density(kernel=kernel, bw=binwid, adjust=adj, position=type, alpha=alpha, color=color, fill=color, na.rm=T) +
+      labs(list(title=title, x=xlab, y=ylab)) + theme_opt
+  } else {
+    if(is.null(color.group)){
+      density1 <- densitybase +
+        stat_density(kernel=kernel, bw=binwid, adjust=adj, position=type, alpha=alpha, na.rm=T) +
+        labs(list(title=title, x=xlab, y=ylab)) + theme_opt
+    } else {
+      density1 <- densitybase +
+        stat_density(kernel=kernel, bw=binwid, adjust=adj, position=type, alpha=alpha, na.rm=T) +
+        scale_fill_manual(values=color.group) + 
+        scale_colour_manual(values=color.group) + 
+        labs(list(title=title, x=xlab, y=ylab)) + theme_opt
+    }
+  }
+  if(!is.null(densthres)){
+    if(densthres > max(ggplot_build(density1)$data[[1]][,"ymax"])) stop("?е? ????�� ?? ???? ??��?ؾ? ?մϴ?.")
+    xrange <- range(ggplot_build(density1)$data[[1]][which(ggplot_build(density1)$data[[1]][,"ymax"] >= densthres),"x"])
+    density1 <- density1 + xlim(xrange)
+  }
+  return(density1)
+}
+
+####### Box
+
+REx_boxplot <- function(varname, dataset, by=NULL, flip=FALSE, lgd.pos="none", dot.data="none", 
+                        box.mean=F, box.mean.pch=5, box.mean.psize=2.5, box.mean.pstroke=1.5, box.mean.color="red",
+                        title=NULL, xlab=NULL, ylab=NULL, color="grey", color.group=NULL,
+                        title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  load.pkg("ggplot2")
+
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos,
+          panel.grid.minor=element_blank(), 
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  if(length(varname)==1){
+    suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+    if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+    dataset2 <- data.frame(datavar)
+    colnames(dataset2) <- "x"
+    
+    if(is.null(ylab)) ylab <- varname
+    
+    if(is.null(by)){
+      boxbase <- ggplot(aes(x='', y=x), data=dataset2) +
+        stat_boxplot(geom="errorbar", width=0.4, na.rm=T, position=position_dodge(0.75)) + geom_boxplot(fill=color, na.rm=T) +
+        labs(list(title=title, x=xlab, y=ylab))
+      if(dot.data=="jitter") boxbase <- boxbase + geom_jitter(width=0.2, na.rm=T, show.legend = F)
+      if(dot.data=="dot") boxbase <- boxbase + geom_dotplot(binaxis='y', stackdir='center', binwidth=diff(range(dataset2$x, na.rm=T))/50, fill=color, na.rm=T, show.legend = F)
+    } else {
+      dataset2$group <- factor(dataset[,by])
+      if(sum(is.na(dataset2$group))>0) dataset2 <- dataset2[-which(is.na(dataset2$group)),]
+      if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+      if(is.null(xlab)) xlab <- by
+      boxbase <- ggplot(aes(x=group, y=x, fill=group), data=dataset2) +
+        stat_boxplot(geom="errorbar", width=0.4, na.rm=T, position=position_dodge(0.75)) + geom_boxplot(na.rm=T) +
+        guides(color = guide_legend(by), fill = guide_legend(by)) +
+        labs(list(title=title, x=xlab, y=ylab))
+      if(dot.data=="jitter") boxbase <- boxbase + geom_point(na.rm=T, position = position_jitterdodge(dodge.width = 0.75), show.legend = F)
+      if(dot.data=="dot") boxbase <- boxbase + geom_dotplot(binaxis='y', stackdir='center', binwidth=diff(range(dataset2$x, na.rm=T))/50, na.rm=T, position = position_dodge(0.75), show.legend = F)
+      if(!is.null(color.group)){
+        boxbase <- boxbase + 
+          scale_fill_manual(values=color.group) + 
+          scale_colour_manual(values=color.group)
+      }
+    }
+  } else {
+    dataset2 <- data.frame(values=as.numeric(as.matrix(dataset[,varname])),
+                           name=factor(rep(varname, each=nrow(dataset)), levels=varname))
+    suppressWarnings(dataset2$values <- as.numeric(as.character(dataset2$values)))
+    if(sum(is.na(dataset2$values))==length(dataset2$values)) stop("There is no numeric values.")
+    
+    if(is.null(ylab)) ylab <- ""
+    if(is.null(xlab)) xlab <- ""
+    
+    if(is.null(by)){
+      boxbase <- ggplot(aes(x=name, y=values), data=dataset2) +
+        stat_boxplot(geom="errorbar", width=0.4, na.rm=T, position=position_dodge(0.75)) + geom_boxplot(fill=color, na.rm=T) +
+        labs(list(title=title, x=xlab, y=ylab))
+      if(dot.data=="jitter") boxbase <- boxbase + geom_jitter(width=0.2, na.rm=T, show.legend = F)
+      if(dot.data=="dot") boxbase <- boxbase + geom_dotplot(binaxis='y', stackdir='center', binwidth=diff(range(dataset2$values, na.rm=T))/50, fill=color, na.rm=T, show.legend = F)
+    } else {
+      dataset2$group <- factor(rep(dataset[,by], length(varname)))
+      if(sum(is.na(dataset2$group))>0) dataset2 <- dataset2[-which(is.na(dataset2$group)),]
+      if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+      boxbase <- ggplot(aes(x=name, y=values, fill=group), data=dataset2) +
+        stat_boxplot(geom="errorbar", width=0.4, na.rm=T, position=position_dodge(0.75)) + geom_boxplot(na.rm=T) +
+        guides(color = guide_legend(by), fill = guide_legend(by)) +
+        labs(list(title=title, x=xlab, y=ylab))
+      if(dot.data=="jitter") boxbase <- boxbase + geom_point(na.rm=T, position = position_jitterdodge(dodge.width = 0.75), show.legend = F)
+      if(dot.data=="dot") boxbase <- boxbase + geom_dotplot(binaxis='y', stackdir='center', binwidth=diff(range(dataset2$values, na.rm=T))/50, na.rm=T, position=position_dodge(0.75), show.legend = F)
+      if(!is.null(color.group)){
+        boxbase <- boxbase + 
+          scale_fill_manual(values=color.group) + 
+          scale_colour_manual(values=color.group)
+      }
+    }
+  }
+  if(box.mean) boxbase <- boxbase + stat_summary(fun.y=mean, geom="point", shape=box.mean.pch, size=box.mean.psize, stroke=box.mean.pstroke, color=box.mean.color,
+                                                 na.rm=T, position=position_dodge(0.75), show.legend = F)
+  if(flip==TRUE) boxbase <- boxbase + coord_flip()
+  boxbase <- boxbase + theme_opt
+  if(length(varname)==1 & is.null(by)) boxbase <- boxbase + theme(axis.ticks.x = element_blank())
+  if(length(varname)>1) boxbase <- boxbase + theme(axis.text.x = element_text(size=rel(1.2)))
+  return(boxbase)
+}
+
+#####Q-Q plot
+
+REx_qqplot <- function(varname, dataset, dist="norm", distopt=c(0,1), line=TRUE, 
+                       title=NULL, xlab=NULL, ylab=varname,
+                       color.dot="black", color.line="red", pch=19, lty=1, psize=1.5, pstroke=0.5, lsize=0.5,
+                       title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  
+  load.pkg("ggplot2")
+  
+  suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+  if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+  dataset2 <- data.frame(datavar)
+  colnames(dataset2) <- "x"
+  
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), panel.grid.minor=element_blank(), 
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  get_qqline <- function(vec, method, distopt, xlab){
+    # browser()
+    y <- quantile(vec[!is.na(vec)], c(0.25, 0.75))
+    n <- length(vec)
+    ord <- order(vec)
+    ord.x <- vec[ord]
+    P <- ppoints(length(vec))
+    switch(method,
+           norm={
+             mean1 <- distopt[1]
+             sd1 <- distopt[2]
+             if(sd1<0) stop("ǥ???????? 0 ?̻??̾??? ?մϴ?.")
+             x <- qnorm(c(0.25, 0.75), mean1, sd1)
+             z <- qnorm(P, mean1, sd1)
+             dv <- dnorm(z, mean1, sd1)
+             if(is.null(xlab)) xlab <- substitute(paste("Quantiles of Normal Distribution (",mu,"=",mean1,", ",sigma^2,"=",sd1^2,")"))
+           },
+           t={
+             df1 <- distopt
+             if(df1<0) stop("??��???? 0???? Ŀ?? ?մϴ?.")
+             x <- qt(c(0.25, 0.75),df1)
+             z <- qt(P,df1)
+             dv <- dt(z,df1)
+             if(is.null(xlab)) xlab <- substitute(paste("Quantiles of t Distribution (df=",df1,")"))
+           },
+           chisq={
+             df1 <- distopt
+             if(df1<0) stop("??��???? 0???? Ŀ?? ?մϴ?.")
+             x <- qchisq(c(0.25, 0.75),df1)
+             z <- qchisq(P,df1)
+             dv <- dchisq(z,df1)
+             if(is.null(xlab)) xlab <- substitute(paste("Quantiles of Chi-squared Distribution (df=",df1,")"))
+           },
+           f={
+             df1 <- distopt[1]
+             df2 <- distopt[2]
+             if(df1<0|df2<0) stop("??��???? ???? 0???? Ŀ?? ?մϴ?.")
+             x <- qf(c(0.25, 0.75),df1,df2)
+             z <- qf(P,df1,df2)
+             dv <- df(z,df1,df2)
+             if(is.null(xlab)) xlab <- substitute(paste("Quantiles of F Distribution (df1=",df1,", df2=",df2,")"))
+           },
+           unif={
+             min1 <- distopt[1]
+             max1 <- distopt[2]
+             if(min1>max1) stop("?ִ???�� ?ּڰ????? ũ?ų? ???ƾ? ?մϴ?.")
+             x <- qunif(c(0.25,0.75), min1, max1)
+             z <- qunif(P, min1, max1)
+             dv <- dunif(z, min1, max1)
+             if(is.null(xlab)) xlab <- substitute(paste("Quantiles of Uniform Distribution (min=",min1,", max=",max1,")"))
+           }
+    )
+    slope <- diff(y)/diff(x)
+    int <- y[1L] - slope * x[1L]
+    zz <- qnorm(1 - (1 - 0.95)/2) # confidence level = 0.95
+    SE <- (slope/dv) * sqrt(P * (1 - P)/n)
+    fit.value <- int + slope * z
+    upper <- fit.value + zz * SE
+    lower <- fit.value - zz * SE
+    df <- data.frame(x=z,y=ord.x,upper=upper,lower=lower)
+    return(list(intercept=int,slope=slope,df=df,xlab=xlab))
+  }
+  
+  element_qqline <- get_qqline(na.exclude(datavar), dist, distopt, xlab)
+  
+  ggp <- ggplot(element_qqline$df,aes(x=x,y=y)) +
+    geom_point(color=color.dot, shape=pch, size=psize, stroke=pstroke)
+  
+  ggp2 <- ggp + 
+    geom_abline(color = color.line, slope = element_qqline$slope, intercept = element_qqline$intercept, linetype=lty, size=lsize) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), fill=color.dot, alpha=0.2)
+  
+  if(line==TRUE){
+    res <- ggp2 + labs(list(title=title, x=element_qqline$xlab, y=ylab)) +
+      theme_opt
+  } else {
+    res <- ggp + labs(list(title=title, x=element_qqline$xlab, y=ylab)) +
+      theme_opt
+  }
+  return(res)
+}
+
+#####Scatterplot
+
+REx_scatterplot <- function(varname1, varname2, dataset, by=NULL, jitter.x=0, jitter.y=0, 
+                            marginal="none", lineby=FALSE, LeastSq=FALSE, Smooth=FALSE, 
+                            Sm.span=1, Sm.spread=FALSE, Ellipse=FALSE, Index=FALSE, lgd.pos="bottom",
+                            ext.dot=NULL, ext.abline=NULL, ext.hline=NULL, ext.vline=NULL,
+                            title=NULL, xlab=varname1, ylab=varname2,
+                            color.dot="black", color.line="red", color.group=NULL, 
+                            color.extdot="blue", color.extline="orange",
+                            pch=19, psize=1.5, pstroke=0.5, pch.extra=19, psize.extra=1.5, pstroke.extra=0.5,
+                            lty.extra=1, lsize.extra=0.5,
+                            marg.hist.bin=30, marg.dens.adj=1, marg.box.size=1, color.marg="grey",
+                            title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  
+  load.pkg(c("ggExtra","ggplot2"))
+  
+  suppressWarnings(x <- as.numeric(as.character(dataset[,varname1])))
+  suppressWarnings(y <- as.numeric(as.character(dataset[,varname2])))
+  if(sum(is.na(x))==length(x)) stop("There is no numeric values.")
+  if(sum(is.na(y))==length(y)) stop("There is no numeric values.")
+  dat <- data.frame(x,y)
+  
+  jitter.x <- diff(range(x, na.rm=T))*jitter.x*0.01
+  jitter.y <- diff(range(y, na.rm=T))*jitter.y*0.01
+  
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), 
+          panel.grid.minor=element_blank(), legend.position = lgd.pos,
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  if(is.null(by)){
+    ggp <- ggplot(aes(x=x, y=y), data=dat) + geom_jitter(color=color.dot, width = jitter.x, height = jitter.y, shape=pch, size=psize, stroke=pstroke, na.rm=T)
+    if(Smooth==TRUE) ggp <- ggp + geom_smooth(method="loess", span=Sm.span, se=Sm.spread, color=color.line, show.legend=F, na.rm=T)
+    if(LeastSq==TRUE) ggp <- ggp + geom_smooth(method = "lm", se=FALSE, color=color.line, show.legend=F, na.rm=T)
+    if(Ellipse==TRUE) ggp <- ggp + stat_ellipse(color=color.line, show.legend=F, na.rm=T)
+    if(Index==TRUE) ggp <- ggp + geom_path(color=color.line, show.legend=F, na.rm=T)
+  } else {
+    group <- factor(dataset[,by])
+    dat <- cbind(dat,group)
+    if(sum(is.na(dat$group))>0) dat <- dat[-which(is.na(dat$group)),]
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+    
+    if(length(pch)==1) pch <- rep(pch, length(levels(dat$group)))
+    if(length(psize)==1) psize <- rep(psize, length(levels(dat$group)))
+    if(length(pstroke)==1) pstroke <- rep(pstroke, length(levels(dat$group)))
+    
+    dat$stroke <- dat$group
+    levels(dat$stroke) <- pstroke
+    dat$stroke <- as.numeric(as.character(dat$stroke))
+    
+    ggp <- ggplot(aes(x=x, y=y, color=group, fill=group), data=dat) + 
+      geom_jitter(aes(shape=group, size=group, stroke=stroke), width = jitter.x, height = jitter.y, na.rm=T) + 
+      scale_shape_manual(values=pch) + scale_size_manual(values=psize)
+    if(lineby==TRUE){
+      if(Smooth==TRUE) ggp <- ggp + geom_smooth(aes(x=x, y=y, color=group, fill=group, size=NULL, shape=NULL, stroke=NULL), method="loess", span=Sm.span, se=Sm.spread, show.legend=F, na.rm=T)
+      if(LeastSq==TRUE) ggp <- ggp + geom_smooth(aes(x=x, y=y, color=group, fill=group, size=NULL, shape=NULL, stroke=NULL), method = "lm", se=FALSE, size=0.7, show.legend=F, na.rm=T)
+      if(Ellipse==TRUE) ggp <- ggp + stat_ellipse(aes(x=x, y=y, color=group, fill=group, size=NULL, shape=NULL, stroke=NULL), show.legend=F, na.rm=T)
+      if(Index==TRUE) ggp <- ggp + geom_path(aes(x=x, y=y, color=group, fill=group, size=NULL, shape=NULL, stroke=NULL), show.legend=F, na.rm=T)
+    } else {
+      if(Smooth==TRUE) ggp <- ggp + geom_smooth(aes(x=x, y=y, color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), method="loess", span=Sm.span, se=Sm.spread, color=color.line, fill=color.line, show.legend=F, na.rm=T)
+      if(LeastSq==TRUE) ggp <- ggp + geom_smooth(aes(x=x, y=y, color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), method = "lm", se=FALSE, color=color.line, fill=color.line, size=0.7, show.legend=F, na.rm=T)
+      if(Ellipse==TRUE) ggp <- ggp + stat_ellipse(aes(x=x, y=y, color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), color=color.line, fill=color.line, show.legend=F, na.rm=T)
+      if(Index==TRUE) ggp <- ggp + geom_path(aes(x=x, y=y, color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), color=color.line, fill=color.line, show.legend=F, na.rm=T)
+    }
+    if(!is.null(color.group)) ggp <- ggp + scale_colour_manual(values=color.group) + scale_fill_manual(values=color.group)
+  }
+  if(!is.null(ext.dot)){
+    ext.dot.dat <- grep("[0-9.]+[ ]*,[ ]*[0-9.]+",unlist(strsplit(ext.dot,"[()]")), value=T)
+    ext.dot.dat <- do.call(rbind, strsplit(ext.dot.dat,","))
+    ext.dot.dat <- data.frame(x=as.numeric(ext.dot.dat[,1]), y=as.numeric(ext.dot.dat[,2]))
+    ggp <- ggp + geom_point(mapping=aes(x=x,y=y), data=ext.dot.dat, color=color.extdot, fill=color.extdot, shape=pch.extra, size=psize.extra, stroke=pstroke.extra)
+  } 
+  if(!is.null(ext.abline)){
+    ext.abline.dat <- grep("[0-9.]+[ ]*,[ ]*[0-9.]+",unlist(strsplit(ext.abline,"[()]")), value=T)
+    ext.abline.dat <- do.call(rbind, strsplit(ext.abline.dat,","))
+    ext.abline.dat <- data.frame(intercept=as.numeric(ext.abline.dat[,1]), slope=as.numeric(ext.abline.dat[,2]))
+    ggp <- ggp + geom_abline(aes(intercept=intercept, slope=slope), ext.abline.dat, color=color.extline, linetype=lty.extra, size=lsize.extra)
+  }
+  if(!is.null(ext.hline)) ggp <- ggp + geom_hline(yintercept = ext.hline, color=color.extline, linetype=lty.extra, size=lsize.extra)
+  if(!is.null(ext.vline)) ggp <- ggp + geom_vline(xintercept = ext.vline, color=color.extline, linetype=lty.extra, size=lsize.extra)
+  
+  ggp <- ggp + theme_opt + 
+    labs(list(title=title, x=xlab, y=ylab))
+  if(!is.null(by)) ggp <- ggp + guides(color = guide_legend(by, override.aes = list(shape=pch, size=psize, stroke=pstroke)),
+                                       fill = guide_legend(by), shape=guide_legend(by), size=guide_legend(by))
+  
+  if(is.null(ext.dot) & is.null(ext.abline) & is.null(ext.hline) & is.null(ext.vline)) {
+    if(marginal=="histogram") ggp <- ggMarginal(ggp, type = "histogram", bins=marg.hist.bin, fill=color.marg, na.rm=T)
+    if(marginal=="boxplot") ggp <- ggMarginal(ggp, type = "boxplot", fill=color.marg, size=10/marg.box.size, na.rm=T)
+    if(marginal=="density") ggp <- ggMarginal(ggp, type = "density", color=color.marg, adjust=marg.dens.adj, na.rm=T)
+  }
+  
+  return(ggp)
+}
+
+#####Scatter Matrix
+
+REx_scattermatrix <- function(varname, dataset, by=NULL, jitter.x=0, jitter.y=0,
+                              diagonal="none", lineby=FALSE, LeastSq=FALSE, Smooth=FALSE, 
+                              Sm.span=1, Sm.spread=FALSE, Ellipse=FALSE, Index=FALSE, lgd.pos="right",
+                              title=NULL, xlab=NULL, ylab=NULL, 
+                              color.dot="black", color.line="red", color.group=NULL,
+                              pch=19, psize=1.5, pstroke=0.5,
+                              diag.hist.bin=30, diag.dens.adj=1, color.diag="grey",
+                              title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  
+  load.pkg(c("GGally","ggplot2"))
+  dat <- dataset[,varname]
+  for(i in 1:ncol(dat)){
+    suppressWarnings(dat[,i] <- as.numeric(as.character(dat[,i])))
+    if(sum(is.na(dat[,i]))==nrow(dat)) stop("There is no numeric values.")
+  }
+  n <- length(varname)
+  
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos, 
+          panel.grid.minor=element_blank(), panel.grid.major=element_blank(),
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  point_jitter <- function(data, mapping, ...){
+    x <- data[,as.character(mapping$x)]
+    y <- data[,as.character(mapping$y)]
+    jitter.x <- diff(range(x, na.rm=T))*jitter.x*0.01
+    jitter.y <- diff(range(y, na.rm=T))*jitter.y*0.01
+    ggplot(data = data, mapping=mapping) +
+      geom_jitter(color=color.dot, shape=pch, size=psize, stroke=pstroke, width = jitter.x, height = jitter.y, na.rm=T) +
+      guides(color = guide_legend(by), fill = guide_legend(by))
+  }
+  
+  point_jitter_group <- function(data, mapping, ...){
+    x <- data[,as.character(mapping$x)]
+    y <- data[,as.character(mapping$y)]
+    jitter.x <- diff(range(x, na.rm=T))*jitter.x*0.01
+    jitter.y <- diff(range(y, na.rm=T))*jitter.y*0.01
+    ggplot(data = data, mapping=mapping) +
+      geom_jitter(width = jitter.x, height = jitter.y, na.rm=T) +
+      guides(color = guide_legend(by, override.aes = list(shape=pch, size=psize, stroke=pstroke)), 
+             fill = guide_legend(by), shape=guide_legend(by), size=guide_legend(by))
+  }
+  
+  qqDiag <- function(data, mapping, ...){
+    get_qqline <- function(vec){
+      y <- quantile(vec[!is.na(vec)], c(0.25, 0.75))
+      n <- length(vec)
+      ord <- order(vec)
+      ord.x <- vec[ord]
+      P <- ppoints(length(vec))
+      x <- qnorm(c(0.25, 0.75))
+      z <- qnorm(P)
+      dv <- dnorm(z)
+      slope <- diff(y)/diff(x)
+      int <- y[1L] - slope * x[1L]
+      zz <- qnorm(1 - (1 - 0.95)/2) # confidence level = 0.95
+      SE <- (slope/dv) * sqrt(P * (1 - P)/n)
+      fit.value <- int + slope * z
+      upper <- fit.value + zz * SE
+      lower <- fit.value - zz * SE
+      df <- data.frame(x=z,y=ord.x,upper=upper,lower=lower)
+      return(list(intercept=int,slope=slope,df=df))
+    }
+    element_qqline <- get_qqline(na.exclude(data[,as.character(mapping$x)]))
+    ggplot(element_qqline$df,aes(x=x,y=y)) +
+      geom_point(color=color.diag) +
+      geom_abline(slope = element_qqline$slope, intercept = element_qqline$intercept) +
+      geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.2)
+  }
+  
+  boxDiag <- function(data, mapping, ...){
+    box <- ggplot(data = data, mapping=aes(x="",y=data[,as.character(mapping$x)])) +
+      stat_boxplot(geom="errorbar", color="black", width=0.4, na.rm=T, position=position_dodge(0.75)) + 
+      geom_boxplot(fill=color.diag, color="black", size=0.5, shape=19, na.rm=T)
+    return(box)
+  }
+  
+  boxDiag_group <- function(data, mapping, ...){
+    box <- ggplot(data = data, mapping=aes(x=group, y=data[,as.character(mapping$x)], fill=group)) +
+      stat_boxplot(geom="errorbar", width=0.4, na.rm=T, position=position_dodge(0.75)) + 
+      geom_boxplot(size=0.5, shape=19, na.rm=T)
+    if(!is.null(color.group)) box <- box + scale_fill_manual(values=color.group)
+    return(box)
+  }
+  
+  histoDiag <- function(data, mapping, ...){
+    hist <- ggplot(data = data, mapping=mapping) +
+      geom_histogram(color="black", fill=color.diag, bins=diag.hist.bin, size=0.5, na.rm=T)
+    return(hist)
+  }
+  
+  histoDiag_group <- function(data, mapping, ...){
+    hist <- ggplot(data = data, mapping=mapping) +
+      geom_histogram(color="black", bins=diag.hist.bin, size=0.5, na.rm=T)
+    if(!is.null(color.group)) hist <- hist + scale_fill_manual(values=color.group)
+    return(hist)
+  }
+  
+  densDiag <- function(data, mapping, ...){
+    dens <- ggplot(data = data, mapping=mapping) +
+      geom_density(fill=color.diag, color=color.diag, alpha=0.3, adjust=diag.dens.adj, position="stack", size=0.5, na.rm=T)
+    return(dens)
+  }
+  
+  densDiag_group <- function(data, mapping, ...){
+    dens <- ggplot(data = data, mapping=mapping) +
+      geom_density(alpha=0.3, adjust=diag.dens.adj, position="stack", size=0.5, na.rm=T)
+    if(!is.null(color.group)) dens <- dens + scale_fill_manual(values=color.group) + scale_colour_manual(values=color.group)
+    return(dens)
+  }
+  
+  if(is.null(by)){
+    if(diagonal=="none") ggp <- ggpairs(data=dat, lower=list(continuous=point_jitter), upper=list(continuous=point_jitter), diag=NULL)
+    if(diagonal=="density") ggp <- ggpairs(data=dat, lower=list(continuous=point_jitter), upper=list(continuous=point_jitter), diag = list(continuous = densDiag))
+    if(diagonal=="histogram") ggp <- ggpairs(data=dat, lower=list(continuous=point_jitter), upper=list(continuous=point_jitter), diag = list(continuous = histoDiag))
+    if(diagonal=="qqplot") ggp <- ggpairs(data=dat, lower=list(continuous=point_jitter), upper=list(continuous=point_jitter), diag=list(continuous = qqDiag))
+    if(diagonal=="boxplot") ggp <- ggpairs(data=dat, lower=list(continuous=point_jitter), upper=list(continuous=point_jitter), diag=list(continuous = boxDiag))
+    for(i in 1:ggp$nrow){
+      for(j in 1:ggp$ncol){
+        if(i == j) next else {
+          if(LeastSq==TRUE) ggp[i,j] <- ggp[i,j] + geom_smooth(method = "lm", se=FALSE, color=color.line, na.rm=T)
+          if(Smooth==TRUE) ggp[i,j] <- ggp[i,j] + geom_smooth(method="loess", span=Sm.span, se=Sm.spread, color=color.line, na.rm=T)
+          if(Ellipse==TRUE) ggp[i,j] <- ggp[i,j] + stat_ellipse(color=color.line, na.rm=T)
+          if(Index==TRUE) ggp[i,j] <- ggp[i,j] + geom_path(color=color.line, na.rm=T)
+        }
+      }
+    }
+  } else {
+    group <- factor(dataset[,by])
+    dat <- cbind(dat,group)
+    if(sum(is.na(dat$group))>0) dat <- dat[-which(is.na(dat$group)),]
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+    
+    if(length(pch)==1) pch <- rep(pch, length(levels(dat$group)))
+    if(length(psize)==1) psize <- rep(psize, length(levels(dat$group)))
+    if(length(pstroke)==1) pstroke <- rep(pstroke, length(levels(dat$group)))
+    
+    dat$stroke <- dat$group
+    levels(dat$stroke) <- pstroke
+    dat$stroke <- as.numeric(as.character(dat$stroke))
+    
+    if(lgd.pos=="none") lgd.site <- NULL
+    else lgd.site <- c(n,1)
+    
+    if(diagonal=="none") ggp <- ggpairs(data=dat, columns=1:n, ggplot2::aes(colour=group, shape=group, size=group, stroke=stroke), lower=list(continuous=point_jitter_group), upper=list(continuous=point_jitter_group), diag=NULL, legend=lgd.site)
+    if(diagonal=="density") ggp <- ggpairs(data=dat, columns=1:n, ggplot2::aes(colour=group, fill=group, shape=group, size=group, stroke=stroke), lower=list(continuous=point_jitter_group), upper=list(continuous=point_jitter_group), diag = list(continuous = densDiag_group), legend=lgd.site)
+    if(diagonal=="histogram") ggp <- ggpairs(data=dat, columns=1:n, ggplot2::aes(colour=group, fill=group, shape=group, size=group, stroke=stroke), lower=list(continuous=point_jitter_group), upper=list(continuous=point_jitter_group), diag = list(continuous = histoDiag_group), legend=lgd.site)
+    if(diagonal=="qqplot") ggp <- ggpairs(data=dat, columns=1:n, ggplot2::aes(colour=group, shape=group, size=group, stroke=stroke), lower=list(continuous=point_jitter_group), upper=list(continuous=point_jitter_group), diag=list(continuous = qqDiag), legend=lgd.site)
+    if(diagonal=="boxplot") ggp <- ggpairs(data=dat, columns=1:n, ggplot2::aes(colour=group, fill=group, shape=group, size=group, stroke=stroke), lower=list(continuous=point_jitter_group), upper=list(continuous=point_jitter_group), diag=list(continuous = boxDiag_group), legend=lgd.site)
+    for(i in 1:ggp$nrow){
+      for(j in 1:ggp$ncol){
+        if(i == j) next else {
+          if(lineby==TRUE){
+            if(Smooth==TRUE) ggp[i,j] <- ggp[i,j] + geom_smooth(aes(size=NULL, shape=NULL, stroke=NULL), method="loess", span=Sm.span, se=Sm.spread, show.legend=FALSE, na.rm=T)
+            if(LeastSq==TRUE) ggp[i,j] <- ggp[i,j] + geom_smooth(aes(size=NULL, shape=NULL, stroke=NULL), method = "lm", se=FALSE, show.legend=FALSE, size=0.7, na.rm=T)
+            if(Ellipse==TRUE) ggp[i,j] <- ggp[i,j] + stat_ellipse(aes(size=NULL, shape=NULL, stroke=NULL), show.legend=FALSE, na.rm=T)
+            if(Index==TRUE) ggp[i,j] <- ggp[i,j] + geom_path(aes(size=NULL, shape=NULL, stroke=NULL), show.legend=FALSE, na.rm=T)
+          } else {
+            if(Smooth==TRUE) ggp[i,j] <- ggp[i,j] + geom_smooth(aes(color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), method="loess", color=color.line, span=Sm.span, se=Sm.spread, show.legend=FALSE, na.rm=T)
+            if(LeastSq==TRUE) ggp[i,j] <- ggp[i,j] + geom_smooth(aes(color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), method = "lm", color=color.line, se=FALSE, show.legend=FALSE, size=0.7, na.rm=T)
+            if(Ellipse==TRUE) ggp[i,j] <- ggp[i,j] + stat_ellipse(aes(color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), color=color.line, show.legend=FALSE, na.rm=T)
+            if(Index==TRUE) ggp[i,j] <- ggp[i,j] + geom_path(aes(color=NULL, fill=NULL, size=NULL, shape=NULL, stroke=NULL), color=color.line, show.legend=FALSE, na.rm=T)
+          }
+          if(!is.null(color.group)) ggp[i,j] <- ggp[i,j] + scale_fill_manual(values=color.group) + scale_colour_manual(values=color.group)
+          ggp[i,j] <- ggp[i,j] + scale_shape_manual(values=pch) + scale_size_manual(values=psize)
+        }
+      }
+    }
+  }
+  ggp <- ggp + labs(x=xlab, y=ylab, title=title) + theme_opt
+  return(ggp)
+}
+
+##### XY condition plot
+
+REx_xyplot <- function(varname1, varname2, dataset, by=NULL, jitter.x=0, jitter.y=0,
+                       on_one_panel=TRUE, scales="fixed", direction_by=NULL,
+                       title=NULL, xlab=paste0(varname1, collapse = "+"), ylab=paste0(varname2, collapse = "+"),
+                       pch=19, psize=1.5, pstroke=0.5, lgd.pos="top", color.dot="black", color.group=NULL,
+                       title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  
+  load.pkg("ggplot2")
+  
+  # browser()
+  dat <- dataset[,c(varname1, varname2)]
+  for(i in 1:ncol(dat)){
+    suppressWarnings(dat[,i] <- as.numeric(as.character(dat[,i])))
+    if(sum(is.na(dat[,i]))==nrow(dat)) stop("There is no numeric values.")
+  }
+  # n <- length(varname)
+  xname <- paste0(varname1, collapse = ".")
+  yname <- paste0(varname2, collapse = ".")
+  if(xname==yname) xname <- paste0(xname, "_")
+  
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos, 
+          panel.grid.minor=element_blank(), panel.grid.major=element_blank(),
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  nd2 <- 0
+  dat2 <- list()
+  for(j1 in 1:(length(varname1))){
+    for(j2 in 1:(length(varname2))){
+      nd2 <- nd2+1
+      dat2[[nd2]] <- cbind(dat[,c(varname1[j1], varname2[j2])], varname1[j1], varname2[j2])
+      colnames(dat2[[nd2]]) <- c("x", "y", xname, yname)
+    }
+  }
+  dat2 <- do.call(rbind,dat2)
+  
+  jitter.x <- diff(range(dat2$x, na.rm=T))*jitter.x*0.01
+  jitter.y <- diff(range(dat2$y, na.rm=T))*jitter.y*0.01
+  
+  if(is.null(by)){
+    ggp <- ggplot(aes(x=x, y=y), data=dat2) + geom_jitter(color=color.dot, shape=pch, size=psize, stroke=pstroke, width = jitter.x, height = jitter.y, na.rm=T)
+    ggp <- ggp + facet_grid(as.formula(paste0(yname, " ~ ",xname)), scales=scales)
+    
+  } else {
+    dat3 <- dataset[by]
+    for(i2 in 1:ncol(dat3)) dat3[,i2] <- factor(dat3[,i2])
+    dat2 <- cbind(dat2, dat3)
+    for(i3 in by) if(sum(is.na(dat2[,i3]))>0) dat2 <- dat2[-which(is.na(dat2[,i3])),]
+    dat2$group <- interaction(dat2[,by])
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dat2$group))))
+    
+    if(length(pch)==1) pch <- rep(pch, length(levels(dat2$group)))
+    if(length(psize)==1) psize <- rep(psize, length(levels(dat2$group)))
+    if(length(pstroke)==1) pstroke <- rep(pstroke, length(levels(dat2$group)))
+    
+    dat2$stroke <- dat2$group
+    levels(dat2$stroke) <- pstroke
+    dat2$stroke <- as.numeric(as.character(dat2$stroke))
+    
+    ggp <- ggplot(aes(x=x, y=y, color=group, shape=group, size=group, stroke=stroke), data=dat2) + geom_jitter(width = jitter.x, height = jitter.y, na.rm=T) +
+      guides(color = guide_legend(paste0(by, collapse="."), override.aes = list(shape=pch, size=psize, stroke=pstroke)), 
+             fill = guide_legend(paste0(by, collapse=".")), shape=guide_legend(paste0(by, collapse=".")), size=guide_legend(paste0(by, collapse=".")))
+    
+    if(on_one_panel==T) ggp <- ggp + facet_grid(as.formula(paste0(yname, " ~ ",xname)), scales=scales)
+    else {
+      if(length(by[direction_by=="v"])!=0) {
+        xname <- paste0(xname, " + ", paste0(by[direction_by=="v"], collapse=" + "))
+        xsp <- rep(c(rep(0,length(levels(interaction(dat2[,by[direction_by=="v"]])))-1),0.5), length(varname1))
+        xsp <- xsp[-length(xsp)]
+      } else {
+        xsp <- 0
+      }
+      if(length(by[direction_by=="h"])!=0) {
+        yname <- paste0(yname, " + ", paste0(by[direction_by=="h"], collapse=" + "))
+        ysp <- rep(c(rep(0,length(levels(interaction(dat2[,by[direction_by=="h"]])))-1),0.5), length(varname2))
+        ysp <- ysp[-length(ysp)]
+      } else {
+        ysp <- 0
+      }
+      # browser()
+      
+      ggp <- ggp + facet_grid(as.formula(paste0(yname, " ~ ",xname)), scales=scales) + 
+        theme(panel.spacing.x=unit(xsp, "lines"), panel.spacing.y=unit(ysp, "lines"))
+    }
+    if(!is.null(color.group)) ggp <- ggp + scale_colour_manual(values=color.group)
+    ggp <- ggp + scale_shape_manual(values=pch) + scale_size_manual(values=psize)
+  }
+  ggp <- ggp + labs(x=xlab, y=ylab, title=title) + theme_opt
+  return(ggp)
+}
+
+#####Mean plot
+
+REx_meanplot <- function(varname, dataset, by1, by2=NULL, type="dot",
+                         errbar="se", conflevel=0.95, line=TRUE, uperr=FALSE,
+                         title=NULL, xlab=by1, ylab=varname, lgd.pos="right",
+                         pch=19, lty=1, psize=1.5, pstroke=0.5, lsize=0.5,
+                         color.dot="black", color.line="red", color.bar="grey", color.group=NULL,
+                         title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  
+  load.pkg("ggplot2")
+  
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos, 
+          panel.grid.minor=element_blank(), panel.grid.major=element_blank(),
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  pd <- position_dodge(0.3)
+  
+  suppressWarnings(datavar <- as.numeric(as.character(dataset[,varname])))
+  if(sum(is.na(datavar))==length(datavar)) stop("There is no numeric values.")
+  
+  databy1 <- factor(dataset[,by1])
+  gp1 <- levels(databy1)
+  
+  if(is.null(by2)){
+    gpmean <- upper <- lower <- c()
+    for(i in 1:length(gp1)){
+      datapiece <- datavar[databy1==gp1[i]]
+      gpmean[i] <- mean(datapiece, na.rm=TRUE)
+      gpsd <- sd(datapiece, na.rm=TRUE)
+      gpse <- gpsd/sqrt(length(datapiece))
+      switch(errbar, 
+             se={
+               upper[i] <- gpmean[i] + gpse
+               lower[i] <- gpmean[i] - gpse
+             },
+             sd={
+               upper[i] <- gpmean[i] + gpsd
+               lower[i] <- gpmean[i] - gpsd
+             },
+             conf={
+               int <- qnorm((1-conflevel)/2, lower.tail = F)
+               upper[i] <- gpmean[i] + gpse*int
+               lower[i] <- gpmean[i] - gpse*int
+             },
+             none={
+               upper[i] <- gpmean[i]
+               lower[i] <- gpmean[i]
+             }
+      )
+    } 
+    meandat <- data.frame(x = gp1, y = gpmean, upper, lower)
+    if(type=="dot"){
+      ggp <- ggplot(aes(x=x, y=y), data=meandat) + geom_point(color=color.dot, shape=pch, size=psize, stroke=pstroke, na.rm=TRUE)
+      if(line==TRUE) ggp <- ggp + geom_line(aes(group=1), color=color.line, linetype=lty, size=lsize, na.rm=TRUE) 
+    }
+    if(type=="bar"){
+      ggp <- ggplot(aes(x=x, y=y), data=meandat) + geom_col(fill=color.bar, color="black", na.rm=TRUE) + geom_hline(yintercept = 0)
+    }
+  } else {
+    databy2 <- factor(dataset[,by2])
+    gp2 <- levels(databy2)
+    gp2rep <- rep(gp2, each=length(gp1))
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by2]))))
+    
+    if(length(pch)==1) pch <- rep(pch, length(gp2))
+    if(length(psize)==1) psize <- rep(psize, length(gp2))
+    if(length(pstroke)==1) pstroke <- rep(pstroke, length(gp2))
+    if(length(lty)==1) lty <- rep(lty, length(gp2))
+    
+    gp2stroke <- rep(pstroke, each=length(gp1))
+    gpmean <- upper <- lower <- c()
+    for(i in 1:length(gp2)){
+      for(j in 1:length(gp1)){
+        ij <- (i-1)*length(gp1)+j
+        datapiece <- datavar[databy1==gp1[j] & databy2==gp2[i]]
+        gpmean[ij] <- mean(datapiece, na.rm=TRUE)
+        gpsd <- sd(datapiece, na.rm=TRUE)
+        gpse <- gpsd/sqrt(length(datapiece))
+        switch(errbar, 
+               se={
+                 upper[ij] <- gpmean[ij] + gpse
+                 lower[ij] <- gpmean[ij] - gpse
+               },
+               sd={
+                 upper[ij] <- gpmean[ij] + gpsd
+                 lower[ij] <- gpmean[ij] - gpsd
+               },
+               conf={
+                 int <- qnorm((1-conflevel)/2, lower.tail = F)
+                 upper[ij] <- gpmean[ij] + gpse*int
+                 lower[ij] <- gpmean[ij] - gpse*int
+               },
+               none={
+                 upper[i] <- gpmean[i]
+                 lower[i] <- gpmean[i]
+               }
+        )
+      }
+    }
+    
+    meandat <- data.frame(x = gp1, y = gpmean, group = gp2rep, stroke=gp2stroke, upper, lower)
+    if(type=="dot"){
+      ggp <- ggplot(aes(x=x, y=y, color=group, shape=group, size=group, stroke=stroke),data=meandat) + geom_point(position=pd, na.rm=TRUE) + 
+        guides(color = guide_legend(by2, override.aes = list(shape=pch, size=psize, stroke=pstroke)), 
+               fill = guide_legend(by2), shape=guide_legend(by2), size=guide_legend(by2))
+      if(line==TRUE) ggp <- ggp + geom_line(aes(group=group, linetype=group),position=pd, size=lsize, na.rm=TRUE, show.legend = F)
+      if(!is.null(color.group)) ggp <- ggp + scale_colour_manual(values=color.group)
+      ggp <- ggp + scale_shape_manual(values=pch) + scale_size_manual(values=psize) + scale_linetype_manual(values=lty)
+    }
+    if(type=="bar"){
+      ggp <- ggplot(aes(x=x, y=y, fill=group), data=meandat) + geom_col(color="black", position=position_dodge(), na.rm=TRUE) + geom_hline(yintercept = 0) + 
+	    guides(fill = guide_legend(by2))
+	  if(!is.null(color.group)) ggp <- ggp + scale_fill_manual(values=color.group)
+    }
+  }
+  if(errbar!="none"){
+    if(type=="dot") ggp <- ggp + geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.4, size=0.5, position=pd, na.rm=TRUE, show.legend = F)
+    if(type=="bar"){
+      if(uperr) ggp <- ggp + geom_errorbar(aes(ymin = y, ymax = upper), width = 0.4, size=0.5, na.rm=TRUE, position=position_dodge(width=0.9), show.legend = F)
+      else ggp <- ggp + geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.4, size=0.5, na.rm=TRUE, position=position_dodge(width=0.9), show.legend = F)
+    }
+  }
+
+  return(ggp + labs(list(title=title, x=xlab, y=ylab)) + theme_opt)
+}
+
+#####Bar plot
+
+REx_barplot <- function(varname, dataset, by=NULL, flip=FALSE, type="stack", 
+                        title=NULL, xlab=varname, ylab="Frequency", label=T,
+                        lgd.pos="right",color="grey", color.group=NULL,
+                        title.size=NULL, axis.title.size=NULL, axis.text.size=NULL){
+  load.pkg("ggplot2")
+
+  theme_opt <- theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos, 
+          panel.grid.minor=element_blank(), panel.grid.major=element_blank(),
+          strip.background = element_blank(), strip.placement = "outside",
+          axis.text = element_text(size = axis.text.size), axis.title = element_text(size = axis.title.size))
+  
+  x <- factor(dataset[,varname])
+  if(flip==TRUE) x <- factor(x, levels=rev(levels(x)))
+  dat <- data.frame(x)
+  if(!is.null(by)) dat$group <- factor(dataset[,by])
+  dat <- na.exclude(dat)
+  
+  if(is.null(by)){
+    ggp <- ggplot(aes(x), data=dat) +
+      geom_bar(fill=color, color="black", na.rm=T) +
+      labs(list(title=title, x=xlab, y=ylab))
+  } else {
+    if(is.null(color.group)) color.group <- gg_color_hue2(length(levels(factor(dataset[,by]))))
+    ggp <- ggplot(aes(x, fill=group), data=dat)
+    if(type=="stack"){
+      ggp <- ggp + geom_bar(color="black", na.rm=T)
+    }
+    if(type=="par"){
+      dat2 <- data.frame(x=rep(rownames(table(dat)),2), y=as.integer(table(dat)), group=rep(levels(dat$group), each=nrow(table(dat))))
+      ggp <- ggplot(aes(x, y, fill=group), data=dat2) + geom_col(color="black", na.rm=T, position=position_dodge())
+    }
+    if(type=="facet"){
+      labelv <- NULL
+      if(label){
+        labelv <- paste0(by," = ",levels(dataset2$group))
+        names(labelv) <- levels(dataset2$group)
+      }
+      ggp <- ggp + geom_bar(color="black", na.rm=T) +
+        facet_wrap(~group, ncol=1, scales="fixed", labeller = labeller(group=labelv)) +
+        theme(legend.position = "none")
+    }
+    ggp <- ggp + guides(color = guide_legend(by), fill = guide_legend(by)) + labs(list(title=title, x=xlab, y=ylab))
+    if(!is.null(color.group)) ggp <- ggp + scale_fill_manual(values=color.group)
+  }
+  if(flip==TRUE) ggp <- ggp + coord_flip()
+  return(ggp + theme_opt)
+}
+
+#####Circle plot
+
+REx_circleplot <- function(varname, dataset, showCount="C", title=varname, 
+                           freq.size=NULL, title.size=NULL, color.group=NULL, lgd.pos="right"){
+  load.pkg(c("ggplot2", "ggpubr", "ggrepel"))
+  
+  x <- factor(dataset[,varname])
+  dat <- data.frame(table(x))
+  if(sum(is.na(x))>0) dat <- rbind(dat, data.frame(x="NA", Freq=sum(is.na(x))))
+  colnames(dat)[1] <- varname
+  dat$Perc <- paste0(round(dat$Freq/length(x)*100,1), "%")
+  dat$Both <- paste0(dat$Freq, " (", dat$Perc, ")")
+  
+  lev <- levels(x)
+  if(sum(is.na(x))>0) lev <- c(lev, "NA")
+  if(is.null(color.group)) color.group <- gg_color_hue2(length(lev))
+  
+  if(showCount=="C") labs <- dat$Freq
+  if(showCount=="P") labs <- dat$Perc
+  if(showCount=="CP") labs <- dat$Both
+  if(showCount=="N") labs <- NULL
+  labs <- rev(labs)
+  
+  if(is.null(color.group)) color.group <- gg_color_hue2(nrow(dat))
+  if(is.null(freq.size)) freq.size <- 10 * 0.3514598
+  else freq.size <- freq.size * 0.3514598
+  
+  ggpie2 <- ggpie
+  body(ggpie2)[[10]] <- substitute(
+    p <- ggpar(p, palette = palette, ggtheme = ggtheme, font.family = font.family, 
+               ...) + coord_polar(theta = "y", start = pi/2) + ggtheme + 
+      .remove_axis()
+  )
+  body(ggpie2)[[11]][[3]][[3]][[3]][[2]] <- substitute(
+    p <- p + ggrepel::geom_text_repel(aes_string(y = ".lab.ypos.", x=1.1, label = label), point.padding = NA,
+                                      size = lab.font$size, fontface = lab.font$face, colour = "black", 
+                                      family = font.family) + clean_theme()
+  )
+  
+  ggp <- ggpie2(dat, "Freq", label=labs, fill=varname, palette=color.group, lab.pos = "in", lab.font = list(size=freq.size)) + 
+    guides(fill = guide_legend("")) + labs(title=title) + theme(plot.title = element_text(hjust = 0.5, size = title.size), legend.position = lgd.pos)
+  
+  return(ggp)
+}
+
+### Get comb of group variables from XY Plot
+xyplot_color.group <- function(dataset, by){
+  dat3 <- dataset[by]
+  for(i2 in 1:ncol(dat3)){
+    dat3[,i2] <- factor(dat3[,i2])
+    if(sum(is.na(dat3[,i2]))>0) dat3 <- dat3[-which(is.na(dat3[,i2])),]
+  }
+  group <- levels(interaction(dat3[,by]))
+  return(paste(group, collapse=","))
+}
+
+### Get comb of var levels from Circle Plot
+circleplot_color.group <- function(dataset, varname){
+  x <- factor(dataset[,varname])
+  lev <- levels(x)
+  if(sum(is.na(x))>0) lev <- c(lev, "NA")
+  return(paste(lev, collapse=","))
+}
+
+### Default group color
+gg_color_hue <- function(n) {
+  hues = seq(6.330885, 6.330885+360, length = n + 1)
+  paste(hcl(h = hues, l = 51.19696, c = 144.4467)[1:n], collapse=",")
+}
+
+### Using Analysis modules...
+gg_color_hue2 <- function(n) {
+  hues = seq(6.330885, 6.330885+360, length = n + 1)
+  hcl(h = hues, l = 51.19696, c = 144.4467)[1:n]
+}
+
+### Get Factor Levels
+manual_color.group <- function(dataset, by){
+  dat3 <- factor(dataset[,by])
+  return(paste(levels(dat3), collapse=","))
+}
+
+### Testfunc
+testfunc <- function() {
+	list(a=rnorm(100), b=c("aa","bbb","ccccc",
+	"dddd"))
+}
+
+#####StemLeaf plot for REx_DESCSTAT
+
+REx_stemleaf <- function(dat, title){
+  load.pkg("ggplot2")
+  res <- capture.output(stem(dat))
+  stemdf = data.frame(res, rr=length(res):1)
+  pp <- ggplot(stemdf)+ geom_text(aes(y=rr, x=0, label=res), vjust=0, hjust=0, family="mono", size=5) + 
+    theme_classic() +
+    labs(list(title=title)) + 
+    scale_x_continuous(limits=c(0,1))+ 
+    theme(axis.text = element_blank(),
+          axis.title = element_blank(), 
+          axis.ticks=element_blank(), 
+          panel.grid=element_blank(), 
+          axis.line=element_blank(),
+          plot.title = element_text(hjust = 0.5))
+  return(pp)
+}
+
+#####Diagnostic plot for proportional hazards assumption in REx_Coxph
+
+REx_coxzphplot <- function (fit, resid = TRUE, se = TRUE, df = 4, nsmo = 40,  var, 
+          point.col = "red", point.size = 1.5, point.shape = 19, point.alpha = 1, 
+          caption = NULL, ggtheme = theme_bw(), ...){
+  x <- fit
+  if (!methods::is(x, "cox.zph")) 
+    stop("Can't handle an object of class ", class(x))
+  xx <- x$x
+  yy <- x$y
+  d <- nrow(yy)
+  df <- max(df)
+  nvar <- ncol(yy)
+  pred.x <- seq(from = min(xx), to = max(xx), length = nsmo)
+  temp <- c(pred.x, xx)
+  lmat <- splines::ns(temp, df = df, intercept = TRUE)
+  pmat <- lmat[1:nsmo, ]
+  xmat <- lmat[-(1:nsmo), ]
+  qmat <- qr(xmat)
+  if (qmat$rank < df) 
+    stop("Spline fit is singular, try a smaller degrees of freedom")
+  if (se) {
+    bk <- backsolve(qmat$qr[1:df, 1:df], diag(df))
+    xtx <- bk %*% t(bk)
+    seval <- d * ((pmat %*% xtx) * pmat) %*% rep(1, df)
+  }
+  ylab <- paste("Beta(t) for", dimnames(yy)[[2]])
+  if (missing(var)) 
+    var <- 1:nvar
+  else {
+    if (is.character(var)) 
+      var <- match(var, dimnames(yy)[[2]])
+    if (any(is.na(var)) || max(var) > nvar || min(var) < 
+        1) 
+      stop("Invalid variable requested")
+  }
+  if (x$transform == "log") {
+    xx <- exp(xx)
+    pred.x <- exp(pred.x)
+  }
+  else if (x$transform != "identity") {
+    xtime <- as.numeric(dimnames(yy)[[1]])
+    indx <- !duplicated(xx)
+    apr1 <- approx(xx[indx], xtime[indx], seq(min(xx), max(xx), 
+                                              length = 17)[2 * (1:8)])
+    temp <- signif(apr1$y, 2)
+    apr2 <- approx(xtime[indx], xx[indx], temp)
+    xaxisval <- apr2$y
+    xaxislab <- rep("", 8)
+    for (i in 1:8) xaxislab[i] <- format(temp[i])
+  }
+  plots <- list()
+  plots <- lapply(var, function(i) {
+    invisible(pval <- round(x$table[i, 3], 4))
+    gplot <- ggplot() + labs(title = paste0("Schoenfeld Individual Test: p = ", 
+                                            pval)) + ggtheme + theme(panel.grid.minor=element_blank())
+    y <- yy[, i]
+    yhat <- as.vector(pmat %*% qr.coef(qmat, y))
+    if (resid) 
+      yr <- range(yhat, y)
+    else yr <- range(yhat)
+    if (se) {
+      temp <- as.vector(2 * sqrt(x$var[i, i] * seval))
+      yup <- yhat + temp
+      ylow <- yhat - temp
+      yr <- range(yr, yup, ylow)
+    }
+    if (x$transform == "identity") {
+      gplot <- gplot + geom_line(aes(x = pred.x, y = yhat), color="red", size=1) + 
+        xlab("Time") + ylab(ylab[i]) + ylim(yr)
+    }
+    else if (x$transform == "log") {
+      gplot <- gplot + geom_line(aes(x = log(pred.x), y = yhat), color="red", size=1) + 
+        xlab("Time") + ylab(ylab[i]) + ylim(yr)
+    }
+    else {
+      gplot <- gplot + geom_line(aes(x = pred.x, y = yhat), color="red", size=1) + 
+        xlab("Time") + ylab(ylab[i]) + scale_x_continuous(breaks = xaxisval, 
+                                                          labels = xaxislab) + ylim(yr)
+    }
+    if (resid) 
+      gplot <- gplot + geom_point(aes(x = xx, y = y), col = point.col, 
+                                  shape = point.shape, size = point.size, alpha = point.alpha)
+    if (se) {
+      gplot <- gplot + geom_line(aes(x = pred.x, y = yup), 
+                                 lty = "dashed", color="red") + geom_line(aes(x = pred.x, y = ylow), 
+                                                             lty = "dashed", color="red")
+    }
+    ggpubr::ggpar(gplot, ...)
+  })
+  return(plots)
+}
+
+#####Multiplot func for REx_DESCSTAT
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  load.pkg("grid")
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
