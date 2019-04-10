@@ -381,10 +381,10 @@ LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 		res <- resAB[[i]]
 
 		Yip <- with(res,Yi[PB==1])
-		Xip <- with(res,Xi[PB==1,drop=F])
+		Xip <- with(res,Xi[PB==1,,drop=F])
 		Mui <- with(res,1-pnorm(thres-Xip%*%beta.old,lower.tail=T))
 		Alphai <- log(Mui/(1-Mui))
-		dBeta <- with(res,(Yip-Mui)/(Mui*(1-Mui))*dnorm(thres-Xip%*%beta.old)*t(Xip))
+		dBeta <- as.numeric(with(res,(Yip-Mui)/(Mui*(1-Mui))*dnorm(thres-Xip%*%beta.old)))*t(Xip)
 		d2Beta <- with(res,dnorm(thres-Xip%*%beta.old)/(Mui*(1-Mui))*(-dnorm(thres-Xip%*%beta.old)+((Yip-Mui)*(2*Mui-1)*dnorm(thres-Xip%*%beta.old))/(Mui*(1-Mui))+(Yip-Mui)*(thres-Xip%*%beta.old))*Xip%*%t(Xip))
 		
 		return(list(dBeta=dBeta,d2Beta=d2Beta))
@@ -427,7 +427,7 @@ LTMH.asc <- function(model,init_beta,init_h2,V,famid,prev,dataset,max.iter=100,m
 	    f <- f_Q
 	    J <- J_Q
 	    f[-length(f)] <- f_Q[-length(f_Q)]-f.PB
-	    J[-nrow(J),-nrow(J)] <- J_Q[-nrow(J_Q),-nrow(J_Q)] - J.PB
+	    J[-nrow(J),-nrow(J)] <- J_Q[-nrow(J_Q),-nrow(J_Q)] - as.numeric(J.PB)
 	    
 	    theta.new <- theta.old - solve(J)%*%f
 	    
