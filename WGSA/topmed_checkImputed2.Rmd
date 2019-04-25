@@ -1,0 +1,376 @@
+---
+title: "Check concordance with imputed COPDGene data"
+author: "Dandi Qiao"
+date: "11/14/2018"
+output:
+  html_document:
+    toc: true
+---
+  
+# Files
+```{r setup, include=FALSE}
+library(data.table)
+setwd("/udd/redaq/TOPMED/checkImputed")
+options(stringsAsFactors=FALSE)
+
+### imputated COPDGene data with HRC
+#/proj/regeps/regep00/studies/COPDGene/data/imputed/CgNhw-HRC1-1_GrCh38
+#/proj/regeps/regep00/studies/COPDGene/data/imputed/CgAa-HRC-1-1
+
+pheno = read.table("/proj/regeps/regep00/studies/COPDGene/analyses/redaq/Freeze5b/COPDGene_8657_phenotype_07272018.txt", header=T)
+newXutong = read.table("/udd/redaq/COPDGene_EOCOPD_new.txt", header=T)
+xutong = newXutong[newXutong$subject_id %in% pheno$IID,]
+anyna = apply(xutong[,-c(1, 5, 6)], 1, function(x) any(is.na(x)))
+xutong2 = xutong[!anyna, ]
+xutong2copdgene = xutong2[xutong2$study=="copdgene", ]
+xutong2cgnhw = xutong2[xutong2$study=="copdgene" & xutong2$race==1, ]
+xutong2cgaa = xutong2[xutong2$study=="copdgene" & xutong2$race==3, ]
+write.table(xutong2cgnhw$subject_id, "topmed_cg_nhw_sample.txt", quote=F, row.names=F, col.names=F)
+write.table(xutong2cgaa$subject_id, "topmed_cg_aa_sample.txt", quote=F, row.names=F, col.names=F)
+
+pheno2 = pheno[pheno$IID %in% xutong2$subject_id,]
+nhw = pheno2[pheno2$IID %in% xutong2cgnhw$subject_id,]
+aa = pheno2[pheno2$IID %in% xutong2cgaa$subject_id,]
+write.table(paste(nhw$sid, nhw$sid, sep="_"), "topmed_imputedID_cg_nhw_sample.txt", quote=F, row.names=F, col.names=F)
+write.table(paste(aa$sid, aa$sid, sep="_"), "topmed_imputedID_cg_aa_sample.txt", quote=F, row.names=F, col.names=F)
+```
+
+# SNPs of interest
+```{r SNPs}
+#snps = read.csv("/udd/redaq/topmed_Ani_snplist.csv")
+snps = read.csv("/udd/redaq/TOPMED/table2variants.csv", header=F, skip=1)
+colnames(snps) = c("trait", "stratum", "race", "chr", "pos", "rsid", "alleles", "MAF", "hetCount", "beta" ,"SE", "pvalue", "gene")
+snps$pos2 = as.integer(sapply(snps$pos, function(x) gsub(",", "", x)))
+##  length(unique(snps$rsid))
+snps3 = snps[!duplicated(snps$rsid),]
+snps3 = snps3[order(snps3$chr),]
+
+snps=snps3
+## write set range file
+lines = ""
+for(i in 1:nrow(snps))
+{   
+  lines = paste0(lines, paste(snps$chr[i], snps$pos2[i],  snps$pos2[i],  snps$rsid[i], sep="\t" ), sep="\n")
+}
+write.table(lines, "check_SNPs_0107.txt", quote=F, row.names=F, col.names=F)
+
+
+### liftover to hg19
+#snps$chr = as.integer(ifelse(snps$chr=="X", 23, snps$chr))
+temp = snps[order(snps$chr, snps$pos),]
+temp$end = temp$pos2+1
+temp$chr2 = paste0("chr", temp$chr)
+write.table(temp[,c("chr2", "pos2", "end", "rsid")], "~/TOPMED/checkImputed/snpsInterest_0107.txt", quote=F, row.names=F, col.names=F)
+ cmd = paste0("/udd/redaq//tools/liftOver ~/TOPMED/checkImputed/snpsInterest_0107.txt ~/tools/hg38ToHg19.over.chain.gz snpsInterest_hg19_0107.txt snpsInterest_38to19unlifted_0107.txt")
+ system(cmd)
+lifted = read.table("snpsInterest_hg19_0107.txt")
+snps$rsid = sapply(snps$rsid, function(x) gsub(" ", "", x, fixed=T))
+snps2 = merge(snps, lifted[,-3], by.x="rsid", by.y="V4", sort=F)
+```
+
+
+# Extract from imputed data
+```{r extractimputed}
+newsnps = data.table(chr= snps$chr, pos = snps$pos2)
+write.table(newsnps, "/udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_imputed_0107.txt", quote=F, row.names=F, col.names=F, sep="\t")
+
+newsnps = data.table(chr= snps2$chr, pos = snps2$V2)
+write.table(newsnps, "/udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_imputed_hg19_0107.txt", quote=F, row.names=F, col.names=F, sep="\t")
+
+chroms = unique(snps$chr)
+for(chr in chroms)
+{ file = paste0("/proj/regeps/regep00/studies/COPDGene/data/imputed/CgNhw-HRC1-1_GrCh38/cgNhwHrc11chr", chr, ".dose.vcf.gz")
+  cmd = paste0("bcftools view -S /udd/redaq/TOPMED/checkImputed/topmed_imputedID_cg_nhw_sample.txt -R /udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_imputed_0107.txt --force-samples -c 1 -O u ", file, " | bcftools annotate --set-id +'%CHROM:%POS:%REF:%FIRST_ALT' > /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chr, "_nhw_snpsInterest_0107.vcf")
+  system(cmd)
+  
+  file = paste0("/proj/regeps/regep00/studies/COPDGene/data/imputed/CgAa-HRC-1-1/raw/cgAaHRC11chr", chr, ".dose.vcf.gz")
+  cmd = paste0("bcftools view -S /udd/redaq/TOPMED/checkImputed/topmed_imputedID_cg_aa_sample.txt -R /udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_imputed_hg19_0107.txt --force-samples -c 1 -O u ", file, " | bcftools annotate --set-id +'%CHROM:%POS:%REF:%FIRST_ALT' > /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chr, "_aa_snpsInterest_0107.vcf")
+  system(cmd)
+}
+
+### no X chrom
+header = read.table("genoImputed_chr11_aa_snpsInterest_0107.vcf", skip=18, nrow=1, comment.char="")
+subjects = header[1,-c(1:9)]
+subjD = sapply(subjects, function(x) strsplit(x, split="_")[[1]][1])
+length(subjD)
+
+header = read.table("/proj/regeps/regep00/studies/COPDGene/data/imputed/CgNhw-HRC1-1_GrCh38/cgNhwHrc11chr11.dose.vcf.gz", skip=15, nrow=1, comment.char="")
+subjects = header[1,-c(1:9)]
+subjD = sapply(subjects, function(x) strsplit(x, split="_")[[1]][1])
+length(subjD)
+sum(subjD %in% nhw$sid)
+nhw$sid[!nhw$sid %in% subjD] ## 8 subjects in topmed not in the imputed file
+
+
+### collapse these vcfs
+bgzip -c /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_nhw_snpsInterest_0107.vcf
+tabix -p vcf /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_nhw_snpsInterest_0107.vcf.gz
+cp /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_nhw_snpsInterest_0107.vcf.gz genoImputed_chr1_concat_nhw_0110.vcf.gz
+tabix -p vcf genoImputed_chr1_concat_nhw_0110.vcf.gz
+for(chrN in 2:length(chroms))
+{
+  cmd1 = paste0("bgzip /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chroms[chrN], "_nhw_snpsInterest_0107.vcf")
+  system(cmd1)
+  cmd1 = paste0("tabix -p vcf  /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chroms[chrN], "_nhw_snpsInterest_0107.vcf.gz")
+  system(cmd1)
+  cmd2 = paste0("bcftools concat genoImputed_chr", chroms[chrN-1], "_concat_nhw_0110.vcf.gz /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chroms[chrN], "_nhw_snpsInterest_0107.vcf.gz > genoImputed_chr", chroms[chrN], "_concat_nhw_0110.vcf.gz")
+  system(cmd2)
+  
+}
+
+
+bgzip -c /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_aa_snpsInterest_0107.vcf > /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_aa_snpsInterest_0107.vcf.gz
+tabix -p vcf /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_aa_snpsInterest_0107.vcf.gz
+cp /udd/redaq/TOPMED/checkImputed/genoImputed_chr1_aa_snpsInterest_0107.vcf.gz genoImputed_chr1_concat_aa_0110.vcf.gz
+tabix -p vcf genoImputed_chr1_concat_aa_0110.vcf.gz
+for(chrN in 2:length(chroms))
+{
+  cmd1 = paste0("bgzip /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chroms[chrN], "_aa_snpsInterest_0107.vcf")
+  system(cmd1)
+  cmd1 = paste0("tabix -p vcf  /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chroms[chrN], "_aa_snpsInterest_0107.vcf.gz")
+  system(cmd1)
+  cmd2 = paste0("bcftools concat genoImputed_chr", chroms[chrN-1], "_concat_aa_0110.vcf.gz /udd/redaq/TOPMED/checkImputed/genoImputed_chr", chroms[chrN], "_aa_snpsInterest_0107.vcf.gz > genoImputed_chr", chroms[chrN], "_concat_aa_0110.vcf.gz")
+  system(cmd2)
+  
+} 
+
+
+vcf <- fread("genoImputed_chr9_concat_nhw_0110.vcf.gz", data.table=F, skip=66)
+
+vcf2 <- fread("genoImputed_chr9_concat_aa_0110.vcf.gz", data.table=F, skip=41)
+```
+
+# Extract from COPDGene topmed data
+```{r extractTOPMED}
+snps$chr2 = ifelse(snps$chr=="X", 23, snps$chr)
+newsnps = data.table(chr=paste0("chr", snps$chr2), pos = snps$pos2)
+write.table(newsnps, "/udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_0107.txt", quote=F, row.names=F, col.names=F, sep="\t")
+header= read.table("/proj/regeps/regep00/studies/COPDGene/data/wgs/TopMed_freeze.5b/minDP0/freeze.5b.chr22.pass_and_fail.gtonly.minDP0.bcf", skip=3404, nrow=1, comment.char="")
+chroms = unique(snps$chr2)
+for(chr in chroms)
+{ files = paste0("/proj/regeps/regep00/studies/COPDGene/data/wgs/TopMed_freeze.5b/minDP0/freeze.5b.chr", chr, ".pass_and_fail.gtonly.minDP0.bcf")
+  cmd = paste0("bcftools view -S /udd/redaq/TOPMED/checkImputed/topmed_cg_nhw_sample.txt -R /udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_0107.txt --force-samples -c 1 -O u ", files, " | bcftools annotate --set-id +'%CHROM:%POS:%REF:%FIRST_ALT' > /udd/redaq/TOPMED/checkImputed/geno_chr", chr, "_nhw_snpsInterest_0107.vcf")
+  system(cmd)
+  
+   cmd = paste0("bcftools view -S /udd/redaq/TOPMED/checkImputed/topmed_cg_aa_sample.txt -R /udd/redaq/TOPMED/checkImputed/snpsPos_bcftools_0107.txt --force-samples -c 1 -O u ", files, " | bcftools annotate --set-id +'%CHROM:%POS:%REF:%FIRST_ALT' > /udd/redaq/TOPMED/checkImputed/geno_chr", chr, "_aa_snpsInterest_0107.vcf")
+  system(cmd)
+}
+
+## convert to plink
+for(chr in chroms)
+{
+  files = paste0("/udd/redaq/TOPMED/checkImputed/geno_chr", chr, "_nhw_snpsInterest_0107.vcf")
+  cmd = paste0("plink2 --vcf ", files, " --make-bed --out /udd/redaq/TOPMED/checkImputed/topmed_chr", chr, "_nhw_snpsInterest_0107")
+  system(cmd)
+  
+   files = paste0("/udd/redaq/TOPMED/checkImputed/geno_chr", chr, "_aa_snpsInterest_0107.vcf")
+  cmd = paste0("plink2 --vcf ", files, " --make-bed --out /udd/redaq/TOPMED/checkImputed/topmed_chr", chr, "_aa_snpsInterest_0107")
+  system(cmd)
+
+}
+## merge and extract only the right ids
+mergeList = ""
+## chr6 no variant in the nhw
+for(chr in chroms[-c(1,13)])
+{ file = paste0("/udd/redaq/TOPMED/checkImputed/topmed_chr", chr, "_nhw_snpsInterest_0107")
+  mergeList= paste(mergeList, file, sep="\n")
+}
+write.table(mergeList, "/udd/redaq/TOPMED/checkImputed/mergeList_0107.txt", quote=F, row.names=F, col.names=F)
+
+mergeList = ""
+for(chr in chroms[-c(1,13)])
+{ file = paste0("/udd/redaq/TOPMED/checkImputed/topmed_chr", chr, "_aa_snpsInterest_0107")
+  mergeList= paste(mergeList, file, sep="\n")
+}
+write.table(mergeList, "/udd/redaq/TOPMED/checkImputed/mergeList_aa_0107.txt", quote=F, row.names=F, col.names=F)
+
+
+file = paste0("/udd/redaq/TOPMED/checkImputed/topmed_chr1_nhw_snpsInterest_0107")
+cmd = paste0("plink2 --bfile ", file, " --merge-list /udd/redaq/TOPMED/checkImputed/mergeList_0107.txt --make-bed --out topmed_nhw_snps_0107")
+system(cmd)
+file ="topmed_nhw_snps_0107"
+cmd = paste0("plink2 --bfile ", file, " --recode A --out topmed_nhw_snps_0107")
+system(cmd)
+
+
+file = paste0("/udd/redaq/TOPMED/checkImputed/topmed_chr1_aa_snpsInterest_0107")
+cmd = paste0("plink2 --bfile ", file, " --merge-list /udd/redaq/TOPMED/checkImputed/mergeList_aa_0107.txt --make-bed --out topmed_aa_snps_0107")
+system(cmd)
+file ="topmed_aa_snps_0107"
+cmd = paste0("plink2 --bfile ", file, " --recode A --out topmed_aa_snps_0107")
+system(cmd)
+
+cp genoImputed_chr9_concat_aa_0110.vcf.gz genoImputed_aa_0110.vcf.gz
+cp genoImputed_chr9_concat_nhw_0110.vcf.gz genoImputed_nhw_0110.vcf.gz
+
+plink2 --vcf genoImputed_aa_0110.vcf.gz --make-bed --out genoImputed_aa_0110
+plink2 --vcf genoImputed_nhw_0110.vcf.gz --make-bed --out genoImputed_nhw_0110
+
+fam = read.table("genoImputed_aa_0110.fam")
+fam$ID2 = pheno$IID[match(fam$V2, pheno$sid)]
+fam2 = fam[,c("ID2", "ID2", "V3", "V4", "V5", "V6")]
+write.table(fam2, "genoImputed_aa_0110.fam", quote=F, row.names=F, col.names=F)
+
+
+fam = read.table("genoImputed_nhw_0110.fam")
+fam$ID2 = pheno$IID[match(fam$V2, pheno$sid)]
+fam2 = fam[,c("ID2", "ID2", "V3", "V4", "V5", "V6")]
+write.table(fam2, "genoImputed_nhw_0110.fam", quote=F, row.names=F, col.names=F)
+
+## back to vcf file
+plink2 --bfile genoImputed_nhw_0110 --recode vcf-iid --out genoImputed_nhw_0110_concat
+plink2 --bfile genoImputed_aa_0110 --recode vcf-iid --out genoImputed_aa_0110_concat
+```
+
+
+# check concordance
+```{r check}
+## imputed
+library(data.table)
+topmednhw = fread("topmed_nhw_snps_0107.raw", header=T,data.table=F)
+topmednhw=topmednhw[,-c(13, 15)]
+snps2$vid = paste(snps2$V1, snps2$pos2, sep=":" )
+snps2$vid_aa = paste(snps2$V1, snps2$V2, sep=":" )
+variant_id = sapply(colnames(topmednhw)[-c(1:6)], function(x) strsplit(x, split="_")[[1]][1])
+variant_id2 = sapply(variant_id, function(x) ifelse(grepl(":", x), substr(x, 1, nchar(x)-4), x))
+rsid = sapply(variant_id2,function(x) if(!grepl("rs", x)) { snps2$rsid[match(x, snps2$vid)]} else {x})
+colnames(topmednhw)[-c(1:6)] = rsid
+topmednhw = merge(topmednhw, nhw[,c("IID", "sid")], by.x="IID", by.y="IID", sort=F)
+
+
+topmedaa = fread("topmed_aa_snps_0107.raw", header=T,data.table=F)
+bim = fread("topmed_aa_snps_0107.bim", data.table=F)
+topmedaa = topmedaa[,-c(10)]
+snps2$allele1 = sapply(snps2$alleles, function(x) strsplit(x, split="/")[[1]][1])
+snps2$allele2 = sapply(snps2$alleles, function(x) strsplit(x, split="/")[[1]][2])
+indexx = merge(bim, snps2, by.x="V4", by.y="pos2", sort=F)
+index2 = which(indexx$V5==indexx$allele1| indexx$V6==indexx$allele1)
+### replacing topmed columns
+variant_id = sapply(colnames(topmedaa)[-c(1:6)], function(x) strsplit(x, split="_")[[1]][1])
+variant_id2 = sapply(variant_id, function(x) sub(":", "-", x))
+variant_id3 = sapply(variant_id2, function(x) strsplit(x, split=":")[[1]][1])
+variant_id4 = sapply(variant_id3, function(x) sub("-", ":", x))
+rsid = sapply(variant_id4,function(x) if(!grepl("rs", x)) { snps2$rsid[match(x, snps2$vid)]} else {x})
+colnames(topmedaa)[-c(1:6)] = rsid
+topmedaa = merge(topmedaa, aa[,c("IID", "sid")], by.x="IID", by.y="IID", sort=F)
+
+
+
+for(chr in chroms)
+{
+  if(chr!="23" & chr!="5" & chr!="6")
+  {
+  impute = fread(paste0("/udd/redaq/TOPMED/checkImputed/genoImputed_chr", chr, "_nhw_snpsInterest_0107.vcf"), data.table=F)
+  snptemp = snps2[match(impute$POS, snps2$pos2),]$rsid
+  subjects = sapply(colnames(impute)[ -c(1:9)], function(x) strsplit(x, split="_")[[1]][1])
+  genotypes =  apply(impute[, -c(1:9)],1, function(x) sapply(x, function(y) strsplit(y, split=":")[[1]][2]))
+  subIndex = match(topmednhw$sid, subjects)
+  topmednhw[,paste0(snptemp, "_imp")] = genotypes[subIndex,]
+  }
+}
+## SNP on chromsome 5, 6 and X not found in imputed data in nhw
+for(chr in chroms)
+{
+  if(chr!="23"&chr!="6")
+  {
+  
+  
+  impute = fread(paste0("/udd/redaq/TOPMED/checkImputed/genoImputed_chr", chr, "_aa_snpsInterest_0107.vcf"), data.table=F)
+  snptemp = snps2[match(impute$POS, snps2$V2),]$rsid
+  subjects = sapply(colnames(impute)[ -c(1:9)], function(x) strsplit(x, split="_")[[1]][1])
+  genotypes =  apply(impute[, -c(1:9)],1, function(x) sapply(x, function(y) strsplit(y, split=":")[[1]][2]))
+  subIndex = match(topmedaa$sid, subjects)
+  topmedaa[,paste0(snptemp, "_imp")] = genotypes[subIndex,]
+  }
+
+}
+## SNP on chromsome 6 and X not found in imputed data
+snps2$r2_nhw = snps2$r2_aa=NA
+present_nhw = sapply(snps2$rsid, function(x) any(grepl(x, colnames(topmednhw)[22:33])))
+for(snp in unique(snps2$rsid[present_nhw]))
+{
+  nhwtemp = topmednhw[, grepl(snp, colnames(topmednhw))]
+  snps2[snps2$rsid==snp,]$r2_nhw = cor(as.numeric(nhwtemp[,1]), as.numeric(nhwtemp[,2]), use="pairwise.complete.obs")^2
+}
+
+present_aa = sapply(snps2$rsid, function(x) any(grepl(x, colnames(topmedaa)[24:37])))
+
+for(snp in unique(snps2$rsid[present_aa]))
+{
+  aatemp = topmedaa[, grepl(snp, colnames(topmedaa))]
+  snps2[snps2$rsid==snp,]$r2_aa = cor(as.numeric(aatemp[,1]), as.numeric(aatemp[,2]), use="pairwise.complete.obs" )^2
+  
+}
+write.csv(snps2, "concordance_imputeHRC_topmed_COPDGene_0107.csv")
+write.csv(snps2[,-c(19:22)], "concordance_imputeHRC_topmed_COPDGene_clean_0107.csv")
+
+```
+
+
+# check eQTL
+```{r eQTL}
+ciseqtl = fread("/proj/regeps/regep00/studies/COPDGene/data/rnaseq/BLOOD/RESULTS/FREEZE2/eQTL/08_15_18_TopMed5b_NHW/cis_output_file.txt", header=T, data.table=F, nrow=200000)
+
+snps3 = merge(snps2, ciseqtl, by.x="rsid", by.y="SNP", sort=F)
+sum(snps2$rsid %in% ciseqtl$SNP)
+sum(snps2$rsid %in% ciseqtl$SNP)
+
+trans = fread("/proj/regeps/regep00/studies/COPDGene/data/rnaseq/BLOOD/RESULTS/FREEZE2/eQTL/08_15_18_TopMed5b_NHW/trans_output_file.txt", header=T, data.table=F)
+snps3 = merge(snps2, trans, by.x="rsid", by.y="SNP", sort=F)
+sum(snps2$rsid %in% trans$SNP)
+
+
+ciseqtl = fread("/proj/regeps/regep00/studies/COPDGene/data/rnaseq/BLOOD/RESULTS/FREEZE2/eQTL/08_15_18_TopMed5b_AA/cis_output_file.txt", header=T, data.table=F, nrow=200000)
+
+snps3 = merge(snps2, ciseqtl, by.x="rsid", by.y="SNP", sort=F)
+sum(snps2$rsid %in% ciseqtl$SNP)
+
+trans = fread("/proj/regeps/regep00/studies/COPDGene/data/rnaseq/BLOOD/RESULTS/FREEZE2/eQTL/08_15_18_TopMed5b_AA/trans_output_file.txt", header=T, data.table=F)
+snps3 = merge(snps2, trans, by.x="rsid", by.y="SNP", sort=F)
+sum(snps2$rsid %in% trans$SNP)
+
+
+
+```
+
+
+# extract WGSA annotation
+```{r wgsa}
+snps2$chr2 = ifelse(snps2$chr=="X", 23, snps2$chr)
+newsnps = data.table(chr=snps2$chr2, pos = snps2$pos2, pos = snps2$pos2+1)
+write.table(newsnps,  "/udd/redaq/TOPMED/checkImputed/snpsSig_0107.bed", quote=F, row.names=F, col.names=F)
+chroms=unique(newsnps$chr)
+for(chr in chroms)
+{ cat(chr)
+  cmd = paste0("/udd/reliu/anaconda2/bin/python2.7 /udd/reliu/WGSA_extraction/WGSAextraction_freeze5.py --fileNum 1 --annotationFile /proj/regeps/regep00/studies/COPDGene/analyses/redaq/Freeze5b/Annotation/freeze.5.chr", chr, ".pass_and_fail.sites.gz.snp.general.annotated.bgz --extract /udd/redaq/TOPMED/checkImputed/snpsSig_0107.bed --configureFile /udd/redaq/TOPMED/checkImputed/columnsNeeded_wgsa.txt --out /udd/redaq/TOPMED/checkImputed/wgsa_output_0107.chr", chr, ".txt")
+  system(cmd)
+}
+
+info = c()
+for(chr in chroms)
+{
+  dd = fread(paste0("/udd/redaq/TOPMED/checkImputed/wgsa_output_0107.chr", chr, ".txt"), header=T, data.table=F)
+  info= rbind(info, dd)
+  
+}
+
+snps2$ref = sapply(snps2[,7], function(x) strsplit(x, split="/")[[1]][1])
+snps2$alt = sapply(snps2[,7], function(x) strsplit(x, split="/")[[1]][2])
+
+snps3 = merge(snps2, info, by.x="pos2", by.y="POS", sort=F)
+snps3 = snps3[snps3$ref==snps3$REF & snps3$alt == snps3$ALT | (snps3$ref==snps3$ALT & snps3$alt == snps3$REF) | snps3$pos==77268853,]
+snps2[ which(!snps2$pos %in% snps3$pos),]
+
+write.csv(snps3, "/udd/redaq/TOPMED/checkImputed/wgsa_output_0107.csv")
+
+```
+
+# check UKbiobank results
+
+```{r checkuk}
+ukbio = fread("/udd/redaq/ukbModLeic_withEVERSMK_cov_ICGC_civicized1_filtered_12plus.dn8.gz", header=T, data.table=F)
+temp = ukbio[ukbio$rsid %in% snps2$rsid,]
+temp2 = ukbio[ukbio$pos %in% snps2$V2,]## we don't have chr17
+snps2[!snps2$rsid %in% ukbio$rsid,]
+write.csv(temp, "/udd/redaq/TOPMED/checkImputed/ukbio_topSNPs_0107.csv")
+```

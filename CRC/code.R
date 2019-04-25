@@ -48,29 +48,6 @@ ped.proband <- ped[proband,]
 ped.proband <- cbind(ped.proband,FH)
 ped.proband$CE_redFDR01 <- (ped.proband$CE_redFDR-min(ped.proband$CE_redFDR))/(max(ped.proband$CE_redFDR)-min(ped.proband$CE_redFDR))
 
-## Cox ph model
-# 0. reference model
-res.FH0 <- coxph(Surv(time,event) ~ factor(SEX),data=ped.proband)
-
-# 1. Family history of CRC
-res.FH1 <- coxph(Surv(time,event) ~ factor(SEX)+factor(FH1),data=ped.proband)
-anova(res.FH0,res.FH1)
-
-# 2. No. of affected FDRs
-res.FH2 <- coxph(Surv(time,event) ~ factor(SEX)+factor(FH2),data=ped.proband)
-anova(res.FH0,res.FH2)
-
-# 3. Age at diagnosis of affected FDR
-res.FH3 <- coxph(Surv(time,event) ~ factor(SEX)+factor(FH3),data=ped.proband)
-anova(res.FH0,res.FH3)
-
-# 4. Proportion of affected FDR
-res.FH4 <- coxph(Surv(time,event) ~ factor(SEX)+prop.FDR,data=ped.proband)
-anova(res.FH0,res.FH4)
-
-# 5. CE
-res.FH5 <- coxph(Surv(time,event) ~ factor(SEX)+CE_redFDR01,data=ped.proband)
-anova(res.FH0,res.FH5)
 
 # 5. categorized CE
 get.result3 <- function(ce){
@@ -96,7 +73,7 @@ dev.off()
 
 
 
-
+### Cutoff 1
 prop.tab <- table(FH[,3])
 props <- sort(as.numeric(names(prop.tab)))[-1]
 
@@ -116,54 +93,31 @@ colnames(res1) <- c('Cutoff','Beta','exp(beta)','SE(beta)','Z-value','P-value','
 setwd('/home2/wjkim/project/CRC/20180426/3.coxph/2.output')
 write.csv(res1,'sep1.csv',row.names=F,quote=F)
 
+#### Cutoff2
 get.result2 <- function(pp1,pp2){
 	FH4 <- rep(0,nrow(FH))
 	FH4[FH[,3]>=pp1 & FH[,3]<pp2] <- 1
 	FH4[FH[,3]>=pp2] <- 2
 
 	tmp.dat <- cbind(ped.proband,FH4)
+	tmp.dat <- tmp.dat[tmp.dat$time<81,]
 	# 5. Categorized #4
+	res.FH0 <- coxph(Surv(time,event) ~ factor(SEX),data=tmp.dat)
 	res.FH5 <- coxph(Surv(time,event) ~ factor(SEX)+factor(FH4),data=tmp.dat)
 	return(cbind(prop1=pp1,prop2=pp2,summary(res.FH5)$coef[2:3,],Pvalue=anova(res.FH0,res.FH5)$P[2],AIC=AIC(res.FH5)))
 }
 
-props1 <- props[6:10]
-props2 <- props[16:17]
-
-res2.1 <- do.call(rbind,lapply(props1,get.result2,pp2=props2[1]))
-res2.2 <- do.call(rbind,lapply(props1,get.result2,pp2=props2[2]))
-res2 <- rbind(res2.1,res2.2)
+props2 <- props[(which(props==0.125)+2):length(props)]
+res2 <- do.call(rbind,lapply(props2,get.result2,pp1=0.125))
 setwd('/home2/wjkim/project/CRC/20180426/3.coxph/2.output')
 write.csv(res2,'sep2.csv',row.names=F,quote=F)
 
-
-
-
-get.result4 <- function(pp,nn){
-	FH4 <- rep(0,nrow(FH))
-	FH4[FH[,3]<pp & FH[,1]<nn] <- 1
-	FH4[FH[,3]>=pp & FH[,1]<nn] <- 2
-	FH4[FH[,3]>=pp & FH[,1]>=nn] <- 3
-
-	tmp.dat <- cbind(ped.proband,FH4)
-	# 5. Categorized #4
-	res.FH5 <- coxph(Surv(time,event) ~ factor(SEX)+factor(FH4),data=tmp.dat)
-	return(cbind(n_FDR=nn,prop=pp,summary(res.FH5)$coef[2:4,],Pvalue=anova(res.FH0,res.FH5)$P[2]))
-}
-
-res1 <- t(sapply(props,get.result1))
-res1 <- cbind(props,res1)
-setwd('/home2/wjkim/project/CRC/20180426/3.coxph/')
-write.csv(res1,'2.output/sep1.csv',row.names=F,quote=F)
-write.csv(ped.proband,'1.input/CRC_coxph.csv',row.names=F,quote=F)
-
-######## coxph CRC ???? ????
-setwd('/home2/wjkim/project/CRC/20180426/3.coxph/')
-ped <- read.csv('1.input/CRC_coxph.csv',head=T,stringsAsFactor=F)
+ped <- ped.proband
 ped$FH4 <- 0
 ped$FH4[ped$prop.FDR>=0.125 & ped$prop.FDR<0.3] <- 1
 ped$FH4[ped$prop.FDR>=0.3] <- 2
-write.csv(ped,'1.input/CRC_coxph.csv',row.names=F,quote=F)
+setwd('/home2/wjkim/paper/CRC/0.data')
+write.csv(ped,'CRC_coxph.csv',row.names=F,quote=F)
 
 
 ####### coxph
@@ -186,6 +140,23 @@ out="./FH4_under80.html";res.FH4 <- REx_Coxph(new.CRC, time1='time', event='even
 
 res.FH0 <- coxph(Surv(time,event) ~ factor(SEX),data=new.CRC)
 res.FH2 <- coxph(Surv(time,event) ~ factor(SEX)+factor(FH2),data=new.CRC)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -231,22 +202,6 @@ get.result1 <- function(pp){
 
 res1 <- t(sapply(seq(0,0.3,0.025),get.result1))
 res1 <- cbind(seq(0,0.3,0.025),res1)
-
-## table 7
-get.result2 <- function(pp1,pp2){
-	temp.FH <- rep(0,nrow(new.CRC))
-	temp.FH[new.CRC[,'prop.FDR']>=pp1 & new.CRC[,'prop.FDR']<pp2] <- 1
-	temp.FH[new.CRC[,'prop.FDR']>=pp2] <- 2
-
-	tmp.dat <- cbind(new.CRC,temp.FH)
-	# 5. Categorized #4
-	res.FH5 <- coxph(Surv(time,event) ~ factor(SEX)+factor(temp.FH),data=tmp.dat)
-	return(cbind(prop1=pp1,prop2=pp2,summary(res.FH5)$coef[2:3,],Pvalue=anova(res.FH0,res.FH5)$P[2]))
-}
-
-res2 <- do.call(rbind,lapply(seq(0.2,0.325,0.025),get.result2,pp1=0.125))
-setwd('/home2/wjkim/project/CRC/20180426/3.coxph/2.output')
-write.csv(res2,'sep2.csv',row.names=F,quote=F)
 
 
 
